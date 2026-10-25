@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Ryu Kod Macerası</title>
+  <meta name="description" content="Ryu'nun Kod Macerası: blokları diz ya da kodu yaz; Ryu zıplasın, Hadoken atsın, kutuları kırsın ve bayrağa ulaşsın!">
+  <meta name="theme-color" content="#ffe9d6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1a1424" media="(prefers-color-scheme: dark)">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@600;700;800&family=Press+Start+2P&family=JetBrains+Mono:wght@500;700&display=swap">
+  <link rel="stylesheet" href="css/ryu.css">
+</head>
+<body>
+  <!-- Simgeler -->
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-forward" viewBox="0 0 24 24"><path d="M3.5 12H19"/><path d="M12.5 5l7 7-7 7"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M20.5 12H5"/><path d="M11.5 5 4.5 12l7 7"/></symbol>
+    <symbol id="i-jump" viewBox="0 0 24 24"><path d="M3.5 19.5C5 9 13 5.5 18.5 9.5"/><path d="M13.5 9.6l5 .1.4-5"/><path d="M3 21h6" stroke-width="2"/></symbol>
+    <symbol id="i-punch" viewBox="0 0 24 24"><path d="M3 10.5h5.5V8.2a2 2 0 0 1 2-2h7.8a2.7 2.7 0 0 1 2.7 2.7v6.2a3.6 3.6 0 0 1-3.6 3.6H11a2.5 2.5 0 0 1-2.5-2.5V15H3z" fill="currentColor" fill-opacity=".25"/><path d="M13 6.2v4.3M16.6 6.2v4.3M8.5 12.5h6"/></symbol>
+    <symbol id="i-hadoken" viewBox="0 0 24 24"><circle cx="15.5" cy="12" r="5.5" fill="currentColor" fill-opacity=".3"/><path d="M15.5 9a3 3 0 1 1-3 3"/><path d="M2.5 8.5h6M1.5 12h7M2.5 15.5h6"/></symbol>
+    <symbol id="i-shoryuken" viewBox="0 0 24 24"><path d="M9.5 21v-7.5H7.3a1.8 1.8 0 0 1-1.8-1.8V6.2A2.7 2.7 0 0 1 8.2 3.5h4.6a2.7 2.7 0 0 1 2.7 2.7v5.5a1.8 1.8 0 0 1-1.8 1.8h-.2V21" fill="currentColor" fill-opacity=".25"/><path d="M18.5 9.5c1.5 1.4 2 3 1.4 4.6M20 4.5c1.5 1 2.2 2.4 2.2 4"/></symbol>
+    <symbol id="i-tatsumaki" viewBox="0 0 24 24"><path d="M3 5h18"/><path d="M5 9.2h14"/><path d="M7.5 13.4h9"/><path d="M10 17.6h4.5"/><path d="M11.5 21.5h2"/></symbol>
+    <symbol id="i-loop" viewBox="0 0 24 24"><path d="M16.5 2.5 20 6l-3.5 3.5"/><path d="M4 11.5V10a4 4 0 0 1 4-4h12"/><path d="M7.5 21.5 4 18l3.5-3.5"/><path d="M20 12.5V14a4 4 0 0 1-4 4H4"/></symbol>
+    <symbol id="i-combo" viewBox="0 0 24 24"><path d="M13.5 2.5 5 13.5h6l-1 8 8.5-11h-6z" fill="currentColor" fill-opacity=".3"/></symbol>
+    <symbol id="i-coin" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="7.5" ry="9" fill="currentColor" stroke-width="2"/><path d="M12 7.5v9" stroke="#000" stroke-opacity=".25" stroke-width="2.4"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7.5 4.8v14.4a.8.8 0 0 0 1.2.7l11.6-7.2a.8.8 0 0 0 0-1.4L8.7 4.1a.8.8 0 0 0-1.2.7z" fill="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="2.5" fill="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.3-5.4"/><path d="M4.5 3.8v4.6h4.6"/></symbol>
+    <symbol id="i-broom" viewBox="0 0 24 24"><path d="M20.5 3.5 13 11"/><path d="M10.6 9.9l3.5 3.5-1 4.8a1 1 0 0 1-1.4.7L4 15.6a1 1 0 0 1-.3-1.6l2.1-2.1z" fill="currentColor" stroke-width="2"/><path d="M7 17l2.2-2.4M10 18.4l1.6-2" stroke-width="1.6"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v5.5M14 11v5.5"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20z"/><path d="M9 4v13.5M15 6.5V20"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M8.5 7.5h7M8.5 11h5"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2.6l2.9 5.9 6.4.9-4.6 4.5 1.1 6.4L12 17.3l-5.8 3 1.1-6.4-4.6-4.5 6.4-.9z" fill="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/><rect x="5" y="10.5" width="14" height="10" rx="2.5" fill="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+    <symbol id="i-blocks" viewBox="0 0 24 24"><rect x="3" y="3.5" width="8" height="8" rx="2"/><rect x="13" y="3.5" width="8" height="8" rx="2"/><rect x="3" y="13.5" width="8" height="8" rx="2"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="M8.5 6.5 3 12l5.5 5.5M15.5 6.5 21 12l-5.5 5.5M13.5 4l-3 16"/></symbol>
+    <symbol id="i-robot" viewBox="0 0 24 24"><rect x="4" y="7.5" width="16" height="12" rx="4"/><path d="M12 7.5V4"/><circle cx="12" cy="3.5" r="1.3" fill="currentColor"/><circle cx="9" cy="13.5" r="1.3" fill="currentColor"/><circle cx="15" cy="13.5" r="1.3" fill="currentColor"/></symbol>
+  </svg>
+
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-logo" viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M8 18 5 10l6 3 1-7 5 5 4-7 3 7 5-4v8z" fill="#3b2416"/>
+        <circle cx="20" cy="22" r="12" fill="#f5bf8e" stroke="#1d1626" stroke-width="2"/>
+        <path d="M8 13l7 2 4-6 3 6 6-3 3 8H8z" fill="#3b2416" stroke="#1d1626" stroke-width="1.6" stroke-linejoin="round"/>
+        <rect x="7" y="15.5" width="26" height="4.6" rx="1.4" fill="#e3262f" stroke="#1d1626" stroke-width="1.6"/>
+        <path d="M8 18c-3 0-5 2-6 5m6-4c-2 1-3 3-3 6" stroke="#e3262f" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+        <rect x="22" y="23" width="3" height="3.4" rx=".8" fill="#1d1626"/>
+        <path d="M21 21.6l5 .8" stroke="#1d1626" stroke-width="1.6" stroke-linecap="round"/>
+        <path d="M22 30.5h4" stroke="#1d1626" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <span class="brand-name">Ryu<span class="brand-sub">Kod Macerası</span></span>
+    </div>
+    <div class="level-pill" aria-live="polite">
+      <span class="level-num" id="levelNum">Bölüm 1</span>
+      <span class="stars" id="levelStars" aria-label="0 yıldız"></span>
+    </div>
+    <button type="button" class="btn btn-top" id="btnHelp" aria-haspopup="dialog" title="Ryu'nun hareketleri">
+      <svg class="ico" aria-hidden="true"><use href="#i-book"/></svg>
+      <span class="btn-label">Hareketler</span>
+    </button>
+    <button type="button" class="btn btn-top" id="btnLevels" aria-haspopup="dialog">
+      <svg class="ico" aria-hidden="true"><use href="#i-map"/></svg>
+      <span class="btn-label">Bölümler</span>
+    </button>
+    <a class="btn btn-top btn-other" href="index.html" title="Diğer oyun: KodRobot">
+      <svg class="ico" aria-hidden="true"><use href="#i-robot"/></svg>
+      <span class="btn-label">KodRobot</span>
+    </a>
+  </header>
+
+  <main class="game">
+    <!-- Sol: görev ve sahne -->
+    <section class="stage" aria-label="Oyun alanı">
+      <div class="task card">
+        <div class="task-text">
+          <h1 class="task-title" id="levelTitle">Ryu</h1>
+          <p class="task-desc" id="levelDesc"></p>
+        </div>
+        <div class="task-chips">
+          <span class="chip chip-coin" id="coinChip" hidden title="Toplanan altınlar">
+            <svg class="ico" aria-hidden="true"><use href="#i-coin"/></svg><b id="coinText">0/0</b>
+          </span>
+          <span class="chip chip-combo" id="comboChip" hidden title="Gereken kombo">
+            <svg class="ico" aria-hidden="true"><use href="#i-combo"/></svg><b id="comboText">3'lü kombo</b>
+          </span>
+          <span class="chip chip-par" id="parChip" title="3 yıldız için en fazla bu kadar blok">
+            <span class="chip-stars" aria-hidden="true"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg></span><b id="parText">3 blok</b>
+          </span>
+        </div>
+      </div>
+
+      <div class="board-wrap" id="boardWrap">
+        <canvas id="board" role="img" aria-label="Oyun sahnesi: Ryu, engeller ve bayrak"></canvas>
+        <div class="pan-hint" id="panHint" hidden aria-hidden="true">◀ Sürükle, haritayı gez ▶</div>
+        <div class="bubble" id="bubble" role="status" aria-live="polite" hidden></div>
+      </div>
+    </section>
+
+    <!-- Sağ: bloklar, program, kombo ve düğmeler -->
+    <section class="bench" aria-label="Kod alanı">
+      <div class="card palette-panel" id="palettePanel">
+        <div class="panel-head">
+          <h2>Hareketler</h2>
+          <span class="panel-hint" id="paletteHint">Sürükle ya da dokun</span>
+        </div>
+        <div class="palette" id="palette"></div>
+        <div class="trash" aria-hidden="true">
+          <svg class="ico"><use href="#i-trash"/></svg><span>Sil</span>
+        </div>
+      </div>
+
+      <div class="card program-panel" id="programPanel">
+        <div class="panel-head">
+          <h2>Programım</h2>
+          <div class="mode-switch" role="tablist" aria-label="Kodlama biçimi">
+            <button type="button" role="tab" class="mode-btn" id="modeBlocks" aria-selected="true">
+              <svg class="ico" aria-hidden="true"><use href="#i-blocks"/></svg><span>Bloklar</span>
+            </button>
+            <button type="button" role="tab" class="mode-btn" id="modeCode" aria-selected="false">
+              <svg class="ico" aria-hidden="true"><use href="#i-code"/></svg><span>Kod</span>
+            </button>
+          </div>
+          <span class="counter" id="counter" title="Kullanılan / en fazla blok">0 / 0</span>
+          <button type="button" class="btn btn-soft btn-undo" id="btnUndo" title="Geri al (Ctrl+Z)" disabled>
+            <svg class="ico" aria-hidden="true"><use href="#i-undo"/></svg><span>Geri al</span>
+          </button>
+        </div>
+
+        <div class="blocks-view" id="blocksView">
+          <div class="program-scroll" id="programScroll">
+            <div class="program drop-zone" id="programRoot" data-zone="" role="list" aria-label="Programım"></div>
+            <div class="combo-def" id="comboDef" hidden>
+              <div class="combo-head">
+                <svg class="ico" aria-hidden="true"><use href="#i-combo"/></svg>
+                <span class="combo-title">Kombo serisi</span>
+                <span class="combo-hint" id="comboHint">En fazla 4 blok</span>
+              </div>
+              <div class="combo-body drop-zone" id="comboRoot" data-zone="k" role="list" aria-label="Kombo serisi"></div>
+            </div>
+          </div>
+          <p class="program-tip" id="programTip" hidden>Silmek için bloğa dokun</p>
+        </div>
+
+        <div class="code-view" id="codeView" hidden>
+          <div class="code-editor" id="codeEditor">
+            <div class="code-gutter" id="codeGutter" aria-hidden="true"></div>
+            <div class="code-area">
+              <div class="code-lines" id="codeLines" aria-hidden="true"></div>
+              <pre class="code-hl" id="codeHl" aria-hidden="true"></pre>
+              <textarea class="code-input" id="codeInput" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Kod" aria-describedby="codeStatus"></textarea>
+            </div>
+          </div>
+          <p class="code-status" id="codeStatus" role="status" aria-live="polite"></p>
+        </div>
+
+        <div class="controls">
+          <button type="button" class="btn btn-run" id="btnRun">
+            <svg class="ico" aria-hidden="true"><use href="#i-play"/></svg><span>Başlat</span>
+          </button>
+          <button type="button" class="btn btn-stop" id="btnStop" hidden>
+            <svg class="ico" aria-hidden="true"><use href="#i-stop"/></svg><span>Durdur</span>
+          </button>
+          <button type="button" class="btn btn-soft btn-small" id="btnReset" title="Ryu'yu başa al">
+            <svg class="ico" aria-hidden="true"><use href="#i-reset"/></svg><span>Baştan</span>
+          </button>
+          <button type="button" class="btn btn-soft btn-small" id="btnClear" title="Programı temizle">
+            <svg class="ico" aria-hidden="true"><use href="#i-broom"/></svg><span id="clearLabel">Temizle</span>
+          </button>
+          <button type="button" class="btn btn-soft btn-small btn-speed" id="btnSpeed" aria-label="Hız: yavaş" title="Hız">
+            <span class="speed-ico" id="speedIco" aria-hidden="true">🐢</span><span id="speedLabel">Yavaş</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="drop-marker" id="dropMarker" hidden></div>
+
+  <!-- Bölüm seçimi -->
+  <div class="modal-backdrop" id="levelsModal" hidden>
+    <div class="modal modal-levels" role="dialog" aria-modal="true" aria-labelledby="levelsTitle">
+      <div class="modal-head">
+        <h2 id="levelsTitle">Bölümler</h2>
+        <span class="total-stars" id="totalStars"></span>
+        <button type="button" class="icon-btn" data-close aria-label="Kapat">
+          <svg class="ico" aria-hidden="true"><use href="#i-close"/></svg>
+        </button>
+      </div>
+      <div class="level-grid" id="levelGrid"></div>
+    </div>
+  </div>
+
+  <!-- Hareketler -->
+  <div class="modal-backdrop" id="helpModal" hidden>
+    <div class="modal modal-help" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <div class="modal-head">
+        <h2 id="helpTitle">Ryu'nun Hareketleri</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Kapat">
+          <svg class="ico" aria-hidden="true"><use href="#i-close"/></svg>
+        </button>
+      </div>
+      <div class="help-list" id="helpList"></div>
+      <div class="help-legend">
+        <h3>Engeller</h3>
+        <ul>
+          <li><b>Çukur</b> düşersen biter: zıpla ya da Tatsumaki ile geç.</li>
+          <li><b>Kutu</b> yolu kapatır: yumruk, Hadoken, Shoryuken ya da Tatsumaki kırar.</li>
+          <li><b>Soru kutusu</b> içinde altın var: alttan kafa at.</li>
+          <li><b>Haydut</b> 1 can, <b>Koca</b> 3 can, <b>Patron</b> 4 can. Art arda vuruşlar kombo yapar!</li>
+          <li><b>Kirpi</b> dikenlidir: yalnızca Hadoken yener. <b>Yarasa</b> havada uçar.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Kazanma -->
+  <div class="modal-backdrop" id="winModal" hidden>
+    <div class="modal modal-win" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+      <div class="win-stars" id="winStars" aria-hidden="true">
+        <svg class="ico win-star"><use href="#i-star"/></svg>
+        <svg class="ico win-star"><use href="#i-star"/></svg>
+        <svg class="ico win-star"><use href="#i-star"/></svg>
+      </div>
+      <h2 id="winTitle">Harika!</h2>
+      <p class="win-text" id="winText"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-soft" id="btnRetry">
+          <svg class="ico" aria-hidden="true"><use href="#i-reset"/></svg><span>Tekrar</span>
+        </button>
+        <button type="button" class="btn btn-run" id="btnNext"><span id="nextLabel">Sonraki</span>
+          <svg class="ico" aria-hidden="true"><use href="#i-play"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/ryu/world.js"></script>
+  <script src="js/ryu/blocks.js"></script>
+  <script src="js/ryu/code.js"></script>
+  <script src="js/ryu/levels.js"></script>
+  <script src="js/ryu/renderer.js"></script>
+  <script src="js/ryu/app.js"></script>
+</body>
+</html>
