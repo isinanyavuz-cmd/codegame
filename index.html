@@ -2,136 +2,164 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>KodRobot</title>
-  <meta name="description" content="KodRobot: küçük bir dille robotu ızgarada hedefe götür, elmasları topla.">
+  <meta name="description" content="KodRobot: okları sürükle, robotu adadaki bayrağa götür, elmasları topla! Çocuklar için kodlama oyunu.">
+  <meta name="theme-color" content="#bfeaff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e1c2d" media="(prefers-color-scheme: dark)">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=JetBrains+Mono:wght@400;600&family=Nunito:wght@400;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@600;700;800&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <!-- Simgeler -->
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-move" viewBox="0 0 24 24"><path d="M12 20.5V5"/><path d="M5 11.5 12 4.5l7 7"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="M17.5 20.5v-7a4.5 4.5 0 0 0-4.5-4.5H5.5"/><path d="M10 4.5 5.5 9l4.5 4.5"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="M6.5 20.5v-7A4.5 4.5 0 0 1 11 9h7.5"/><path d="M14 4.5 18.5 9 14 13.5"/></symbol>
+    <symbol id="i-gem" viewBox="0 0 24 24"><path d="M7 4h10l4.5 5.4L12 20.5 2.5 9.4z" fill="currentColor" stroke-width="2"/><path d="M2.8 9.4h18.4M9.6 4.2 8 9.4l4 10.6 4-10.6-1.6-5.2" stroke="#000" stroke-opacity=".2" stroke-width="1.4"/></symbol>
+    <symbol id="i-loop" viewBox="0 0 24 24"><path d="M16.5 2.5 20 6l-3.5 3.5"/><path d="M4 11.5V10a4 4 0 0 1 4-4h12"/><path d="M7.5 21.5 4 18l3.5-3.5"/><path d="M20 12.5V14a4 4 0 0 1-4 4H4"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7.5 4.8v14.4a.8.8 0 0 0 1.2.7l11.6-7.2a.8.8 0 0 0 0-1.4L8.7 4.1a.8.8 0 0 0-1.2.7z" fill="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="2.5" fill="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.3-5.4"/><path d="M4.5 3.8v4.6h4.6"/></symbol>
+    <symbol id="i-broom" viewBox="0 0 24 24"><path d="M20.5 3.5 13 11"/><path d="M10.6 9.9l3.5 3.5-1 4.8a1 1 0 0 1-1.4.7L4 15.6a1 1 0 0 1-.3-1.6l2.1-2.1z" fill="currentColor" stroke-width="2"/><path d="M7 17l2.2-2.4M10 18.4l1.6-2" stroke-width="1.6"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v5.5M14 11v5.5"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20z"/><path d="M9 4v13.5M15 6.5V20"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2.6l2.9 5.9 6.4.9-4.6 4.5 1.1 6.4L12 17.3l-5.8 3 1.1-6.4-4.6-4.5 6.4-.9z" fill="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/><rect x="5" y="10.5" width="14" height="10" rx="2.5" fill="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  </svg>
+
   <header class="topbar">
     <div class="brand">
-      <span class="brand-logo" aria-hidden="true">
-        <svg viewBox="0 0 40 40" width="40" height="40">
-          <line x1="20" y1="4" x2="20" y2="10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-          <circle cx="20" cy="4" r="3.2" fill="var(--gem)"/>
-          <rect x="6" y="10" width="28" height="24" rx="9" fill="var(--robot)"/>
-          <rect x="10" y="15" width="20" height="11" rx="5.5" fill="var(--robot-face)"/>
-          <circle cx="16" cy="20.5" r="2.6" fill="var(--robot-eye)"/>
-          <circle cx="24" cy="20.5" r="2.6" fill="var(--robot-eye)"/>
-        </svg>
-      </span>
-      <div class="brand-text">
-        <h1>Kod<span>Robot</span></h1>
-        <p class="tagline">Kodla, robotu hedefe götür!</p>
-      </div>
+      <svg class="brand-logo" viewBox="0 0 40 40" aria-hidden="true">
+        <line x1="20" y1="4" x2="20" y2="10" stroke="var(--robot-face)" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="20" cy="4" r="3.4" fill="var(--gem)"/>
+        <rect x="5" y="10" width="30" height="25" rx="10" fill="var(--robot-dark)"/>
+        <rect x="5" y="9" width="30" height="24" rx="10" fill="var(--robot)"/>
+        <rect x="10" y="15" width="20" height="11" rx="5.5" fill="var(--robot-face)"/>
+        <circle cx="16" cy="20.5" r="2.7" fill="var(--robot-eye)"/>
+        <circle cx="24" cy="20.5" r="2.7" fill="var(--robot-eye)"/>
+      </svg>
+      <span class="brand-name">Kod<span>Robot</span></span>
     </div>
-    <nav class="levels" aria-label="Bölüm seçimi">
-      <div class="levels-head">
-        <span class="levels-label">Bölümler</span>
-        <span class="total-stars" id="totalStars" title="Toplam yıldız">★ 0</span>
-      </div>
-      <div class="level-grid" id="levelGrid"></div>
-    </nav>
+    <div class="level-pill" aria-live="polite">
+      <span class="level-num" id="levelNum">Bölüm 1</span>
+      <span class="stars" id="levelStars" aria-label="0 yıldız"></span>
+    </div>
+    <button type="button" class="btn btn-map" id="btnLevels" aria-haspopup="dialog">
+      <svg class="ico" aria-hidden="true"><use href="#i-map"/></svg>
+      <span class="btn-label">Bölümler</span>
+    </button>
   </header>
 
-  <main class="layout">
-    <!-- Sol: görev + komutlar -->
-    <aside class="panel info-panel" aria-labelledby="levelTitle">
-      <div class="level-meta">
-        <span class="level-badge" id="levelBadge">Bölüm 1</span>
-        <span class="level-par" id="levelPar" title="3 yıldız için en fazla kod satırı">par 0</span>
-      </div>
-      <h2 id="levelTitle" class="level-title">Yükleniyor…</h2>
-      <p id="levelDesc" class="level-desc"></p>
-      <div class="hint">
-        <button type="button" class="btn-ghost hint-toggle" id="hintToggle" aria-expanded="false" aria-controls="hintText">
-          <span aria-hidden="true">💡</span> <span class="hint-label">İpucu göster</span>
-        </button>
-        <p id="hintText" class="hint-text" hidden></p>
+  <main class="game">
+    <!-- Sol: görev, ada, düğmeler -->
+    <section class="stage" aria-label="Oyun alanı">
+      <div class="task card">
+        <div class="task-text">
+          <h1 class="task-title" id="levelTitle">KodRobot</h1>
+          <p class="task-desc" id="levelDesc"></p>
+        </div>
+        <div class="task-chips">
+          <span class="chip chip-gem" id="gemChip" hidden title="Toplanan elmaslar">
+            <svg class="ico" aria-hidden="true"><use href="#i-gem"/></svg><b id="gemText">0/0</b>
+          </span>
+          <span class="chip chip-par" id="parChip" title="3 yıldız için en fazla bu kadar blok">
+            <span class="chip-stars" aria-hidden="true"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg></span><b id="parText">3 blok</b>
+          </span>
+        </div>
       </div>
 
-      <details class="reference" id="refDetails" open>
-        <summary><h3 id="refTitle">Komutlar</h3><span class="ref-caret" aria-hidden="true">▾</span></summary>
-        <p class="ref-note">Türkçe ya da İngilizce yazabilirsin. Bir komuta tıkla, koduna eklensin.</p>
-        <div id="refList" class="ref-list"></div>
-      </details>
-    </aside>
-
-    <!-- Orta: oyun tahtası -->
-    <section class="panel board-panel" aria-label="Oyun tahtası">
-      <div class="board-status">
-        <span class="chip" id="gemChip" title="Toplanan elmas">💎 0 / 0</span>
-        <span class="chip" id="stepChip" title="Yapılan eylem">👣 0</span>
-        <span class="status-msg" id="statusMsg" role="status" aria-live="polite"></span>
-      </div>
       <div class="board-wrap" id="boardWrap">
-        <canvas id="board" aria-label="Robotun bulunduğu ızgara" role="img"></canvas>
+        <canvas id="board" role="img" aria-label="Ada: robot, bayrak ve elmaslar"></canvas>
+        <div class="bubble" id="bubble" role="status" aria-live="polite" hidden></div>
       </div>
-      <div class="legend" aria-hidden="true">
-        <span><i class="lg lg-robot"></i>Robot</span>
-        <span><i class="lg lg-goal"></i>Hedef</span>
-        <span><i class="lg lg-gem"></i>Elmas</span>
-        <span><i class="lg lg-wall"></i>Duvar</span>
+
+      <div class="controls">
+        <button type="button" class="btn btn-run" id="btnRun">
+          <svg class="ico" aria-hidden="true"><use href="#i-play"/></svg><span>Başlat</span>
+        </button>
+        <button type="button" class="btn btn-stop" id="btnStop" hidden>
+          <svg class="ico" aria-hidden="true"><use href="#i-stop"/></svg><span>Durdur</span>
+        </button>
+        <button type="button" class="btn btn-soft btn-small" id="btnReset" title="Robotu başa al">
+          <svg class="ico" aria-hidden="true"><use href="#i-reset"/></svg><span>Baştan</span>
+        </button>
+        <button type="button" class="btn btn-soft btn-small" id="btnClear" title="Programı temizle">
+          <svg class="ico" aria-hidden="true"><use href="#i-broom"/></svg><span id="clearLabel">Temizle</span>
+        </button>
+        <button type="button" class="btn btn-soft btn-small btn-speed" id="btnSpeed" aria-label="Hız: yavaş" title="Hız">
+          <span class="speed-ico" id="speedIco" aria-hidden="true">🐢</span><span id="speedLabel">Yavaş</span>
+        </button>
       </div>
     </section>
 
-    <!-- Sağ: kod editörü -->
-    <section class="panel editor-panel" aria-label="Kod editörü">
-      <div class="editor-head">
-        <h3>Kodun</h3>
-        <span class="line-count" id="lineCount" title="Boş satırlar, yorumlar ve tek başına '}' sayılmaz">kod satırı: 0 / par 0</span>
-      </div>
-      <div class="editor" id="editor">
-        <div class="gutter" id="gutter" aria-hidden="true"><div class="gutter-inner" id="gutterInner"></div></div>
-        <div class="code-area">
-          <div class="exec-band" id="execBand" aria-hidden="true"></div>
-          <div class="error-band" id="errorBand" aria-hidden="true"></div>
-          <textarea id="code" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" wrap="off" aria-label="Kod"></textarea>
+    <!-- Sağ: program ve bloklar -->
+    <section class="bench" aria-label="Kod alanı">
+      <div class="card program-panel" id="programPanel">
+        <div class="panel-head">
+          <h2>Programım</h2>
+          <span class="counter" id="counter" title="Kullanılan / en fazla blok">0 / 0</span>
+        </div>
+        <div class="program-scroll" id="programScroll">
+          <div class="program drop-zone" id="programRoot" data-zone="" role="list" aria-label="Programım"></div>
         </div>
       </div>
-      <div class="error-box" id="errorBox" role="alert" hidden></div>
 
-      <div class="controls">
-        <button type="button" class="btn btn-run" id="btnRun" title="Çalıştır (Ctrl+Enter)">
-          <span aria-hidden="true">▶</span> Çalıştır
-        </button>
-        <button type="button" class="btn btn-step" id="btnStep" title="Tek adım ilerle">
-          <span aria-hidden="true">⏭</span> Adım
-        </button>
-        <button type="button" class="btn btn-stop" id="btnStop" title="Durdur" disabled>
-          <span aria-hidden="true">■</span> Durdur
-        </button>
-        <button type="button" class="btn btn-reset" id="btnReset" title="Robotu başa al">
-          <span aria-hidden="true">↺</span> Sıfırla
-        </button>
+      <div class="card palette-panel" id="palettePanel">
+        <div class="panel-head">
+          <h2>Bloklar</h2>
+          <span class="panel-hint">Sürükle ya da dokun</span>
+        </div>
+        <div class="palette" id="palette"></div>
+        <div class="trash" aria-hidden="true">
+          <svg class="ico"><use href="#i-trash"/></svg><span>Sil</span>
+        </div>
       </div>
-      <div class="speed">
-        <label for="speed"><span aria-hidden="true">🐢</span> Hız</label>
-        <input type="range" id="speed" min="1" max="5" step="1" value="3">
-        <span aria-hidden="true">🐇</span>
-      </div>
-      <p class="shortcut-note"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> ile çalıştır · <kbd>Tab</kbd> girinti ekler</p>
     </section>
   </main>
 
-  <!-- Kazanma penceresi -->
+  <div class="drop-marker" id="dropMarker" hidden></div>
+
+  <!-- Bölüm seçimi -->
+  <div class="modal-backdrop" id="levelsModal" hidden>
+    <div class="modal modal-levels" role="dialog" aria-modal="true" aria-labelledby="levelsTitle">
+      <div class="modal-head">
+        <h2 id="levelsTitle">Bölümler</h2>
+        <span class="total-stars" id="totalStars"></span>
+        <button type="button" class="icon-btn" data-close aria-label="Kapat">
+          <svg class="ico" aria-hidden="true"><use href="#i-close"/></svg>
+        </button>
+      </div>
+      <div class="level-grid" id="levelGrid"></div>
+    </div>
+  </div>
+
+  <!-- Kazanma -->
   <div class="modal-backdrop" id="winModal" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="winTitle">
-      <div class="modal-stars" id="winStars"></div>
-      <h2 id="winTitle">Harika iş!</h2>
-      <p id="winText" class="modal-text"></p>
+    <div class="modal modal-win" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+      <div class="win-stars" id="winStars" aria-hidden="true">
+        <svg class="ico win-star"><use href="#i-star"/></svg>
+        <svg class="ico win-star"><use href="#i-star"/></svg>
+        <svg class="ico win-star"><use href="#i-star"/></svg>
+      </div>
+      <h2 id="winTitle">Harika!</h2>
+      <p class="win-text" id="winText"></p>
       <div class="modal-actions">
-        <button type="button" class="btn btn-ghost-solid" id="btnRetry">↺ Tekrar dene</button>
-        <button type="button" class="btn btn-run" id="btnNext">Sonraki bölüm →</button>
+        <button type="button" class="btn btn-soft" id="btnRetry">
+          <svg class="ico" aria-hidden="true"><use href="#i-reset"/></svg><span>Tekrar</span>
+        </button>
+        <button type="button" class="btn btn-run" id="btnNext"><span id="nextLabel">Sonraki</span>
+          <svg class="ico" aria-hidden="true"><use href="#i-play"/></svg>
+        </button>
       </div>
     </div>
   </div>
 
-  <script src="js/interpreter.js"></script>
   <script src="js/world.js"></script>
+  <script src="js/blocks.js"></script>
   <script src="js/levels.js"></script>
   <script src="js/renderer.js"></script>
   <script src="js/app.js"></script>
