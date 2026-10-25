@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KodRobot — Kodla, robotu hedefe götür!</title>
+  <meta name="description" content="KodRobot: küçük bir dille robotu ızgarada hedefe götür, elmasları topla.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=JetBrains+Mono:wght@400;600&family=Nunito:wght@400;600;700;800&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-logo" aria-hidden="true">
+        <svg viewBox="0 0 40 40" width="40" height="40">
+          <line x1="20" y1="4" x2="20" y2="10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="20" cy="4" r="3.2" fill="var(--gem)"/>
+          <rect x="6" y="10" width="28" height="24" rx="9" fill="var(--robot)"/>
+          <rect x="10" y="15" width="20" height="11" rx="5.5" fill="var(--robot-face)"/>
+          <circle cx="16" cy="20.5" r="2.6" fill="var(--robot-eye)"/>
+          <circle cx="24" cy="20.5" r="2.6" fill="var(--robot-eye)"/>
+        </svg>
+      </span>
+      <div class="brand-text">
+        <h1>Kod<span>Robot</span></h1>
+        <p class="tagline">Kodla, robotu hedefe götür!</p>
+      </div>
+    </div>
+    <nav class="levels" aria-label="Bölüm seçimi">
+      <div class="levels-head">
+        <span class="levels-label">Bölümler</span>
+        <span class="total-stars" id="totalStars" title="Toplam yıldız">★ 0</span>
+      </div>
+      <div class="level-grid" id="levelGrid"></div>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <!-- Sol: görev + komutlar -->
+    <aside class="panel info-panel" aria-labelledby="levelTitle">
+      <div class="level-meta">
+        <span class="level-badge" id="levelBadge">Bölüm 1</span>
+        <span class="level-par" id="levelPar" title="3 yıldız için en fazla kod satırı">par 0</span>
+      </div>
+      <h2 id="levelTitle" class="level-title">Yükleniyor…</h2>
+      <p id="levelDesc" class="level-desc"></p>
+      <div class="hint">
+        <button type="button" class="btn-ghost hint-toggle" id="hintToggle" aria-expanded="false" aria-controls="hintText">
+          <span aria-hidden="true">💡</span> <span class="hint-label">İpucu göster</span>
+        </button>
+        <p id="hintText" class="hint-text" hidden></p>
+      </div>
+
+      <section class="reference" aria-labelledby="refTitle">
+        <h3 id="refTitle">Komutlar</h3>
+        <p class="ref-note">Türkçe ya da İngilizce yazabilirsin. Bir komuta tıkla, koduna eklensin.</p>
+        <div id="refList" class="ref-list"></div>
+      </section>
+    </aside>
+
+    <!-- Orta: oyun tahtası -->
+    <section class="panel board-panel" aria-label="Oyun tahtası">
+      <div class="board-status">
+        <span class="chip" id="gemChip" title="Toplanan elmas">💎 0 / 0</span>
+        <span class="chip" id="stepChip" title="Yapılan eylem">👣 0</span>
+        <span class="status-msg" id="statusMsg" role="status" aria-live="polite"></span>
+      </div>
+      <div class="board-wrap" id="boardWrap">
+        <canvas id="board" aria-label="Robotun bulunduğu ızgara" role="img"></canvas>
+      </div>
+      <div class="legend" aria-hidden="true">
+        <span><i class="lg lg-robot"></i>Robot</span>
+        <span><i class="lg lg-goal"></i>Hedef</span>
+        <span><i class="lg lg-gem"></i>Elmas</span>
+        <span><i class="lg lg-wall"></i>Duvar</span>
+      </div>
+    </section>
+
+    <!-- Sağ: kod editörü -->
+    <section class="panel editor-panel" aria-label="Kod editörü">
+      <div class="editor-head">
+        <h3>Kodun</h3>
+        <span class="line-count" id="lineCount" title="Boş satırlar, yorumlar ve tek başına '}' sayılmaz">kod satırı: 0 / par 0</span>
+      </div>
+      <div class="editor" id="editor">
+        <div class="gutter" id="gutter" aria-hidden="true"><div class="gutter-inner" id="gutterInner"></div></div>
+        <div class="code-area">
+          <div class="exec-band" id="execBand" aria-hidden="true"></div>
+          <div class="error-band" id="errorBand" aria-hidden="true"></div>
+          <textarea id="code" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" wrap="off" aria-label="Kod"></textarea>
+        </div>
+      </div>
+      <div class="error-box" id="errorBox" role="alert" hidden></div>
+
+      <div class="controls">
+        <button type="button" class="btn btn-run" id="btnRun" title="Çalıştır (Ctrl+Enter)">
+          <span aria-hidden="true">▶</span> Çalıştır
+        </button>
+        <button type="button" class="btn btn-step" id="btnStep" title="Tek adım ilerle">
+          <span aria-hidden="true">⏭</span> Adım
+        </button>
+        <button type="button" class="btn btn-stop" id="btnStop" title="Durdur" disabled>
+          <span aria-hidden="true">■</span> Durdur
+        </button>
+        <button type="button" class="btn btn-reset" id="btnReset" title="Robotu başa al">
+          <span aria-hidden="true">↺</span> Sıfırla
+        </button>
+      </div>
+      <div class="speed">
+        <label for="speed"><span aria-hidden="true">🐢</span> Hız</label>
+        <input type="range" id="speed" min="1" max="5" step="1" value="3">
+        <span aria-hidden="true">🐇</span>
+      </div>
+      <p class="shortcut-note"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> ile çalıştır · <kbd>Tab</kbd> girinti ekler</p>
+    </section>
+  </main>
+
+  <!-- Kazanma penceresi -->
+  <div class="modal-backdrop" id="winModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+      <div class="modal-stars" id="winStars"></div>
+      <h2 id="winTitle">Harika iş!</h2>
+      <p id="winText" class="modal-text"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost-solid" id="btnRetry">↺ Tekrar dene</button>
+        <button type="button" class="btn btn-run" id="btnNext">Sonraki bölüm →</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/interpreter.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/levels.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
