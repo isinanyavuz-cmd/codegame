@@ -228,6 +228,9 @@
       let delta = (DIR_ANGLE[w.robot.dir] || 0) - from.angle;
       delta = ((delta % TAU) + TAU + Math.PI) % TAU - Math.PI; // en kısa dönüş
       const to = { x: w.robot.x, y: w.robot.y, angle: from.angle + delta };
+      // Yön değişiyorsa robot önce yerinde döner, sonra ilerler; dönüş için biraz ek süre ver.
+      const turn = Math.abs(delta) > 0.01;
+      if (turn) duration *= 1 + Math.abs(delta) / Math.PI * 0.6;
       let kind = action;
       if (action === 'pick' || action === 'topla') {
         kind = 'pick';
@@ -240,7 +243,7 @@
         this.displayGems = new Set(w.gems);
       }
       return new Promise((resolve) => {
-        this.tween = { from, to, start: now(), dur: duration, kind, resolve };
+        this.tween = { from, to, start: now(), dur: duration, kind, turn, resolve };
       });
     }
 
@@ -385,11 +388,14 @@
         } else if (tw.kind === 'puzzled') {
           this.robot.angle = tw.from.angle + Math.sin(p * Math.PI * 4) * 0.35 * (1 - p);
         } else {
-          const e = easeInOut(p);
-          this.robot.x = tw.from.x + (tw.to.x - tw.from.x) * e;
-          this.robot.y = tw.from.y + (tw.to.y - tw.from.y) * e;
-          this.robot.angle = tw.from.angle + (tw.to.angle - tw.from.angle) * e;
-          this.robot.hop = tw.kind === 'pick' ? Math.sin(p * Math.PI) : tw.kind === 'move' ? Math.sin(p * Math.PI) * 0.25 : 0;
+          // önce dönüş (ilk %40), sonra ilerleme
+          const split = tw.turn ? 0.4 : 0;
+          const pt = split ? clamp01(p / split) : 1;
+          const pm = clamp01((p - split) / (1 - split));
+          this.robot.angle = tw.from.angle + (tw.to.angle - tw.from.angle) * easeInOut(pt);
+          this.robot.x = tw.from.x + (tw.to.x - tw.from.x) * easeInOut(pm);
+          this.robot.y = tw.from.y + (tw.to.y - tw.from.y) * easeInOut(pm);
+          this.robot.hop = tw.kind === 'pick' ? Math.sin(p * Math.PI) : tw.kind === 'move' ? Math.sin(pm * Math.PI) * 0.25 : 0;
         }
         if (p >= 1) this._finishTween();
       }

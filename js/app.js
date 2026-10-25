@@ -59,7 +59,8 @@
     progress: {},
     pathMap: new Map(),
     justAdded: null,
-    clearArmed: 0
+    clearArmed: 0,
+    history: []            // Geri al için önceki programlar (JSON)
   };
   let els = {};
 
@@ -240,7 +241,7 @@
       head.appendChild(icon(INFO.loop.icon));
       const badge = el('button', 'loop-count', '×' + b.count);
       badge.type = 'button';
-      badge.title = 'Dokun: sayıyı değiştir';
+      badge.title = 'Tıkla: artır · Sağ tık: azalt';
       badge.setAttribute('aria-label', b.count + ' kez. Değiştirmek için dokun.');
       badge.disabled = S.running;
       head.appendChild(badge);
@@ -278,7 +279,9 @@
     rootEl.classList.toggle('is-empty', empty);
     if (empty) rootEl.appendChild(el('p', 'empty-hint', 'Blokları buraya sürükle'));
     els.palette.classList.toggle('hint', empty);
+    els.programTip.hidden = empty;
     updateCounter();
+    updateUndo();
   }
 
   function updateCounter() {
@@ -287,6 +290,44 @@
     els.counter.textContent = used + ' / ' + max;
     els.counter.classList.toggle('full', used >= max);
     els.counter.setAttribute('aria-label', max + ' bloktan ' + used + ' tanesi kullanıldı');
+  }
+
+  // ---------------- geri al ----------------
+  /** Programı değiştirmeden hemen önce çağrılır. */
+  function remember() {
+    S.history.push(JSON.stringify(S.program));
+    if (S.history.length > 60) S.history.shift();
+  }
+  function updateUndo() { els.btnUndo.disabled = S.running || !S.history.length; }
+  function undo() {
+    if (S.running || !S.history.length) return;
+    S.program = sanitize(JSON.parse(S.history.pop()), S.level.tools || [], 0);
+    programChanged();
+  }
+
+  /** Silinen bloğun yerinde küçük bir "puf" animasyonu. */
+  function poofAt(node) {
+    if (!node || reducedMotion()) return;
+    const r = node.getBoundingClientRect();
+    const g = el('div', 'ghost poof');
+    g.setAttribute('aria-hidden', 'true');
+    const clone = node.cloneNode(true);
+    clone.classList.remove('running', 'error', 'active-loop', 'pop-in');
+    clone.style.width = r.width + 'px';
+    clone.style.height = r.height + 'px';
+    g.appendChild(clone);
+    g.style.transform = 'translate3d(' + r.left + 'px,' + r.top + 'px,0)';
+    document.body.appendChild(g);
+    setTimeout(() => g.remove(), 280);
+  }
+
+  function deleteBlock(path, node) {
+    if (S.running || !nodeAt(path)) return;
+    poofAt(node);
+    remember();
+    removeAt(path);
+    programChanged();
+    flash(els.btnUndo, 'bump');
   }
 
   // ---------------- program değişiklikleri ----------------
@@ -308,6 +349,7 @@
     if (S.running) return;
     if (isFull()) { refuseFull(); return; }
     const b = newBlock(type);
+    remember();
     S.program.push(b);
     S.justAdded = b;
     programChanged();
@@ -315,12 +357,16 @@
     if (node) ensureVisible(node);
   }
 
-  function cycleLoop(badge) {
+  /** Sol tık sayıyı artırır (9'dan sonra 2), sağ tık azaltır (2'den sonra 9). */
+  function cycleLoop(badge, step) {
     if (S.running) return;
     const host = badge.closest('.blk-loop');
     const node = host && nodeAt(parsePath(host.dataset.path));
     if (!node) return;
-    node.count = node.count >= LOOP_MAX ? LOOP_MIN : node.count + 1;
+    remember();
+    updateUndo();
+    if (step < 0) node.count = node.count <= LOOP_MIN ? LOOP_MAX : node.count - 1;
+    else node.count = node.count >= LOOP_MAX ? LOOP_MIN : node.count + 1;
     badge.textContent = '×' + node.count;
     badge.setAttribute('aria-label', node.count + ' kez. Değiştirmek için dokun.');
     host.setAttribute('aria-label', 'Tekrarla, ' + node.count + ' kez');
@@ -343,7 +389,9 @@
     if (pal && els.palette.contains(pal)) {
       src = { kind: 'palette', type: pal.dataset.type, el: pal.querySelector('.blk'), host: pal };
     } else if (blk && els.programRoot.contains(blk)) {
-      src = { kind: 'program', path: parsePath(blk.dataset.path), el: blk, host: blk };
+      // Dokununca silme: döngüde yalnızca başlık kısmı siler, gövdenin boşluğu silmez.
+      const tapDelete = !blk.classList.contains('blk-loop') || !!e.target.closest('.loop-head');
+      src = { kind: 'program', path: parsePath(blk.dataset.path), el: blk, host: blk, tapDelete };
     }
     if (!src) return;
     if (S.running) { e.preventDefault(); return; }
@@ -373,6 +421,7 @@
     const src = D.src;
     if (D.started) endDrag(e.clientX, e.clientY);
     else if (src.kind === 'palette') appendBlock(src.type);
+    else if (src.tapDelete) { const path = src.path, node = src.el; resetDrag(); deleteBlock(path, node); return; }
     else flash(src.el, 'wiggle');
     resetDrag();
   }
@@ -536,8 +585,9 @@
       if (!arr) { dropGhost('fade'); return; }
       const beforeEl = t.kids[t.index];
       const beforeNode = beforeEl ? nodeAt(parsePath(beforeEl.dataset.path)) : null;
+      remember();
       const node = src.kind === 'palette' ? newBlock(src.type) : removeAt(src.path);
-      if (!node) { dropGhost('fade'); return; }
+      if (!node) { S.history.pop(); dropGhost('fade'); return; }
       let at = beforeNode ? arr.indexOf(beforeNode) : arr.length;
       if (at < 0) at = arr.length;
       arr.splice(at, 0, node);
@@ -546,6 +596,7 @@
       if (src.kind === 'program') src.el.classList.remove('drag-src');
       programChanged();
     } else if (t.kind === 'delete' && src.kind === 'program') {
+      remember();
       removeAt(src.path);
       dropGhost('poof');
       programChanged();
@@ -631,6 +682,7 @@
     els.btnRun.hidden = on;
     els.btnStop.hidden = !on;
     els.btnClear.disabled = on;
+    updateUndo();
     els.palette.querySelectorAll('.pal-item').forEach((b) => b.setAttribute('aria-disabled', on ? 'true' : 'false'));
     els.programRoot.querySelectorAll('.loop-count').forEach((b) => { b.disabled = on; });
     if (on) disarmClear();
@@ -655,6 +707,11 @@
     setRunning(true);
     clearMarks();
     hideBubble();
+    // dar ekranda Başlat adanın altında kalır: robotu görmek için adaya kaydır
+    const br = els.boardWrap.getBoundingClientRect();
+    if (br.top < 0 || br.bottom > root.innerHeight) {
+      els.boardWrap.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'center' });
+    }
     const world = new CodeGame.World(S.level);
     S.world = world;
     S.renderer.setWorld(world);
@@ -782,6 +839,7 @@
       setTimeout(() => { if (Date.now() - S.clearArmed >= 2500) disarmClear(); }, 2600);
       return;
     }
+    remember();
     S.program = [];
     programChanged();
   }
@@ -866,6 +924,7 @@
     S.level = S.levels[i];
     store.set(KEY_LEVEL, S.level.id);
     S.program = loadProgram(S.level);
+    S.history = [];
     S.world = new CodeGame.World(S.level);
     S.renderer.setWorld(S.world);
     S.dirty = false;
@@ -894,7 +953,7 @@
     const ids = ['levelNum', 'levelStars', 'btnLevels', 'levelTitle', 'levelDesc', 'gemChip', 'gemText',
       'parChip', 'parText', 'boardWrap', 'board', 'bubble', 'btnRun', 'btnStop', 'btnReset', 'btnClear',
       'clearLabel', 'btnSpeed', 'speedIco', 'speedLabel', 'programPanel', 'programScroll', 'programRoot',
-      'counter', 'palettePanel', 'palette', 'dropMarker', 'levelsModal', 'levelGrid', 'totalStars',
+      'counter', 'btnUndo', 'programTip', 'palettePanel', 'palette', 'dropMarker', 'levelsModal', 'levelGrid', 'totalStars',
       'winModal', 'winStars', 'winTitle', 'winText', 'btnRetry', 'btnNext', 'nextLabel'];
     els = {};
     for (const id of ids) els[id] = document.getElementById(id);
@@ -917,7 +976,11 @@
     root.addEventListener('pointerup', onPointerUp);
     root.addEventListener('pointercancel', onPointerCancel);
     els.palette.addEventListener('contextmenu', (e) => e.preventDefault());
-    els.programRoot.addEventListener('contextmenu', (e) => e.preventDefault());
+    els.programRoot.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const head = e.target.closest('.loop-head');
+      if (head) cycleLoop(head.querySelector('.loop-count'), -1);
+    });
     // dokunmatikte sayfanın kaymasını engelle (eski iOS için)
     document.addEventListener('touchmove', (e) => { if (D.started) e.preventDefault(); }, { passive: false });
 
@@ -928,7 +991,7 @@
     });
     els.programRoot.addEventListener('click', (e) => {
       const badge = e.target.closest('.loop-count');
-      if (badge) { e.preventDefault(); cycleLoop(badge); }
+      if (badge) { e.preventDefault(); cycleLoop(badge, 1); }
     });
     els.programRoot.addEventListener('keydown', (e) => {
       if (S.running) return;
@@ -936,8 +999,7 @@
       if (!blk || e.target !== blk) return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
-        removeAt(parsePath(blk.dataset.path));
-        programChanged();
+        deleteBlock(parsePath(blk.dataset.path), blk);
         els.programRoot.focus();
       }
     });
@@ -946,6 +1008,7 @@
     els.btnStop.addEventListener('click', stop);
     els.btnReset.addEventListener('click', () => resetRobot(false));
     els.btnClear.addEventListener('click', clearProgram);
+    els.btnUndo.addEventListener('click', undo);
     els.btnSpeed.addEventListener('click', () => {
       S.speed = S.speed === 'fast' ? 'slow' : 'fast';
       store.set(KEY_SPEED, S.speed);
@@ -970,6 +1033,11 @@
       });
     }
     document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        undo();
+        return;
+      }
       if (e.key === 'Escape') {
         if (D.started) { clearTargetUI(); dropGhost('fade'); resetDrag(); return; }
         closeModal(els.winModal);

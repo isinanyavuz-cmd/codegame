@@ -13,10 +13,11 @@ Kurulum yok: `index.html` dosyasını tarayıcıda aç. Fare ve dokunmatik ekran
 |---|---|
 | ⬆ ⬇ ⬅ ➡ Oklar | Ok hangi yönü gösteriyorsa robot o yöne bir kare gider |
 | 💎 Topla | Üstünde durduğun elması topla |
-| 🔁 Tekrarla | İçine konan blokları 2–9 kez tekrarla (sayıya dokunarak değiştir) |
+| 🔁 Tekrarla | İçine konan blokları 2–9 kez tekrarla (sayıya tıkla: artır, sağ tıkla: azalt) |
 
-- Bir bloğa dokunmak onu programın sonuna ekler.
-- Programdaki bir bloğu palete ya da program alanının dışına sürüklemek onu siler.
+- Paletteki bir bloğa dokunmak onu programın sonuna ekler.
+- Programdaki bir bloğa dokunmak onu siler; **Geri al** (ya da Ctrl+Z) son değişikliği geri getirir.
+- Blokları sürükleyerek sırasını değiştirebilir, tekrar bloğunun içine koyabilirsin.
 - Her bölümde konabilecek blok sayısı sınırlıdır; döngüsüz çözüm sığmaz. En az blokla bitirene 3 yıldız.
 
 ## Geliştirme

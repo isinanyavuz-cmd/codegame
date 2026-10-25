@@ -306,8 +306,8 @@ button { font: inherit; color: inherit; }
   .bubble.ok { color: #9ff0bd; }
 }
 
-/* kontrol düğmeleri */
-.controls { display: flex; gap: 10px; align-items: stretch; }
+/* kontrol düğmeleri (program kartının altında) */
+.controls { display: flex; gap: 10px; align-items: stretch; padding: 0 12px 12px; }
 .controls .btn-run, .controls .btn-stop { flex: 1; min-width: 0; }
 
 /* ---------------- program alanı ---------------- */
@@ -327,6 +327,10 @@ button { font: inherit; color: inherit; }
   font-variant-numeric: tabular-nums;
 }
 .counter.full { background: var(--sun-soft); color: var(--sun-ink); }
+.btn-undo { min-height: 40px; padding: 4px 12px; gap: 5px; font-size: 16px; border-radius: 14px; box-shadow: 0 4px 0 var(--sh); }
+.btn-undo .ico { width: 20px; height: 20px; }
+.btn-undo.bump { animation: bump .3s cubic-bezier(.3, 1.6, .5, 1); }
+.program-tip { padding: 0 16px 10px; margin-top: -4px; font-size: 13px; color: var(--ink-soft); }
 @media (prefers-color-scheme: dark) { .counter.full { color: #ffe08a; } }
 
 .program-panel { display: flex; flex-direction: column; min-height: 0; }
@@ -494,6 +498,25 @@ button { font: inherit; color: inherit; }
 .blk.drag-src { opacity: .3; filter: saturate(.3); }
 
 body.is-running .program .blk { cursor: default; }
+
+/* fareyle üstüne gelince: dokununca silineceğini gösteren ✕ */
+@media (hover: hover) {
+  body:not(.is-running):not(.is-dragging) .program .blk:not(.blk-container):hover::after,
+  body:not(.is-running):not(.is-dragging) .program .blk-container:has(> .loop-head:hover)::after {
+    content: '';
+    position: absolute;
+    top: -9px; right: -9px;
+    z-index: 3;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--coral) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.4' stroke-linecap='round'%3E%3Cpath d='M7 7l10 10M17 7 7 17'/%3E%3C/svg%3E") center / 14px no-repeat;
+    box-shadow: 0 2px 0 var(--coral-dark);
+    pointer-events: none;
+  }
+  body:not(.is-running):not(.is-dragging) .program .blk:not(.blk-container):hover { cursor: pointer; }
+  body:not(.is-running):not(.is-dragging) .program .loop-head:hover { cursor: pointer; }
+  .program-tip { display: none; }
+}
 body.is-running .pal-item { opacity: .45; cursor: not-allowed; }
 
 /* ---------------- palet ---------------- */
@@ -707,9 +730,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 @media (min-width: 960px) and (min-height: 620px) {
   .game { height: calc(100vh - var(--topbar-h)); height: calc(100dvh - var(--topbar-h)); }
   .stage, .bench { min-height: 0; }
-  .program-panel { flex: 1; }
-  .program-scroll { flex: 1; overflow: auto; }
-  .program { min-height: 100%; }
+  .program-scroll { max-height: calc(100dvh - var(--topbar-h) - 340px); overflow: auto; }
 }
 @media (min-width: 1280px) {
   :root { --bs: 68px; }
@@ -734,7 +755,8 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
   .task-chips { flex-direction: row; flex-basis: 100%; align-items: center; justify-content: flex-start; }
   .chip { font-size: 15px; padding: 2px 10px; }
   .board-wrap { max-height: 46vh; }
-  .controls { gap: 8px; }
+  .controls { gap: 8px; padding: 0 10px 10px; }
+  .btn-undo { min-height: 38px; padding: 4px 10px; font-size: 15px; }
   .btn { min-height: 54px; }
   .btn-run, .btn-stop { font-size: 22px; padding: 8px 10px; }
   .btn-small { min-width: 0; flex: 0 0 62px; padding: 6px 4px; font-size: 13px; }
