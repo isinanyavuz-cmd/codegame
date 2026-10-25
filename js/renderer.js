@@ -476,11 +476,22 @@
       if (w.cellAt(x - 1, y) !== '#') ctx.fillRect(px, py - d, e, c);
       ctx.fillStyle = 'rgba(0,0,0,.10)';
       if (w.cellAt(x + 1, y) !== '#') ctx.fillRect(px + c - e, py - d, e, c);
-      // küçük doku noktası
+      // blok derzleri
+      ctx.strokeStyle = 'rgba(0,0,0,.09)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px + 0.5, py - d + 0.5, c - 1, c - 1);
+      // küçük doku noktaları (hücreye göre değişen)
+      const h = ((x * 73856093) ^ (y * 19349663)) >>> 0;
       ctx.fillStyle = 'rgba(255,255,255,.10)';
       ctx.beginPath();
-      ctx.arc(px + c * 0.3, py - d + c * 0.3, c * 0.06, 0, TAU);
-      ctx.arc(px + c * 0.7, py - d + c * 0.62, c * 0.045, 0, TAU);
+      const n = 1 + (h % 3);
+      for (let i = 0; i < n; i++) {
+        const hx = ((h >> (i * 5)) % 60) / 100 + 0.2;
+        const hy = ((h >> (i * 5 + 3)) % 60) / 100 + 0.2;
+        const rr = c * (0.03 + ((h >> (i * 2)) % 3) * 0.015);
+        ctx.moveTo(px + c * hx + rr, py - d + c * hy);
+        ctx.arc(px + c * hx, py - d + c * hy, rr, 0, TAU);
+      }
       ctx.fill();
     }
 

@@ -225,6 +225,9 @@ button:disabled { cursor: not-allowed; }
   .info-panel > .reference { margin-top: 16px; }
   .panel { padding: 14px; }
   .brand h1 { font-size: 28px; }
+  .level-grid { gap: 6px; }
+  .level-btn { width: 42px; height: 46px; border-radius: 12px; }
+  .level-btn .num { font-size: 17px; }
 }
 
 /* ---------- Bilgi paneli ---------- */
@@ -265,6 +268,17 @@ button:disabled { cursor: not-allowed; }
 }
 
 .reference { margin-top: 18px; }
+.reference > summary {
+  list-style: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  border-radius: 10px;
+}
+.reference > summary::-webkit-details-marker { display: none; }
+.ref-caret { font-size: 16px; color: var(--ink-soft); transition: transform .2s; }
+.reference:not([open]) .ref-caret { transform: rotate(-90deg); }
+.reference:not([open]) > summary::after {
+  content: "göster"; font-size: 12px; font-weight: 800; color: var(--accent); margin-left: auto;
+}
 .reference h3, .editor-head h3 {
   font-family: var(--font-display);
   font-size: 19px; margin: 0;

@@ -11,7 +11,7 @@
     {
       id: 'l1',
       title: 'İlk Adım',
-      description: 'Robotu yeşil hedefe götür. Her ilerle() komutu robotu bir kare ileri taşır.',
+      description: 'Robotu altın hedefe götür. Her ilerle() komutu robotu bir kare ileri taşır.',
       hint: 'Hedef 4 kare ileride. ilerle() komutunu 4 kez yaz.',
       map: [
         '#######',
