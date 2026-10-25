@@ -22,7 +22,7 @@ Yükleme sırası: `js/interpreter.js`, `js/world.js`, `js/levels.js`, `js/rende
 |---|---|
 | `js/interpreter.js` | Tokenizer, parser, yorumlayıcı (`CodeGame.Interpreter`, `CodeGame.CodeError`) |
 | `js/world.js` | Saf oyun mantığı, DOM yok (`CodeGame.World`) |
-| `tests/*.test.js` | `node --test tests/` ile çalışır, bağımlılık yok |
+| `tests/*.test.js` | `node --test` ile çalışır, bağımlılık yok |
 | `js/levels.js` | `CodeGame.LEVELS` |
 | `index.html`, `css/style.css`, `js/renderer.js`, `js/app.js` | Arayüz |
 

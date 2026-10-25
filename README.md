@@ -26,7 +26,7 @@ Dilin tam tanımı için [CONTRACT.md](CONTRACT.md) dosyasına bak.
 ## Geliştirme
 
 ```
-node --test tests/
+node --test
 ```
 
 | Dosya | Görev |
