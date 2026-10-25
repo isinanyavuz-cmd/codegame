@@ -1,7 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-require('../js/interpreter.js');
 const CodeGame = require('../js/world.js');
 const { World } = CodeGame;
 

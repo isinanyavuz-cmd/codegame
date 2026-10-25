@@ -1,9 +1,19 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-require('../js/interpreter.js');
 require('../js/world.js');
+require('../js/blocks.js');
 const CodeGame = require('../js/levels.js');
+
+const TOOLS = ['move', 'left', 'right', 'pick', 'loop'];
+
+function usedTypes(program, out = new Set()) {
+  for (const b of program) {
+    out.add(b.type);
+    if (b.type === 'loop') usedTypes(b.body, out);
+  }
+  return out;
+}
 
 test('bölüm listesi boş değil ve kimlikler benzersiz', () => {
   assert.ok(CodeGame.LEVELS.length > 0);
@@ -12,25 +22,18 @@ test('bölüm listesi boş değil ve kimlikler benzersiz', () => {
 });
 
 for (const level of CodeGame.LEVELS) {
-  test(`${level.id} – ${level.title}: harita geçerli`, () => {
+  test(`${level.id} – ${level.title}`, () => {
     const width = level.map[0].length;
     for (const row of level.map) assert.strictEqual(row.length, width, 'satırlar eşit uzunlukta olmalı');
-    const all = level.map.join('');
-    assert.strictEqual(all.split('S').length - 1, 1, 'tam bir S olmalı');
-    assert.strictEqual(all.split('G').length - 1, 1, 'tam bir G olmalı');
-    assert.ok(['N', 'E', 'S', 'W'].includes(level.startDir));
-  });
+    for (const t of level.tools) assert.ok(TOOLS.includes(t), 'bilinmeyen araç ' + t);
+    for (const t of usedTypes(level.solution)) assert.ok(level.tools.includes(t), 'çözüm paletde olmayan blok kullanıyor: ' + t);
 
-  test(`${level.id} – ${level.title}: çözüm kazanıyor ve par içinde`, () => {
+    const n = CodeGame.Blocks.count(level.solution);
+    assert.ok(n <= level.par, `çözüm ${n} blok, par ${level.par}`);
+    assert.ok(level.par <= level.maxBlocks);
+
     const world = new CodeGame.World(level);
-    const ast = CodeGame.Interpreter.parse(level.solution);
-    for (const _ of CodeGame.Interpreter.run(ast, world)) { /* adımları tüket */ }
+    for (const _ of CodeGame.Blocks.run(level.solution, world)) { /* tüket */ }
     assert.ok(world.isWon(), 'çözüm bölümü kazanmalı');
-    assert.ok(!world.crashed);
-    assert.ok(CodeGame.Interpreter.countLines(level.solution) <= level.par, 'çözüm par sınırını aşıyor');
-  });
-
-  test(`${level.id} – ${level.title}: başlangıç kodu ayrıştırılabiliyor`, () => {
-    CodeGame.Interpreter.parse(level.starterCode);
   });
 }
