@@ -18,7 +18,7 @@
   const DIR_VEC = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
   const CLIFF = 0.3;   // adanın ön yüz (toprak) yüksekliği, hücre oranı
   const MARGIN = 0.75; // adanın çevresinde görünen deniz payı (hücre)
-  const MAX_CELL = 96;
+  const MAX_CELL = 112;
 
   const COLOR_VARS = [
     'sea', 'sea-deep', 'sea-light', 'sea-shallow', 'foam',
@@ -428,6 +428,21 @@
 
     _isLand(x, y) { return this.world.cellAt(x, y) !== '#'; }
 
+    /** cornerRect gibi ama yeni yol başlatmaz (birden çok şekli tek dolguda birleştirmek için). */
+    _cornerPath(x, y, w, h, r) {
+      const ctx = this.ctx;
+      ctx.moveTo(x + r[0], y);
+      ctx.lineTo(x + w - r[1], y);
+      if (r[1]) ctx.arcTo(x + w, y, x + w, y + r[1], r[1]); else ctx.lineTo(x + w, y);
+      ctx.lineTo(x + w, y + h - r[2]);
+      if (r[2]) ctx.arcTo(x + w, y + h, x + w - r[2], y + h, r[2]); else ctx.lineTo(x + w, y + h);
+      ctx.lineTo(x + r[3], y + h);
+      if (r[3]) ctx.arcTo(x, y + h, x, y + h - r[3], r[3]); else ctx.lineTo(x, y + h);
+      ctx.lineTo(x, y + r[0]);
+      if (r[0]) ctx.arcTo(x, y, x + r[0], y, r[0]); else ctx.lineTo(x, y);
+      ctx.closePath();
+    }
+
     _draw(t) {
       const ctx = this.ctx;
       const w = this.world;
@@ -571,20 +586,25 @@
 
       // sığ su ve köpük halkaları
       const rings = [
-        { e: c * 0.26, color: col['sea-shallow'], alpha: 0.75, r: c * 0.4 },
-        { e: c * (0.1 + 0.025 * Math.sin(t / 650)), color: col.foam, alpha: 0.85, r: c * 0.28 }
+        { e: c * 0.26, color: col['sea-shallow'], alpha: 0.75 },
+        { e: c * (0.1 + 0.025 * Math.sin(t / 650)), color: col.foam, alpha: 0.85 }
       ];
       for (const ring of rings) {
+        // tek bir yol: üst üste binen karolar ek yeri bırakmasın
         ctx.fillStyle = ring.color;
         ctx.globalAlpha = ring.alpha;
+        ctx.beginPath();
+        const R = c * 0.24 + ring.e;
         for (let y = 0; y < w.height; y++) {
           for (let x = 0; x < w.width; x++) {
             if (!land(x, y)) continue;
-            const bottom = land(x, y + 1) ? 0 : cliff;
-            roundRect(ctx, x * c - ring.e, y * c - ring.e, c + ring.e * 2, c + bottom + ring.e * 2, ring.r);
-            ctx.fill();
+            const up = land(x, y - 1), dn = land(x, y + 1), lf = land(x - 1, y), rt = land(x + 1, y);
+            const bottom = dn ? 0 : cliff;
+            const r = [(!up && !lf) ? R : 0, (!up && !rt) ? R : 0, (!dn && !rt) ? R : 0, (!dn && !lf) ? R : 0];
+            this._cornerPath(x * c - ring.e, y * c - ring.e, c + ring.e * 2, c + bottom + ring.e * 2, r);
           }
         }
+        ctx.fill('nonzero');
       }
       ctx.globalAlpha = 1;
 

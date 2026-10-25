@@ -1,758 +1,994 @@
-/* KodRobot — arayüz yapıştırıcısı (CodeGame.App)
- * Editör, kontroller, bölüm seçimi, ilerleme ve yorumlayıcı/dünya/renderer akışı.
+/* KodRobot — sürükle-bırak arayüzü ve oyun akışı.
+ * Bkz. CONTRACT.md. Blok programı bir dizi olarak tutulur, DOM her
+ * değişiklikte bu diziden yeniden çizilir. Sürükleme Pointer Events ile
+ * yapılır (fare + dokunmatik).
  */
 (function (root) {
+  'use strict';
   const CodeGame = root.CodeGame = root.CodeGame || {};
+  if (typeof document === 'undefined') {
+    if (typeof module !== 'undefined') module.exports = CodeGame;
+    return;
+  }
 
-  // ---------------- yardımcılar ----------------
+  // ---------------- sabitler ----------------
+  const KEY_PROGRESS = 'kodrobot.blocks.progress';
+  const KEY_PROGRAM = 'kodrobot.blocks.program.';
+  const KEY_LEVEL = 'kodrobot.blocks.level';
+  const KEY_SPEED = 'kodrobot.blocks.speed';
+  const SPEEDS = { slow: 520, fast: 230 };
+  const LOOP_MIN = 2;
+  const LOOP_MAX = 9;
+  const MAX_STEPS = 500;
+  const INFO = {
+    move: { name: 'İleri', aria: 'İleri git', icon: 'i-move' },
+    left: { name: 'Sola', aria: 'Sola dön', icon: 'i-left' },
+    right: { name: 'Sağa', aria: 'Sağa dön', icon: 'i-right' },
+    pick: { name: 'Topla', aria: 'Elmas topla', icon: 'i-gem' },
+    loop: { name: 'Tekrarla', aria: 'Tekrarla', icon: 'i-loop' }
+  };
+  const SVGNS = 'http://www.w3.org/2000/svg';
+
+  // ---------------- depolama (hep try/catch) ----------------
   const store = {
-    get(key, def) {
+    get(key, fallback) {
       try {
-        const raw = root.localStorage.getItem(key);
-        return raw == null ? def : raw;
-      } catch (e) { return def; }
+        const v = root.localStorage.getItem(key);
+        return v == null ? fallback : JSON.parse(v);
+      } catch (e) { return fallback; }
     },
     set(key, value) {
-      try { root.localStorage.setItem(key, value); } catch (e) { /* yoksay */ }
-    },
-    getJSON(key, def) {
-      try {
-        const raw = root.localStorage.getItem(key);
-        if (raw == null) return def;
-        const v = JSON.parse(raw);
-        return v && typeof v === 'object' ? v : def;
-      } catch (e) { return def; }
-    },
-    setJSON(key, value) {
       try { root.localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* yoksay */ }
     }
   };
 
-  const PROGRESS_KEY = 'kodrobot.progress';
-  const LAST_KEY = 'kodrobot.lastLevel';
-  const CODE_KEY = (id) => 'kodrobot.code.' + id;
-  const SPEED_KEY = 'kodrobot.speed';
-  const SPEEDS = [700, 450, 280, 160, 75]; // ms / eylem
+  // ---------------- durum ----------------
+  const S = {
+    levels: Array.isArray(CodeGame.LEVELS) ? CodeGame.LEVELS : [],
+    index: 0,
+    level: null,
+    program: [],
+    world: null,
+    renderer: null,
+    running: false,
+    runId: 0,
+    dirty: false,          // robot başlangıçtan ayrıldı mı
+    speed: 'slow',
+    progress: {},
+    pathMap: new Map(),
+    justAdded: null,
+    clearArmed: 0
+  };
+  let els = {};
 
-  /** Yerel "kod satırı" sayacı (Interpreter.countLines yoksa). */
-  function localCountLines(src) {
-    let n = 0;
-    for (const raw of String(src || '').split('\n')) {
-      let line = raw;
-      const ci = line.indexOf('//');
-      if (ci >= 0) line = line.slice(0, ci);
-      line = line.trim();
-      if (!line) continue;
-      if (/^[}\s;]*$/.test(line)) continue;
-      n++;
-    }
+  const reducedMotion = () => !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // ---------------- yardımcılar ----------------
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
     return n;
   }
-  function countLines(src) {
-    const I = CodeGame.Interpreter;
-    if (I && typeof I.countLines === 'function') {
-      try { return I.countLines(src); } catch (e) { /* yerel sayaca düş */ }
+  function icon(id, cls) {
+    const svg = document.createElementNS(SVGNS, 'svg');
+    svg.setAttribute('class', 'ico' + (cls ? ' ' + cls : ''));
+    svg.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS(SVGNS, 'use');
+    use.setAttribute('href', '#' + id);
+    svg.appendChild(use);
+    return svg;
+  }
+  function starsEl(n, cls) {
+    const wrap = el('span', cls || 'stars');
+    for (let i = 0; i < 3; i++) wrap.appendChild(icon('i-star', i < n ? 'star-on' : 'star-off'));
+    wrap.setAttribute('aria-label', n + ' yıldız');
+    return wrap;
+  }
+  function flash(node, cls) {
+    if (!node) return;
+    node.classList.remove(cls);
+    void node.offsetWidth; // animasyonu yeniden başlat
+    node.classList.add(cls);
+    const done = () => { node.classList.remove(cls); node.removeEventListener('animationend', done); };
+    node.addEventListener('animationend', done);
+    setTimeout(done, 700);
+  }
+
+  const pathKey = (p) => p.join('.');
+  const parsePath = (s) => (s == null || s === '' ? [] : String(s).split('.').map(Number));
+
+  function countBlocks(prog) {
+    if (CodeGame.Blocks && typeof CodeGame.Blocks.count === 'function') return CodeGame.Blocks.count(prog);
+    let n = 0;
+    for (const b of prog) { n++; if (b.type === 'loop') n += countBlocks(b.body || []); }
+    return n;
+  }
+  function newBlock(type) {
+    return type === 'loop' ? { type: 'loop', count: LOOP_MIN, body: [] } : { type };
+  }
+  function nodeAt(path) {
+    let arr = S.program;
+    let node = null;
+    for (const i of path) {
+      node = arr && arr[i];
+      if (!node) return null;
+      arr = node.body;
     }
-    return localCountLines(src);
+    return node;
   }
-  function starsFor(lines, par) {
-    if (lines <= par) return 3;
-    if (lines <= par + 2) return 2;
-    return 1;
+  function arrayFor(zonePath) {
+    if (!zonePath.length) return S.program;
+    const n = nodeAt(zonePath);
+    if (!n || n.type !== 'loop') return null;
+    if (!Array.isArray(n.body)) n.body = [];
+    return n.body;
   }
-  function isCodeError(e) {
-    return !!e && ((CodeGame.CodeError && e instanceof CodeGame.CodeError) || (typeof e.line === 'number' && e.kind));
+  function removeAt(path) {
+    const parent = arrayFor(path.slice(0, -1));
+    return parent ? parent.splice(path[path.length - 1], 1)[0] : null;
+  }
+  const isFull = () => countBlocks(S.program) >= S.level.maxBlocks;
+
+  /** Kayıtlı programı temizler: yalnızca bu bölümün blokları, geçerli sayılar. */
+  function sanitize(list, tools, depth) {
+    if (!Array.isArray(list) || depth > 8) return [];
+    const out = [];
+    for (const b of list) {
+      if (!b || typeof b !== 'object' || tools.indexOf(b.type) === -1 || !INFO[b.type]) continue;
+      if (b.type === 'loop') {
+        let c = Math.round(Number(b.count));
+        if (!isFinite(c)) c = LOOP_MIN;
+        c = Math.max(LOOP_MIN, Math.min(LOOP_MAX, c));
+        out.push({ type: 'loop', count: c, body: sanitize(b.body, tools, depth + 1) });
+      } else {
+        out.push({ type: b.type });
+      }
+    }
+    return out;
+  }
+  function loadProgram(level) {
+    const raw = store.get(KEY_PROGRAM + level.id, []);
+    const prog = sanitize(raw, level.tools || [], 0);
+    return countBlocks(prog) > level.maxBlocks ? [] : prog;
+  }
+  function saveProgram() { store.set(KEY_PROGRAM + S.level.id, S.program); }
+
+  function starsFor(id) {
+    const v = S.progress[id];
+    return typeof v === 'number' && v > 0 ? Math.min(3, Math.floor(v)) : 0;
+  }
+  function isUnlocked(i) {
+    if (i <= 0) return true;
+    const lv = S.levels[i];
+    return !!lv && (starsFor(S.levels[i - 1].id) > 0 || starsFor(lv.id) > 0);
   }
 
-  // ---------------- komut referansı ----------------
-  const REF = [
-    { group: 'Hareket', items: [
-      { tr: 'ilerle()', en: 'move()', desc: 'Bir kare ileri git.', keys: ['move', 'ilerle'], snippet: 'ilerle()' },
-      { tr: 'solaDon()', en: 'turnLeft()', desc: 'Olduğun yerde sola dön.', keys: ['turnleft', 'soladon'], snippet: 'solaDon()' },
-      { tr: 'sagaDon()', en: 'turnRight()', desc: 'Olduğun yerde sağa dön.', keys: ['turnright', 'sagadon'], snippet: 'sagaDon()' },
-      { tr: 'topla()', en: 'pick()', desc: 'Bulunduğun karedeki elması topla.', keys: ['pick', 'topla'], snippet: 'topla()' }
-    ] },
-    { group: 'Sensörler', items: [
-      { tr: 'onumBos()', en: 'pathAhead()', desc: 'Önün boşsa doğru.', keys: ['ispathahead', 'pathahead', 'onumbos'], snippet: 'onumBos()' },
-      { tr: 'solumBos()', en: 'pathLeft()', desc: 'Solun boşsa doğru.', keys: ['ispathleft', 'pathleft', 'solumbos'], snippet: 'solumBos()' },
-      { tr: 'sagimBos()', en: 'pathRight()', desc: 'Sağın boşsa doğru.', keys: ['ispathright', 'pathright', 'sagimbos'], snippet: 'sagimBos()' },
-      { tr: 'hedefte()', en: 'atGoal()', desc: 'Hedefin üstündeysen doğru.', keys: ['atgoal', 'hedefte'], snippet: 'hedefte()' },
-      { tr: 'elmasVar()', en: 'onGem()', desc: 'Bulunduğun karede elmas varsa doğru.', keys: ['hasgem', 'ongem', 'elmasvar'], snippet: 'elmasVar()' }
-    ] },
-    { group: 'Döngüler ve kararlar', items: [
-      { tr: 'tekrarla 3 { }', en: 'repeat', desc: 'İçindekileri belirtilen sayıda tekrarla.', keys: ['repeat', 'tekrarla', 'loop'], snippet: 'tekrarla 3 {\n  |\n}' },
-      { tr: 'iken (koşul) { }', en: 'while', desc: 'Koşul doğru olduğu sürece tekrarla.', keys: ['while', 'iken'], snippet: 'iken (!hedefte()) {\n  |\n}' },
-      { tr: 'eger (koşul) { }', en: 'if', desc: 'Koşul doğruysa çalıştır.', keys: ['if', 'eger'], snippet: 'eger (onumBos()) {\n  |\n}' },
-      { tr: 'degilse { }', en: 'else', desc: 'eger koşulu yanlışsa bunu çalıştır.', keys: ['else', 'degilse', 'elseif'], snippet: ' degilse {\n  |\n}' },
-      { tr: '!  &&  ||', en: 'değil / ve / veya', desc: 'Koşulları ters çevir ya da birleştir.', keys: ['not', 'and', 'or', '!', '&&', '||', 'logic', 'operators', 've', 'veya', 'degil'], snippet: '!' }
-    ] },
-    { group: 'Fonksiyonlar', items: [
-      { tr: 'fonksiyon ad() { }', en: 'function', desc: 'Kendi komutunu tanımla, sonra ad() diye çağır.', keys: ['function', 'fonksiyon', 'functions'], snippet: 'fonksiyon adim() {\n  |\n}' },
-      { tr: '// yorum', en: 'comment', desc: 'Robot yorumları okumaz; notların için.', keys: ['comment', 'yorum'], snippet: '// ' }
-    ] }
-  ];
+  // ---------------- mesaj balonu ----------------
+  let bubbleTimer = 0;
+  function say(text, kind, ms) {
+    clearTimeout(bubbleTimer);
+    const b = els.bubble;
+    b.className = 'bubble' + (kind ? ' ' + kind : '');
+    b.textContent = text;
+    b.hidden = false;
+    // animasyonu yeniden başlat
+    b.style.animation = 'none';
+    void b.offsetWidth;
+    b.style.animation = '';
+    if (ms) bubbleTimer = setTimeout(hideBubble, ms);
+  }
+  function hideBubble() { clearTimeout(bubbleTimer); els.bubble.hidden = true; }
 
-  // ---------------- uygulama ----------------
-  function App() {
-    const $ = (id) => document.getElementById(id);
-    const el = {
-      levelGrid: $('levelGrid'), totalStars: $('totalStars'),
-      badge: $('levelBadge'), par: $('levelPar'), title: $('levelTitle'), desc: $('levelDesc'),
-      hintToggle: $('hintToggle'), hintText: $('hintText'), refList: $('refList'),
-      gemChip: $('gemChip'), stepChip: $('stepChip'), status: $('statusMsg'),
-      boardWrap: $('boardWrap'), canvas: $('board'),
-      lineCount: $('lineCount'), code: $('code'), gutter: $('gutterInner'),
-      execBand: $('execBand'), errorBand: $('errorBand'), errorBox: $('errorBox'),
-      btnRun: $('btnRun'), btnStep: $('btnStep'), btnStop: $('btnStop'), btnReset: $('btnReset'),
-      speed: $('speed'),
-      modal: $('winModal'), winStars: $('winStars'), winTitle: $('winTitle'), winText: $('winText'),
-      btnRetry: $('btnRetry'), btnNext: $('btnNext')
-    };
+  // ---------------- çizim: başlık, görev, palet, program ----------------
+  function renderHeader() {
+    els.levelNum.textContent = 'Bölüm ' + (S.index + 1);
+    const st = starsFor(S.level.id);
+    const fresh = starsEl(st);
+    fresh.id = 'levelStars';
+    els.levelStars.replaceWith(fresh);
+    els.levelStars = fresh;
+  }
 
-    const LEVELS = CodeGame.LEVELS || [];
-    const missing = [];
-    if (!CodeGame.Interpreter) missing.push('js/interpreter.js');
-    if (!CodeGame.World) missing.push('js/world.js');
-    if (!LEVELS.length) missing.push('js/levels.js');
-    if (missing.length) {
-      el.title.textContent = 'Oyun yüklenemedi';
-      el.desc.textContent = 'Eksik dosya: ' + missing.join(', ');
+  function renderTask() {
+    els.levelTitle.textContent = S.level.title || ('Bölüm ' + (S.index + 1));
+    els.levelDesc.textContent = S.level.description || '';
+    els.parText.textContent = S.level.par + ' blok';
+    els.parChip.title = '3 yıldız için en fazla ' + S.level.par + ' blok';
+    document.title = 'KodRobot · Bölüm ' + (S.index + 1);
+  }
+
+  function updateGemChip() {
+    const w = S.world;
+    const total = w ? w.totalGems : 0;
+    els.gemChip.hidden = !total;
+    if (!total) return;
+    els.gemText.textContent = w.collected + '/' + total;
+    els.gemChip.classList.toggle('done', w.collected >= total);
+  }
+
+  function renderPalette() {
+    els.palette.textContent = '';
+    for (const t of S.level.tools || []) {
+      const info = INFO[t];
+      if (!info) continue;
+      const item = el('button', 'pal-item');
+      item.type = 'button';
+      item.dataset.type = t;
+      item.setAttribute('aria-label', info.aria + ' bloğu ekle');
+      const blk = el('div', 'blk blk-' + t);
+      blk.appendChild(icon(info.icon));
+      if (t === 'loop') blk.appendChild(el('span', 'pal-badge', '×' + LOOP_MIN));
+      item.appendChild(blk);
+      item.appendChild(el('span', 'pal-label', info.name));
+      els.palette.appendChild(item);
+    }
+  }
+
+  function buildBlock(b, path) {
+    const node = el('div', 'blk blk-' + b.type);
+    node.dataset.path = pathKey(path);
+    node.tabIndex = 0;
+    node.setAttribute('role', 'listitem');
+    if (b.type === 'loop') {
+      node.classList.add('blk-container');
+      node.setAttribute('aria-label', 'Tekrarla, ' + b.count + ' kez');
+      const head = el('div', 'loop-head');
+      head.appendChild(icon(INFO.loop.icon));
+      const badge = el('button', 'loop-count', '×' + b.count);
+      badge.type = 'button';
+      badge.title = 'Dokun: sayıyı değiştir';
+      badge.setAttribute('aria-label', b.count + ' kez. Değiştirmek için dokun.');
+      badge.disabled = S.running;
+      head.appendChild(badge);
+      const body = el('div', 'loop-body drop-zone');
+      body.dataset.zone = pathKey(path);
+      body.setAttribute('role', 'list');
+      const kids = Array.isArray(b.body) ? b.body : [];
+      kids.forEach((c, j) => body.appendChild(buildBlock(c, path.concat(j))));
+      if (!kids.length) body.classList.add('is-empty');
+      node.appendChild(head);
+      node.appendChild(body);
+    } else {
+      node.appendChild(icon(INFO[b.type] ? INFO[b.type].icon : 'i-move'));
+      node.setAttribute('aria-label', INFO[b.type] ? INFO[b.type].aria : b.type);
+    }
+    if (b === S.justAdded) node.classList.add('pop-in');
+    S.pathMap.set(pathKey(path), node);
+    return node;
+  }
+
+  function renderProgram() {
+    const rootEl = els.programRoot;
+    rootEl.textContent = '';
+    S.pathMap = new Map();
+    S.program.forEach((b, i) => rootEl.appendChild(buildBlock(b, [i])));
+    S.justAdded = null;
+    const used = countBlocks(S.program);
+    const free = Math.max(0, S.level.maxBlocks - used);
+    for (let i = 0; i < free; i++) {
+      const s = el('div', 'slot');
+      s.setAttribute('aria-hidden', 'true');
+      rootEl.appendChild(s);
+    }
+    const empty = S.program.length === 0;
+    rootEl.classList.toggle('is-empty', empty);
+    if (empty) rootEl.appendChild(el('p', 'empty-hint', 'Blokları buraya sürükle'));
+    els.palette.classList.toggle('hint', empty);
+    updateCounter();
+  }
+
+  function updateCounter() {
+    const used = countBlocks(S.program);
+    const max = S.level.maxBlocks;
+    els.counter.textContent = used + ' / ' + max;
+    els.counter.classList.toggle('full', used >= max);
+    els.counter.setAttribute('aria-label', max + ' bloktan ' + used + ' tanesi kullanıldı');
+  }
+
+  // ---------------- program değişiklikleri ----------------
+  function programChanged() {
+    saveProgram();
+    renderProgram();
+    disarmClear();
+    if (S.dirty) resetRobot(true);
+    hideBubble();
+  }
+
+  function refuseFull() {
+    flash(els.counter, 'shake');
+    flash(els.programPanel, 'shake');
+    say('Yer kalmadı! En fazla ' + S.level.maxBlocks + ' blok.', 'hint', 2600);
+  }
+
+  function appendBlock(type) {
+    if (S.running) return;
+    if (isFull()) { refuseFull(); return; }
+    const b = newBlock(type);
+    S.program.push(b);
+    S.justAdded = b;
+    programChanged();
+    const node = S.pathMap.get(String(S.program.length - 1));
+    if (node) ensureVisible(node);
+  }
+
+  function cycleLoop(badge) {
+    if (S.running) return;
+    const host = badge.closest('.blk-loop');
+    const node = host && nodeAt(parsePath(host.dataset.path));
+    if (!node) return;
+    node.count = node.count >= LOOP_MAX ? LOOP_MIN : node.count + 1;
+    badge.textContent = '×' + node.count;
+    badge.setAttribute('aria-label', node.count + ' kez. Değiştirmek için dokun.');
+    host.setAttribute('aria-label', 'Tekrarla, ' + node.count + ' kez');
+    flash(badge, 'bump');
+    saveProgram();
+    if (S.dirty) resetRobot(true);
+    hideBubble();
+  }
+
+  // ---------------- sürükle-bırak ----------------
+  const D = { id: null, src: null, sx: 0, sy: 0, started: false, ghost: null, offX: 0, offY: 0, zone: null, ptype: 'mouse' };
+
+  function onPointerDown(e) {
+    if (D.id !== null) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.closest('.loop-count')) return; // sayı rozeti: tıklama ile değişir
+    const pal = e.target.closest('.pal-item');
+    const blk = e.target.closest('.blk');
+    let src = null;
+    if (pal && els.palette.contains(pal)) {
+      src = { kind: 'palette', type: pal.dataset.type, el: pal.querySelector('.blk'), host: pal };
+    } else if (blk && els.programRoot.contains(blk)) {
+      src = { kind: 'program', path: parsePath(blk.dataset.path), el: blk, host: blk };
+    }
+    if (!src) return;
+    if (S.running) { e.preventDefault(); return; }
+    e.preventDefault();
+    D.id = e.pointerId;
+    D.src = src;
+    D.sx = e.clientX;
+    D.sy = e.clientY;
+    D.started = false;
+    D.ptype = e.pointerType || 'mouse';
+    try { src.host.setPointerCapture(e.pointerId); } catch (err) { /* yoksay */ }
+  }
+
+  function onPointerMove(e) {
+    if (e.pointerId !== D.id) return;
+    if (!D.started) {
+      const dist = Math.hypot(e.clientX - D.sx, e.clientY - D.sy);
+      if (dist < (D.ptype === 'mouse' ? 5 : 8)) return;
+      startDrag();
+    }
+    e.preventDefault();
+    moveDrag(e.clientX, e.clientY);
+  }
+
+  function onPointerUp(e) {
+    if (e.pointerId !== D.id) return;
+    const src = D.src;
+    if (D.started) endDrag(e.clientX, e.clientY);
+    else if (src.kind === 'palette') appendBlock(src.type);
+    else flash(src.el, 'wiggle');
+    resetDrag();
+  }
+
+  function onPointerCancel(e) {
+    if (e.pointerId !== D.id) return;
+    if (D.started) { clearTargetUI(); dropGhost('fade'); }
+    resetDrag();
+  }
+
+  function resetDrag() {
+    if (D.src && D.src.host) {
+      try { D.src.host.releasePointerCapture(D.id); } catch (err) { /* yoksay */ }
+    }
+    if (D.src && D.src.el) D.src.el.classList.remove('drag-src');
+    document.body.classList.remove('is-dragging');
+    els.palettePanel.classList.remove('trash-mode', 'trash-hot');
+    D.id = null;
+    D.src = null;
+    D.started = false;
+    D.zone = null;
+  }
+
+  function startDrag() {
+    D.started = true;
+    const src = D.src;
+    const r = src.el.getBoundingClientRect();
+    D.offX = Math.max(0, Math.min(r.width, D.sx - r.left));
+    D.offY = Math.max(0, Math.min(r.height, D.sy - r.top));
+    const ghost = el('div', 'ghost');
+    ghost.setAttribute('aria-hidden', 'true');
+    const clone = src.el.cloneNode(true);
+    clone.classList.remove('running', 'error', 'active-loop', 'drag-src', 'pop-in', 'wiggle');
+    clone.removeAttribute('data-path');
+    clone.removeAttribute('tabindex');
+    clone.querySelectorAll('[data-path],[data-zone],.drop-zone,[tabindex]').forEach((n) => {
+      n.removeAttribute('data-path');
+      n.removeAttribute('data-zone');
+      n.removeAttribute('tabindex');
+      n.classList.remove('drop-zone', 'running', 'error', 'active-loop');
+    });
+    clone.style.width = r.width + 'px';
+    clone.style.height = r.height + 'px';
+    ghost.appendChild(clone);
+    document.body.appendChild(ghost);
+    D.ghost = ghost;
+    els.dropMarker.dataset.type = src.kind === 'palette' ? src.type : (nodeAt(src.path) || {}).type || '';
+    if (src.kind === 'program') {
+      src.el.classList.add('drag-src');
+      els.palettePanel.classList.add('trash-mode');
+    }
+    document.body.classList.add('is-dragging');
+    hideBubble();
+  }
+
+  function moveDrag(x, y) {
+    if (D.ghost) D.ghost.style.transform = 'translate3d(' + (x - D.offX) + 'px,' + (y - D.offY) + 'px,0)';
+    showTarget(computeTarget(x, y));
+  }
+
+  function blockKids(zone, exclude) {
+    return Array.prototype.filter.call(zone.children, (c) => c.classList.contains('blk') && c !== exclude);
+  }
+
+  /** Bırakma yeri: hangi alan, kaçıncı sıra ve işaretçinin konumu. */
+  function indexAt(zone, x, y, exclude) {
+    const kids = blockKids(zone, exclude);
+    const rects = kids.map((k) => k.getBoundingClientRect());
+    let index = kids.length;
+    for (let i = 0; i < kids.length; i++) {
+      const r = rects[i];
+      if (y < r.top) { index = i; break; }
+      if (y <= r.bottom + 6 && x < r.left + r.width / 2) { index = i; break; }
+    }
+    const gap = 5;
+    let m;
+    if (!kids.length) {
+      const zr = zone.getBoundingClientRect();
+      const cs = getComputedStyle(zone);
+      const pl = parseFloat(cs.paddingLeft) || 0;
+      const pt = parseFloat(cs.paddingTop) || 0;
+      const bs = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--bs')) || 60;
+      m = { x: zr.left + pl - 2, y: zr.top + pt, h: Math.min(bs, zr.height - pt * 2) };
+    } else if (index < kids.length) {
+      const r = rects[index];
+      const prev = index > 0 ? rects[index - 1] : null;
+      if (prev && r.top >= prev.bottom - 4 && y >= prev.top && y <= prev.bottom + 6) {
+        m = { x: prev.right + gap, y: prev.top, h: prev.height };
+      } else {
+        m = { x: r.left - gap, y: r.top, h: r.height };
+      }
+    } else {
+      const r = rects[kids.length - 1];
+      m = { x: r.right + gap, y: r.top, h: r.height };
+    }
+    return { index, kids, marker: m };
+  }
+
+  function computeTarget(x, y) {
+    const src = D.src;
+    const fromProgram = src.kind === 'program';
+    const offKind = fromProgram ? 'delete' : 'cancel';
+    const hit = document.elementFromPoint(x, y);
+    if (!hit) return { kind: offKind };
+    if (hit.closest('#palettePanel')) return { kind: offKind };
+    const inPanel = hit.closest('#programPanel');
+    let zone = hit.closest('.drop-zone');
+    if (zone && !els.programPanel.contains(zone)) zone = null;
+    if (!zone && inPanel) zone = els.programRoot;
+    if (!zone) return { kind: offKind };
+    if (fromProgram && src.el.contains(zone)) {
+      // kendi gövdesine bırakılamaz: bir üstteki alana say
+      zone = (src.el.parentElement && src.el.parentElement.closest('.drop-zone')) || els.programRoot;
+    }
+    if (!fromProgram && isFull()) return { kind: 'full', zone };
+    const at = indexAt(zone, x, y, fromProgram ? src.el : null);
+    return { kind: 'insert', zone, index: at.index, kids: at.kids, marker: at.marker };
+  }
+
+  function showTarget(t) {
+    if (D.zone && D.zone !== t.zone) D.zone.classList.remove('drop-target');
+    els.programRoot.classList.toggle('full-hover', t.kind === 'full');
+    if (t.kind === 'insert') {
+      t.zone.classList.add('drop-target');
+      D.zone = t.zone;
+      const m = els.dropMarker;
+      m.hidden = false;
+      m.style.transform = 'translate(' + Math.round(t.marker.x - 3.5) + 'px,' + Math.round(t.marker.y) + 'px)';
+      m.style.height = Math.round(t.marker.h) + 'px';
+    } else {
+      D.zone = null;
+      els.dropMarker.hidden = true;
+    }
+    const del = t.kind === 'delete';
+    els.palettePanel.classList.toggle('trash-hot', del);
+    if (D.ghost) D.ghost.classList.toggle('to-trash', del);
+  }
+
+  function clearTargetUI() {
+    els.dropMarker.hidden = true;
+    els.programRoot.classList.remove('full-hover');
+    document.querySelectorAll('.drop-target').forEach((n) => n.classList.remove('drop-target'));
+  }
+
+  function dropGhost(mode) {
+    const g = D.ghost;
+    D.ghost = null;
+    if (!g) return;
+    if (mode === 'land' || reducedMotion()) { g.remove(); return; }
+    g.classList.add(mode);
+    setTimeout(() => g.remove(), 280);
+  }
+
+  function endDrag(x, y) {
+    const t = computeTarget(x, y);
+    const src = D.src;
+    clearTargetUI();
+    if (t.kind === 'insert') {
+      if (src.kind === 'palette' && isFull()) { refuseFull(); dropGhost('fade'); return; }
+      const arr = arrayFor(parsePath(t.zone.dataset.zone));
+      if (!arr) { dropGhost('fade'); return; }
+      const beforeEl = t.kids[t.index];
+      const beforeNode = beforeEl ? nodeAt(parsePath(beforeEl.dataset.path)) : null;
+      const node = src.kind === 'palette' ? newBlock(src.type) : removeAt(src.path);
+      if (!node) { dropGhost('fade'); return; }
+      let at = beforeNode ? arr.indexOf(beforeNode) : arr.length;
+      if (at < 0) at = arr.length;
+      arr.splice(at, 0, node);
+      S.justAdded = node;
+      dropGhost('land');
+      if (src.kind === 'program') src.el.classList.remove('drag-src');
+      programChanged();
+    } else if (t.kind === 'delete' && src.kind === 'program') {
+      removeAt(src.path);
+      dropGhost('poof');
+      programChanged();
+    } else if (t.kind === 'full') {
+      dropGhost('fade');
+      refuseFull();
+    } else {
+      dropGhost('fade');
+    }
+  }
+
+  function ensureVisible(node) {
+    const box = els.programScroll;
+    if (!box || box.scrollHeight <= box.clientHeight + 2) return;
+    const br = box.getBoundingClientRect();
+    const r = node.getBoundingClientRect();
+    if (r.top < br.top + 8) box.scrollTop -= (br.top + 8 - r.top);
+    else if (r.bottom > br.bottom - 8) box.scrollTop += (r.bottom - br.bottom + 8);
+  }
+
+  // ---------------- çalıştırma ----------------
+  /** Blocks.run ile aynı sırayı izleyip döngü turlarını hesaplar (yalnızca gösterim için). */
+  function* trace(list, prefix, iters) {
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      const p = prefix.concat(i);
+      if (b.type === 'loop') {
+        const k = pathKey(p);
+        for (let n = 1; n <= b.count; n++) {
+          iters[k] = n;
+          yield* trace(b.body || [], p, iters);
+        }
+        delete iters[k];
+      } else {
+        yield { path: p, iters: Object.assign({}, iters) };
+      }
+    }
+  }
+  const samePath = (a, b) => !!a && !!b && a.length === b.length && a.every((v, i) => v === b[i]);
+
+  function clearHighlight() {
+    els.programRoot.querySelectorAll('.running, .active-loop').forEach((n) => n.classList.remove('running', 'active-loop'));
+    els.programRoot.querySelectorAll('.blk-loop').forEach((loopEl) => {
+      const badge = loopEl.querySelector(':scope > .loop-head > .loop-count');
+      const node = nodeAt(parsePath(loopEl.dataset.path));
+      if (badge && node) badge.textContent = '×' + node.count;
+    });
+  }
+  function clearMarks() {
+    clearHighlight();
+    els.programRoot.querySelectorAll('.error').forEach((n) => n.classList.remove('error'));
+  }
+
+  function highlight(path, iters) {
+    els.programRoot.querySelectorAll('.running').forEach((n) => n.classList.remove('running'));
+    const active = new Set();
+    for (let k = 1; k < path.length; k++) {
+      const lp = path.slice(0, k);
+      const key = pathKey(lp);
+      const loopEl = S.pathMap.get(key);
+      if (!loopEl || !loopEl.classList.contains('blk-loop')) continue;
+      active.add(loopEl);
+      loopEl.classList.add('active-loop');
+      const badge = loopEl.querySelector(':scope > .loop-head > .loop-count');
+      const node = nodeAt(lp);
+      if (badge && node) badge.textContent = iters && iters[key] ? iters[key] + '/' + node.count : '×' + node.count;
+    }
+    // artık içinde olmadığımız döngüleri söndür
+    els.programRoot.querySelectorAll('.active-loop').forEach((loopEl) => {
+      if (active.has(loopEl)) return;
+      loopEl.classList.remove('active-loop');
+      const badge = loopEl.querySelector(':scope > .loop-head > .loop-count');
+      const node = nodeAt(parsePath(loopEl.dataset.path));
+      if (badge && node) badge.textContent = '×' + node.count;
+    });
+    const node = S.pathMap.get(pathKey(path));
+    if (node) { node.classList.add('running'); ensureVisible(node); }
+  }
+
+  function setRunning(on) {
+    S.running = on;
+    document.body.classList.toggle('is-running', on);
+    els.btnRun.hidden = on;
+    els.btnStop.hidden = !on;
+    els.btnClear.disabled = on;
+    els.palette.querySelectorAll('.pal-item').forEach((b) => b.setAttribute('aria-disabled', on ? 'true' : 'false'));
+    els.programRoot.querySelectorAll('.loop-count').forEach((b) => { b.disabled = on; });
+    if (on) disarmClear();
+    // odak gizlenen düğmede kalmasın
+    const ae = document.activeElement;
+    if (on && ae === els.btnRun) els.btnStop.focus();
+    else if (!on && ae === els.btnStop) els.btnRun.focus();
+  }
+
+  async function run() {
+    if (S.running) return;
+    if (!S.program.length) {
+      say('Önce blok ekle! 👇', 'hint', 2600);
+      flash(els.programPanel, 'shake');
+      return;
+    }
+    if (!CodeGame.Blocks || typeof CodeGame.Blocks.run !== 'function') {
+      say('Oyun yüklenemedi 😕', 'error');
+      return;
+    }
+    const runId = ++S.runId;
+    setRunning(true);
+    clearMarks();
+    hideBubble();
+    const world = new CodeGame.World(S.level);
+    S.world = world;
+    S.renderer.setWorld(world);
+    S.dirty = true;
+    updateGemChip();
+    await wait(200);
+    if (runId !== S.runId) return;
+
+    const ms = SPEEDS[S.speed] || SPEEDS.slow;
+    const program = JSON.parse(JSON.stringify(S.program));
+    const tracer = trace(S.program, [], {});
+    let gen;
+    try {
+      gen = CodeGame.Blocks.run(program, world, { maxSteps: MAX_STEPS });
+    } catch (err) {
+      return fail(err, world, ms, runId);
+    }
+    for (;;) {
+      let step;
+      try {
+        step = gen.next();
+      } catch (err) {
+        return fail(err, world, ms, runId);
+      }
+      if (runId !== S.runId) return;
+      if (step.done) break;
+      const v = step.value || {};
+      const tr = tracer.next().value;
+      const path = Array.isArray(v.path) ? v.path : [];
+      highlight(path, tr && samePath(tr.path, path) ? tr.iters : null);
+      if (v.action === 'pick') updateGemChip();
+      await S.renderer.animate(v.action, world, ms);
+      if (runId !== S.runId) return;
+    }
+    finish(world, runId);
+  }
+
+  async function fail(err, world, ms, runId) {
+    const path = err && Array.isArray(err.path) ? err.path : null;
+    clearHighlight();
+    if (path) {
+      const node = S.pathMap.get(pathKey(path));
+      if (node) { node.classList.add('error'); ensureVisible(node); }
+    }
+    const msg = String((err && err.message) || '');
+    let text;
+    if (world.crashed) {
+      text = 'Ups! Robot suya düştü 🌊';
+      say(text, 'error');
+      await S.renderer.crash(world, ms);
+    } else if (/elmas/i.test(msg)) {
+      text = 'Burada elmas yok 💎';
+      say(text, 'error');
+      if (typeof S.renderer.puzzled === 'function') await S.renderer.puzzled(world, ms);
+    } else if (/adım|step/i.test(msg)) {
+      say('Robot çok yoruldu 😴 Daha kısa bir program dene!', 'error');
+    } else {
+      say('Hımm, olmadı. Tekrar dene!', 'error');
+      if (root.console && !(err instanceof Error && err.name === 'BlockError')) console.warn(err);
+    }
+    if (runId !== S.runId) return;
+    setRunning(false);
+  }
+
+  function finish(world, runId) {
+    clearHighlight();
+    setRunning(false);
+    if (world.isWon()) {
+      win(runId);
+    } else if (world.atGoal() && world.gems.size > 0) {
+      say('Elmasları unuttun 💎', 'hint');
+    } else {
+      say('Robot hedefe varamadı, tekrar dene!', 'hint');
+    }
+  }
+
+  function win(runId) {
+    const used = countBlocks(S.program);
+    const par = S.level.par;
+    const stars = used <= par ? 3 : used <= par + 2 ? 2 : 1;
+    if (stars > starsFor(S.level.id)) {
+      S.progress[S.level.id] = stars;
+      store.set(KEY_PROGRESS, S.progress);
+    }
+    renderHeader();
+    S.renderer.celebrate();
+    say('Bayrağa ulaştın! 🎉', 'ok');
+    setTimeout(() => {
+      if (runId !== S.runId || S.running) return;
+      showWin(stars, used);
+    }, reducedMotion() ? 250 : 1100);
+  }
+
+  function stop() {
+    if (!S.running) return;
+    S.runId++;
+    S.renderer.snap();
+    clearHighlight();
+    setRunning(false);
+    say('Durdu ⏹', 'info', 1800);
+  }
+
+  function resetRobot(silent) {
+    if (S.running) { S.runId++; setRunning(false); }
+    S.world = new CodeGame.World(S.level);
+    S.renderer.setWorld(S.world);
+    S.dirty = false;
+    clearMarks();
+    updateGemChip();
+    if (!silent) hideBubble();
+  }
+
+  function disarmClear() {
+    S.clearArmed = 0;
+    els.btnClear.classList.remove('confirm');
+    els.clearLabel.textContent = 'Temizle';
+  }
+  function clearProgram() {
+    if (S.running || !S.program.length) return;
+    // büyük programlarda kazara silmeye karşı ikinci dokunuş
+    if (countBlocks(S.program) > 3 && Date.now() - S.clearArmed > 2500) {
+      S.clearArmed = Date.now();
+      els.btnClear.classList.add('confirm');
+      els.clearLabel.textContent = 'Emin misin?';
+      setTimeout(() => { if (Date.now() - S.clearArmed >= 2500) disarmClear(); }, 2600);
+      return;
+    }
+    S.program = [];
+    programChanged();
+  }
+
+  function applySpeed() {
+    const fast = S.speed === 'fast';
+    els.speedIco.textContent = fast ? '🐇' : '🐢';
+    els.speedLabel.textContent = fast ? 'Hızlı' : 'Yavaş';
+    els.btnSpeed.setAttribute('aria-label', 'Hız: ' + (fast ? 'hızlı' : 'yavaş'));
+  }
+
+  // ---------------- pencereler ----------------
+  let lastFocus = null;
+  function openModal(m, focusEl) {
+    lastFocus = document.activeElement;
+    m.hidden = false;
+    setTimeout(() => { (focusEl || m.querySelector('button')).focus(); }, 30);
+  }
+  function closeModal(m) {
+    if (m.hidden) return;
+    m.hidden = true;
+    if (lastFocus && document.body.contains(lastFocus)) lastFocus.focus();
+    lastFocus = null;
+  }
+
+  function showWin(stars, used) {
+    const titles = { 3: 'Mükemmel! 🎉', 2: 'Harika! 👏', 1: 'Bravo! 👍' };
+    els.winTitle.textContent = titles[stars];
+    els.winStars.querySelectorAll('.win-star').forEach((s, i) => s.classList.toggle('on', i < stars));
+    const last = S.index >= S.levels.length - 1;
+    let text = used + ' blok kullandın.';
+    if (stars < 3) text += ' ' + S.level.par + ' blokla 3 yıldız alabilirsin!';
+    if (last) text += ' Bütün bölümleri bitirdin! 🏆';
+    els.winText.textContent = text;
+    els.nextLabel.textContent = last ? 'Bölümler' : 'Sonraki';
+    openModal(els.winModal, els.btnNext);
+  }
+
+  function renderLevelGrid() {
+    const grid = els.levelGrid;
+    grid.textContent = '';
+    let total = 0;
+    S.levels.forEach((lv, i) => {
+      const st = starsFor(lv.id);
+      total += st;
+      const open = isUnlocked(i);
+      const b = el('button', 'level-tile');
+      b.type = 'button';
+      b.dataset.index = String(i);
+      b.title = lv.title || '';
+      if (i === S.index) b.classList.add('current');
+      if (st > 0) b.classList.add('done');
+      if (open) {
+        b.appendChild(el('span', 'lt-num', String(i + 1)));
+        b.appendChild(starsEl(st, 'lt-stars'));
+        b.setAttribute('aria-label', 'Bölüm ' + (i + 1) + ': ' + (lv.title || '') + ', ' + st + ' yıldız');
+      } else {
+        b.disabled = true;
+        b.appendChild(icon('i-lock', 'lock'));
+        b.appendChild(el('span', 'lt-num', String(i + 1)));
+        b.setAttribute('aria-label', 'Bölüm ' + (i + 1) + ', kilitli');
+      }
+      grid.appendChild(b);
+    });
+    els.totalStars.textContent = '';
+    els.totalStars.appendChild(icon('i-star'));
+    els.totalStars.appendChild(document.createTextNode(total + ' / ' + S.levels.length * 3));
+    els.totalStars.setAttribute('aria-label', 'Toplam ' + total + ' yıldız');
+  }
+
+  function openLevels() {
+    renderLevelGrid();
+    openModal(els.levelsModal, els.levelGrid.querySelector('.current') || undefined);
+  }
+
+  // ---------------- bölüm yükleme ----------------
+  function loadLevel(i) {
+    if (!S.levels.length) return;
+    i = Math.max(0, Math.min(S.levels.length - 1, i | 0));
+    if (S.running) { S.runId++; setRunning(false); }
+    S.index = i;
+    S.level = S.levels[i];
+    store.set(KEY_LEVEL, S.level.id);
+    S.program = loadProgram(S.level);
+    S.world = new CodeGame.World(S.level);
+    S.renderer.setWorld(S.world);
+    S.dirty = false;
+    disarmClear();
+    renderHeader();
+    renderTask();
+    renderPalette();
+    renderProgram();
+    updateGemChip();
+    hideBubble();
+  }
+
+  function startLevelIndex() {
+    const lastId = store.get(KEY_LEVEL, null);
+    const idx = S.levels.findIndex((l) => l.id === lastId);
+    if (idx >= 0 && isUnlocked(idx)) return idx;
+    // ilk yıldızsız açık bölüm
+    for (let i = 0; i < S.levels.length; i++) {
+      if (isUnlocked(i) && !starsFor(S.levels[i].id)) return i;
+    }
+    return 0;
+  }
+
+  // ---------------- başlatma ----------------
+  function init() {
+    const ids = ['levelNum', 'levelStars', 'btnLevels', 'levelTitle', 'levelDesc', 'gemChip', 'gemText',
+      'parChip', 'parText', 'boardWrap', 'board', 'bubble', 'btnRun', 'btnStop', 'btnReset', 'btnClear',
+      'clearLabel', 'btnSpeed', 'speedIco', 'speedLabel', 'programPanel', 'programScroll', 'programRoot',
+      'counter', 'palettePanel', 'palette', 'dropMarker', 'levelsModal', 'levelGrid', 'totalStars',
+      'winModal', 'winStars', 'winTitle', 'winText', 'btnRetry', 'btnNext', 'nextLabel'];
+    els = {};
+    for (const id of ids) els[id] = document.getElementById(id);
+
+    const prog = store.get(KEY_PROGRESS, {});
+    S.progress = prog && typeof prog === 'object' && !Array.isArray(prog) ? prog : {};
+    S.speed = store.get(KEY_SPEED, 'slow') === 'fast' ? 'fast' : 'slow';
+    applySpeed();
+
+    S.renderer = new CodeGame.Renderer(els.board, { container: els.boardWrap });
+
+    if (!S.levels.length || !CodeGame.World) {
+      say('Bölümler yüklenemedi 😕', 'error');
       return;
     }
 
-    const renderer = new CodeGame.Renderer(el.canvas, { container: el.boardWrap });
+    // sürükle-bırak
+    document.addEventListener('pointerdown', onPointerDown);
+    root.addEventListener('pointermove', onPointerMove, { passive: false });
+    root.addEventListener('pointerup', onPointerUp);
+    root.addEventListener('pointercancel', onPointerCancel);
+    els.palette.addEventListener('contextmenu', (e) => e.preventDefault());
+    els.programRoot.addEventListener('contextmenu', (e) => e.preventDefault());
+    // dokunmatikte sayfanın kaymasını engelle (eski iOS için)
+    document.addEventListener('touchmove', (e) => { if (D.started) e.preventDefault(); }, { passive: false });
 
-    let idx = 0;
-    let level = null;
-    let world = null;
-    let session = null;   // { world, gen, source, actions, finished }
-    let running = false;
-    let busy = false;     // bir adım canlandırılıyor
-    let runToken = 0;
-    let execLine = null;
-    let errorLine = null;
-    let lastLineTotal = -1;
-
-    // ---------- ilerleme ----------
-    function progress() { return store.getJSON(PROGRESS_KEY, {}); }
-    function isUnlocked(i, prog) {
-      prog = prog || progress();
-      if (i <= 0) return true;
-      if ((prog[LEVELS[i].id] || 0) > 0) return true;
-      return (prog[LEVELS[i - 1].id] || 0) > 0;
-    }
-    function saveStars(id, stars) {
-      const prog = progress();
-      const prev = prog[id] || 0;
-      if (stars > prev) {
-        prog[id] = stars;
-        store.setJSON(PROGRESS_KEY, prog);
-      }
-      return Math.max(prev, stars);
-    }
-
-    // ---------- bölüm seçici ----------
-    function renderLevelGrid() {
-      const prog = progress();
-      el.levelGrid.textContent = '';
-      let total = 0;
-      LEVELS.forEach((lv, i) => {
-        const stars = prog[lv.id] || 0;
-        total += stars;
-        const unlocked = isUnlocked(i, prog);
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'level-btn' + (i === idx ? ' current' : '') + (stars ? ' done' : '') + (unlocked ? '' : ' locked');
-        b.disabled = !unlocked;
-        b.setAttribute('aria-label', (i + 1) + '. bölüm: ' + lv.title + (unlocked ? (stars ? ', ' + stars + ' yıldız' : '') : ', kilitli'));
-        b.title = unlocked ? (i + 1) + '. ' + lv.title : 'Kilitli — önce ' + i + '. bölümü geç';
-        if (i === idx) b.setAttribute('aria-current', 'true');
-        if (unlocked) {
-          const num = document.createElement('span');
-          num.className = 'num';
-          num.textContent = String(i + 1);
-          const st = document.createElement('span');
-          st.className = 'stars';
-          for (let k = 1; k <= 3; k++) {
-            const s = document.createElement('span');
-            s.textContent = '★';
-            if (k <= stars) s.className = 'on';
-            st.appendChild(s);
-          }
-          b.append(num, st);
-          b.addEventListener('click', () => loadLevel(i));
-        } else {
-          const lock = document.createElement('span');
-          lock.className = 'lock';
-          lock.textContent = '🔒';
-          const num = document.createElement('span');
-          num.className = 'stars';
-          num.textContent = String(i + 1);
-          b.append(lock, num);
-        }
-        el.levelGrid.appendChild(b);
-      });
-      el.totalStars.textContent = '★ ' + total + ' / ' + LEVELS.length * 3;
-    }
-
-    // ---------- komut referansı ----------
-    function conceptSets() {
-      const norm = (a) => (Array.isArray(a) ? a : []).map((s) => String(s).toLowerCase());
-      const cur = new Set(norm(level.newConcepts));
-      const before = new Set();
-      const later = new Set();
-      LEVELS.forEach((lv, i) => {
-        const list = norm(lv.newConcepts);
-        if (i < idx) list.forEach((k) => before.add(k));
-        else if (i > idx) list.forEach((k) => later.add(k));
-      });
-      return { cur, before, later };
-    }
-    function renderReference() {
-      const { cur, before, later } = conceptSets();
-      el.refList.textContent = '';
-      for (const g of REF) {
-        const group = document.createElement('div');
-        group.className = 'ref-group';
-        const h = document.createElement('p');
-        h.className = 'ref-group-title';
-        h.textContent = g.group;
-        const items = document.createElement('div');
-        items.className = 'ref-items';
-        for (const it of g.items) {
-          const isNew = it.keys.some((k) => cur.has(k));
-          const seen = isNew || it.keys.some((k) => before.has(k));
-          const isLater = !seen && it.keys.some((k) => later.has(k));
-          const b = document.createElement('button');
-          b.type = 'button';
-          b.className = 'ref-item' + (isNew ? ' is-new' : '') + (isLater ? ' is-later' : '');
-          b.title = isLater ? 'İleriki bölümlerde öğreneceksin — yine de kullanabilirsin' : 'Koda ekle';
-          const code = document.createElement('code');
-          code.textContent = it.tr;
-          const alias = document.createElement('span');
-          alias.className = 'alias';
-          alias.textContent = it.en;
-          const desc = document.createElement('span');
-          desc.className = 'desc';
-          desc.textContent = it.desc;
-          b.append(code, alias, desc);
-          b.addEventListener('click', () => insertSnippet(it.snippet));
-          items.appendChild(b);
-        }
-        group.append(h, items);
-        el.refList.appendChild(group);
-      }
-    }
-
-    // ---------- editör ----------
-    const ta = el.code;
-    function metrics() {
-      const cs = getComputedStyle(ta);
-      return { lh: parseFloat(cs.lineHeight) || 23, pad: parseFloat(cs.paddingTop) || 12 };
-    }
-    function renderGutter() {
-      const total = ta.value.split('\n').length;
-      if (total !== lastLineTotal) {
-        lastLineTotal = total;
-        const frag = document.createDocumentFragment();
-        for (let i = 1; i <= total; i++) {
-          const d = document.createElement('div');
-          d.textContent = String(i);
-          frag.appendChild(d);
-        }
-        el.gutter.textContent = '';
-        el.gutter.appendChild(frag);
-      }
-      const kids = el.gutter.children;
-      for (let i = 0; i < kids.length; i++) {
-        const n = i + 1;
-        kids[i].className = (n === execLine ? 'exec' : '') + (n === errorLine ? ' err' : '');
-      }
-      syncScroll();
-    }
-    function syncScroll() {
-      const st = ta.scrollTop;
-      el.gutter.style.transform = 'translateY(' + -st + 'px)';
-      const m = metrics();
-      placeBand(el.execBand, execLine, m, st);
-      placeBand(el.errorBand, errorLine, m, st);
-    }
-    function placeBand(band, line, m, st) {
-      if (!line) { band.classList.remove('show'); return; }
-      band.style.top = (m.pad + (line - 1) * m.lh - st) + 'px';
-      band.classList.add('show');
-    }
-    function revealLine(line) {
-      if (!line) return;
-      const m = metrics();
-      const top = m.pad + (line - 1) * m.lh;
-      const h = ta.clientHeight;
-      if (top < ta.scrollTop + m.lh) ta.scrollTop = Math.max(0, top - m.lh * 2);
-      else if (top + m.lh > ta.scrollTop + h - m.lh) ta.scrollTop = top - h + m.lh * 3;
-    }
-    function setExecLine(line) {
-      execLine = line || null;
-      if (execLine) revealLine(execLine);
-      renderGutter();
-    }
-    function setErrorLine(line) {
-      errorLine = line || null;
-      if (errorLine) revealLine(errorLine);
-      renderGutter();
-    }
-    function updateLineCount() {
-      const n = countLines(ta.value);
-      const par = level.par;
-      el.lineCount.textContent = 'kod satırı: ' + n + ' / par ' + par;
-      el.lineCount.classList.remove('ok', 'near', 'over');
-      if (n > 0) el.lineCount.classList.add(n <= par ? 'ok' : n <= par + 2 ? 'near' : 'over');
-    }
-    function onCodeChanged() {
-      store.set(CODE_KEY(level.id), ta.value);
-      updateLineCount();
-      if (session && !running) {
-        session = null;
-        setExecLine(null);
-        setUi();
-      }
-      if (errorLine) { setErrorLine(null); hideError(); }
-      renderGutter();
-    }
-
-    function insertText(text) {
-      ta.focus();
-      let ok = false;
-      try { ok = document.execCommand('insertText', false, text); } catch (e) { ok = false; }
-      if (!ok) {
-        const s = ta.selectionStart;
-        ta.setRangeText(text, s, ta.selectionEnd, 'end');
-        onCodeChanged();
-      }
-    }
-    function lineStartOf(pos) { return ta.value.lastIndexOf('\n', pos - 1) + 1; }
-
-    function insertSnippet(snippet) {
-      if (ta.readOnly) return;
-      const pos = ta.selectionStart;
-      const ls = lineStartOf(pos);
-      const lineBefore = ta.value.slice(ls, pos);
-      const indent = (lineBefore.match(/^\s*/) || [''])[0];
-      let text = snippet.replace(/\n/g, '\n' + indent);
-      const isCall = /\)$/.test(snippet) || /^\/\//.test(snippet);
-      const isBlock = snippet.indexOf('\n') >= 0 && snippet[0] !== ' ';
-      if ((isCall || isBlock) && lineBefore.trim() !== '') text = '\n' + indent + text;
-      if (isCall && snippet.indexOf('\n') < 0 && !/^\/\//.test(snippet)) {
-        const rest = ta.value.slice(ta.selectionEnd);
-        if (rest && rest[0] !== '\n') text += '\n' + indent;
-      }
-      const caret = text.indexOf('|');
-      text = text.replace('|', '');
-      insertText(text);
-      if (caret >= 0) {
-        const p = pos + caret;
-        ta.setSelectionRange(p, p);
-      }
-    }
-
-    function onKeyDown(e) {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        run();
-        return;
-      }
-      if (ta.readOnly) return;
-      if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        e.preventDefault();
-        const s = ta.selectionStart;
-        const en = ta.selectionEnd;
-        const v = ta.value;
-        const multi = v.slice(s, en).indexOf('\n') >= 0;
-        if (e.shiftKey || multi) {
-          const ls = lineStartOf(s);
-          let le = v.indexOf('\n', en > s && v[en - 1] === '\n' ? en - 1 : en);
-          if (le < 0) le = v.length;
-          const block = v.slice(ls, le);
-          const out = block.split('\n').map((l) => (e.shiftKey ? l.replace(/^ {1,2}/, '') : '  ' + l)).join('\n');
-          ta.setSelectionRange(ls, le);
-          insertText(out);
-          ta.setSelectionRange(ls, ls + out.length);
-        } else {
-          insertText('  ');
-        }
-        return;
-      }
-      if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        e.preventDefault();
-        const s = ta.selectionStart;
-        const v = ta.value;
-        const ls = lineStartOf(s);
-        const before = v.slice(ls, s);
-        const indent = (before.match(/^\s*/) || [''])[0];
-        const opens = /\{\s*$/.test(before.replace(/\/\/.*$/, ''));
-        const after = v.slice(ta.selectionEnd);
-        const closesNext = /^\s*\}/.test(after.split('\n')[0]);
-        if (opens && closesNext) {
-          const inner = indent + '  ';
-          const trimmedAfter = after.replace(/^[ \t]+/, '');
-          ta.setSelectionRange(s, ta.selectionEnd + (after.length - trimmedAfter.length));
-          insertText('\n' + inner + '\n' + indent);
-          const p = s + 1 + inner.length;
-          ta.setSelectionRange(p, p);
-        } else {
-          insertText('\n' + indent + (opens ? '  ' : ''));
-        }
-        return;
-      }
-      if (e.key === '}' && !e.ctrlKey && !e.metaKey) {
-        const s = ta.selectionStart;
-        const ls = lineStartOf(s);
-        const before = ta.value.slice(ls, s);
-        if (s === ta.selectionEnd && /^ {2,}$/.test(before)) {
-          e.preventDefault();
-          ta.setSelectionRange(s - 2, s);
-          insertText('}');
-        }
-      }
-    }
-
-    // ---------- mesajlar ----------
-    function setStatus(text, kind) {
-      el.status.textContent = text || '';
-      el.status.className = 'status-msg' + (kind ? ' ' + kind : '');
-    }
-    function showError(e) {
-      const line = typeof e.line === 'number' && e.line > 0 ? e.line : null;
-      let msg = e.message || String(e);
-      if (line && !/sat[ıi]r/i.test(msg)) msg = line + '. satır: ' + msg;
-      el.errorBox.className = 'error-box';
-      el.errorBox.textContent = '';
-      const kind = document.createElement('span');
-      kind.className = 'err-kind';
-      kind.textContent = e.kind === 'syntax' ? 'Yazım hatası' : e.kind === 'runtime' ? 'Çalışma hatası' : 'Hata';
-      el.errorBox.append(kind, document.createTextNode(msg));
-      el.errorBox.hidden = false;
-      // animasyonu yeniden tetikle
-      el.errorBox.style.animation = 'none';
-      void el.errorBox.offsetWidth;
-      el.errorBox.style.animation = '';
-      setErrorLine(line);
-    }
-    function showInfo(title, msg) {
-      el.errorBox.className = 'error-box info';
-      el.errorBox.textContent = '';
-      const kind = document.createElement('span');
-      kind.className = 'err-kind';
-      kind.textContent = title;
-      el.errorBox.append(kind, document.createTextNode(msg));
-      el.errorBox.hidden = false;
-    }
-    function hideError() {
-      el.errorBox.hidden = true;
-      el.errorBox.textContent = '';
-    }
-
-    function updateChips(w) {
-      w = w || world;
-      if (!w) return;
-      el.gemChip.textContent = '💎 ' + (w.collected || 0) + ' / ' + (w.totalGems || 0);
-      el.stepChip.textContent = '👣 ' + (session ? session.actions : 0);
-    }
-
-    function setUi() {
-      const paused = !!session && !session.finished && !running;
-      el.btnRun.disabled = running;
-      el.btnRun.classList.toggle('running', running);
-      el.btnRun.innerHTML = running
-        ? '<span aria-hidden="true">⚙</span> Çalışıyor'
-        : paused ? '<span aria-hidden="true">▶</span> Devam et' : '<span aria-hidden="true">▶</span> Çalıştır';
-      el.btnStep.innerHTML = running ? '<span aria-hidden="true">⏸</span> Duraklat' : '<span aria-hidden="true">⏭</span> Adım';
-      el.btnStep.title = running ? 'Duraklat' : 'Tek adım ilerle';
-      el.btnStop.disabled = !(running || paused);
-      ta.readOnly = running;
-    }
-
-    // ---------- oyun akışı ----------
-    function speedMs() {
-      const v = Math.max(1, Math.min(5, parseInt(el.speed.value, 10) || 3));
-      return SPEEDS[v - 1];
-    }
-
-    function freshWorld() {
-      world = new CodeGame.World(level);
-      renderer.setWorld(world);
-      updateChips(world);
-    }
-
-    function startSession() {
-      hideError();
-      setErrorLine(null);
-      closeModal();
-      const source = ta.value;
-      let ast;
-      try {
-        ast = CodeGame.Interpreter.parse(source);
-      } catch (e) {
-        showError(e);
-        setStatus('Kodda bir yazım hatası var', 'bad');
-        return false;
-      }
-      try {
-        freshWorld();
-        session = { world, gen: CodeGame.Interpreter.run(ast, world, { maxSteps: 2000 }), source, actions: 0, finished: false };
-      } catch (e) {
-        showError(e);
-        session = null;
-        return false;
-      }
-      updateChips(world);
-      return true;
-    }
-
-    /** Bir eylem ilerletir; devam edilebilirse true döner. */
-    async function advance() {
-      const s = session;
-      if (!s || s.finished) return false;
-      busy = true;
-      try {
-        let res;
-        try {
-          res = s.gen.next();
-        } catch (e) {
-          s.finished = true;
-          await onRuntimeError(e, s);
-          return false;
-        }
-        if (res.done) {
-          s.finished = true;
-          onFinished(s);
-          return false;
-        }
-        const a = res.value || {};
-        s.actions++;
-        updateChips(s.world);
-        setExecLine(a.line);
-        await renderer.animate(a.action, s.world, speedMs());
-        updateChips(s.world);
-        return session === s;
-      } finally {
-        busy = false;
-      }
-    }
-
-    async function onRuntimeError(e, s) {
-      setExecLine(null);
-      if (s.world.crashed) {
-        setStatus('Ah! Robot duvara çarptı', 'bad');
-        showError(isCodeError(e) ? e : { message: e.message, kind: 'runtime' });
-        await renderer.crash(s.world, speedMs());
-      } else {
-        setStatus('Kod çalışırken bir sorun çıktı', 'bad');
-        showError(isCodeError(e) ? e : { message: 'Beklenmeyen hata: ' + (e && e.message), kind: 'runtime' });
-      }
-      setUi();
-    }
-
-    function onFinished(s) {
-      setExecLine(null);
-      const w = s.world;
-      if (w.isWon()) {
-        const lines = countLines(s.source);
-        const stars = starsFor(lines, level.par);
-        saveStars(level.id, stars);
-        renderLevelGrid();
-        renderer.celebrate();
-        setStatus('Hedefe ulaşıldı! 🎉', 'good');
-        const myLevel = level;
-        setTimeout(() => { if (level === myLevel) openModal(stars, lines); }, 650);
-      } else {
-        const left = w.gems ? w.gems.size : Math.max(0, (w.totalGems || 0) - (w.collected || 0));
-        if (!w.atGoal()) {
-          setStatus('Robot hedefe ulaşamadı', 'warn');
-          showInfo('Neredeyse!', 'Robot hedefe ulaşamadı. Kodun bitti ama robot hâlâ yolda.' +
-            (left ? ' Ayrıca ' + left + ' elmas toplanmadı.' : ''));
-        } else {
-          setStatus('Hâlâ toplanmamış elmas var', 'warn');
-          showInfo('Az kaldı!', 'Hedeftesin ama hâlâ toplanmamış ' + left + ' elmas var. 💎 Hepsini topla, sonra hedefe gel.');
-        }
-      }
-      setUi();
-    }
-
-    async function run() {
-      if (running) return;
-      if (busy) return;
-      if (!session || session.finished) {
-        if (!startSession()) { setUi(); return; }
-      } else {
-        hideError();
-      }
-      running = true;
-      const token = ++runToken;
-      setStatus('Robot çalışıyor…');
-      setUi();
-      while (running && token === runToken) {
-        const cont = await advance();
-        if (!cont) break;
-      }
-      if (token === runToken) {
-        running = false;
-        if (session && !session.finished) setStatus('Duraklatıldı');
-        setUi();
-      }
-    }
-
-    function pause() {
-      if (!running) return;
-      running = false;
-      runToken++;
-      setStatus('Duraklatıldı — Adım ile ilerleyebilirsin');
-      setUi();
-    }
-
-    async function step() {
-      if (running) { pause(); return; }
-      if (busy) return;
-      if (!session || session.finished) {
-        if (!startSession()) { setUi(); return; }
-      }
-      setStatus('Adım adım…');
-      setUi();
-      await advance();
-      if (session && !session.finished) setStatus('Adım ' + session.actions);
-      setUi();
-    }
-
-    function stop() {
-      runToken++;
-      running = false;
-      const had = !!session && !session.finished;
-      session = null;
-      renderer.snap();
-      setExecLine(null);
-      if (had) setStatus('Durduruldu');
-      setUi();
-    }
-
-    function reset() {
-      stop();
-      closeModal();
-      hideError();
-      setErrorLine(null);
-      freshWorld();
-      setStatus('Robot başa döndü');
-      setUi();
-    }
-
-    // ---------- kazanma penceresi ----------
-    function openModal(stars, lines) {
-      el.winStars.textContent = '';
-      for (let i = 1; i <= 3; i++) {
-        const s = document.createElement('span');
-        s.className = 'star' + (i <= stars ? ' on' : '');
-        s.textContent = '★';
-        el.winStars.appendChild(s);
-      }
-      const titles = ['', 'Başardın!', 'Çok iyi!', 'Mükemmel!'];
-      el.winTitle.textContent = titles[stars] || 'Harika iş!';
-      let text = lines + ' satır kodla bitirdin (par ' + level.par + ').';
-      if (stars < 3) text += ' 3 yıldız için en fazla ' + level.par + ' satır dene — döngüler yardımcı olabilir!';
-      else text += ' Kodun tam bir usta işi.';
-      const hasNext = idx + 1 < LEVELS.length;
-      if (!hasNext) text += ' Tüm bölümleri tamamladın! 🎉';
-      el.winText.textContent = text;
-      el.btnNext.hidden = !hasNext;
-      el.modal.hidden = false;
-      setTimeout(() => (hasNext ? el.btnNext : el.btnRetry).focus(), 50);
-    }
-    function closeModal() {
-      el.modal.hidden = true;
-    }
-
-    // ---------- bölüm yükleme ----------
-    function loadLevel(i) {
-      i = Math.max(0, Math.min(LEVELS.length - 1, i));
-      runToken++;
-      running = false;
-      session = null;
-      closeModal();
-      idx = i;
-      level = LEVELS[i];
-      store.set(LAST_KEY, level.id);
-
-      el.badge.textContent = 'Bölüm ' + (i + 1) + ' / ' + LEVELS.length;
-      el.par.textContent = 'par ' + level.par + ' satır';
-      el.title.textContent = level.title;
-      el.desc.textContent = level.description || '';
-      el.hintText.textContent = level.hint || '';
-      el.hintText.hidden = true;
-      el.hintToggle.setAttribute('aria-expanded', 'false');
-      el.hintToggle.querySelector('.hint-label').textContent = 'İpucu göster';
-      el.hintToggle.parentElement.hidden = !level.hint;
-
-      const saved = store.get(CODE_KEY(level.id), null);
-      ta.value = saved != null ? saved : (level.starterCode || '');
-      ta.scrollTop = 0;
-      lastLineTotal = -1;
-      execLine = null;
-      errorLine = null;
-      hideError();
-      renderGutter();
-      updateLineCount();
-      renderLevelGrid();
-      renderReference();
-      freshWorld();
-      setStatus('Hazır! Kodunu yaz ve Çalıştır\'a bas.');
-      setUi();
-    }
-
-    // ---------- olaylar ----------
-    ta.addEventListener('input', onCodeChanged);
-    ta.addEventListener('scroll', syncScroll);
-    ta.addEventListener('keydown', onKeyDown);
-    el.btnRun.addEventListener('click', run);
-    el.btnStep.addEventListener('click', step);
-    el.btnStop.addEventListener('click', stop);
-    el.btnReset.addEventListener('click', reset);
-    el.speed.addEventListener('input', () => store.set(SPEED_KEY, el.speed.value));
-    el.hintToggle.addEventListener('click', () => {
-      const open = el.hintText.hidden;
-      el.hintText.hidden = !open;
-      el.hintToggle.setAttribute('aria-expanded', String(open));
-      el.hintToggle.querySelector('.hint-label').textContent = open ? 'İpucunu gizle' : 'İpucu göster';
+    // klavye: palet düğmesi Enter/Boşluk ile eklenir
+    els.palette.addEventListener('click', (e) => {
+      const item = e.target.closest('.pal-item');
+      if (item && e.detail === 0) appendBlock(item.dataset.type);
     });
-    el.btnRetry.addEventListener('click', () => { closeModal(); reset(); ta.focus(); });
-    el.btnNext.addEventListener('click', () => { if (idx + 1 < LEVELS.length) loadLevel(idx + 1); });
-    el.modal.addEventListener('click', (e) => { if (e.target === el.modal) closeModal(); });
+    els.programRoot.addEventListener('click', (e) => {
+      const badge = e.target.closest('.loop-count');
+      if (badge) { e.preventDefault(); cycleLoop(badge); }
+    });
+    els.programRoot.addEventListener('keydown', (e) => {
+      if (S.running) return;
+      const blk = e.target.closest && e.target.closest('.blk');
+      if (!blk || e.target !== blk) return;
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        removeAt(parsePath(blk.dataset.path));
+        programChanged();
+        els.programRoot.focus();
+      }
+    });
+
+    els.btnRun.addEventListener('click', run);
+    els.btnStop.addEventListener('click', stop);
+    els.btnReset.addEventListener('click', () => resetRobot(false));
+    els.btnClear.addEventListener('click', clearProgram);
+    els.btnSpeed.addEventListener('click', () => {
+      S.speed = S.speed === 'fast' ? 'slow' : 'fast';
+      store.set(KEY_SPEED, S.speed);
+      applySpeed();
+    });
+    els.btnLevels.addEventListener('click', openLevels);
+    els.levelGrid.addEventListener('click', (e) => {
+      const b = e.target.closest('.level-tile');
+      if (!b || b.disabled) return;
+      closeModal(els.levelsModal);
+      loadLevel(Number(b.dataset.index));
+    });
+    els.btnRetry.addEventListener('click', () => { closeModal(els.winModal); resetRobot(false); });
+    els.btnNext.addEventListener('click', () => {
+      closeModal(els.winModal);
+      if (S.index >= S.levels.length - 1) openLevels();
+      else loadLevel(S.index + 1);
+    });
+    for (const m of [els.levelsModal, els.winModal]) {
+      m.addEventListener('click', (e) => {
+        if (e.target === m || e.target.closest('[data-close]')) closeModal(m);
+      });
+    }
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !el.modal.hidden) closeModal();
-      else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && e.target !== ta) { e.preventDefault(); run(); }
+      if (e.key === 'Escape') {
+        if (D.started) { clearTargetUI(); dropGhost('fade'); resetDrag(); return; }
+        closeModal(els.winModal);
+        closeModal(els.levelsModal);
+      }
     });
+    els.programRoot.tabIndex = -1;
 
-    // ---------- başlangıç ----------
-    const refDetails = document.getElementById('refDetails');
-    try {
-      if (refDetails && root.matchMedia && root.matchMedia('(max-width: 820px)').matches) refDetails.open = false;
-    } catch (e) { /* yoksay */ }
-    const sp = parseInt(store.get(SPEED_KEY, '3'), 10);
-    if (sp >= 1 && sp <= 5) el.speed.value = String(sp);
-    const lastId = store.get(LAST_KEY, null);
-    let start = Math.max(0, LEVELS.findIndex((l) => l.id === lastId));
-    if (!isUnlocked(start)) {
-      start = 0;
-      for (let i = 0; i < LEVELS.length; i++) if (isUnlocked(i)) start = i;
-    }
-    loadLevel(start);
-
-    return { loadLevel, run, step, stop, reset, get session() { return session; }, renderer };
+    loadLevel(startLevelIndex());
   }
 
-  CodeGame.countLinesLocal = localCountLines;
-  CodeGame.starsFor = starsFor;
+  // test ve hata ayıklama için küçük bir kapı
+  CodeGame.App = {
+    loadLevel: (i) => loadLevel(i),
+    getProgram: () => JSON.parse(JSON.stringify(S.program)),
+    get levelIndex() { return S.index; },
+    get running() { return S.running; }
+  };
 
-  if (typeof document !== 'undefined') {
-    const boot = () => { CodeGame.app = App(); };
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-    else boot();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+
   if (typeof module !== 'undefined') module.exports = CodeGame;
 })(typeof window !== 'undefined' ? window : globalThis);

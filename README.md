@@ -1,27 +1,24 @@
 # KodRobot 🤖
 
-Tarayıcıda oynanan bir kodlama oyunu. Küçük bir programlama diliyle robotu
-ızgara üzerinde hedefe götür, yol boyunca elmasları topla. 15 bölüm boyunca
-komutlar, döngüler, fonksiyonlar, koşullar ve labirent çözme algoritmaları
-öğrenilir.
+Çocuklara kodlama mantığını öğreten, Box Island tarzı bir oyun. Yazı yok:
+ok bloklarını sürükleyip "Programım" alanına bırak, ▶ Başlat'a bas ve
+robotun adadaki bayrağa ulaşmasını izle. 32 bölüm boyunca sıralama,
+yön, elmas toplama ve tekrar (döngü) mantığı öğrenilir.
 
 ## Oynamak
 
-Kurulum yok: `index.html` dosyasını tarayıcıda aç.
+Kurulum yok: `index.html` dosyasını tarayıcıda aç. Fare ve dokunmatik ekranla çalışır.
 
-```
-ilerle()
-tekrarla 3 {
-  sagaDon()
-  ilerle()
-}
-iken !hedefte() {
-  eger onumBos() { ilerle() } degilse { solaDon() }
-}
-```
+| Blok | Ne yapar |
+|---|---|
+| ⬆ İleri | Bir kare ileri git |
+| ↶ Sola / ↷ Sağa | Olduğun yerde dön |
+| 💎 Topla | Üstünde durduğun elması topla |
+| 🔁 Tekrarla | İçine konan blokları 2–9 kez tekrarla (sayıya dokunarak değiştir) |
 
-Komutların İngilizce karşılıkları da geçerlidir (`move()`, `repeat`, `while`, `if`...).
-Dilin tam tanımı için [CONTRACT.md](CONTRACT.md) dosyasına bak.
+- Bir bloğa dokunmak onu programın sonuna ekler.
+- Programdaki bir bloğu palete ya da program alanının dışına sürüklemek onu siler.
+- Her bölümde konabilecek blok sayısı sınırlıdır. Ne kadar az blokla bitirirsen o kadar çok yıldız alırsın.
 
 ## Geliştirme
 
@@ -31,8 +28,10 @@ node --test
 
 | Dosya | Görev |
 |---|---|
-| `js/interpreter.js` | Dilin ayrıştırıcısı ve yorumlayıcısı |
 | `js/world.js` | Oyun dünyası mantığı (DOM'suz) |
+| `js/blocks.js` | Blok programını çalıştıran motor |
 | `js/levels.js` | Bölümler |
-| `js/renderer.js` | Canvas çizimi ve animasyon |
-| `js/app.js` | Arayüz ve oyun akışı |
+| `js/renderer.js` | Ada, deniz ve robot çizimi, animasyonlar |
+| `js/app.js` | Sürükle-bırak arayüzü ve oyun akışı |
+
+Mimari ayrıntılar için [CONTRACT.md](CONTRACT.md).
