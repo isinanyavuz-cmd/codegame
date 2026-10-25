@@ -397,7 +397,6 @@ button { font: inherit; color: inherit; }
 }
 .blk > .ico { width: 64%; height: 64%; stroke-width: 3.3; pointer-events: none; }
 .blk-pick > .ico { stroke-width: 2; width: 60%; height: 60%; }
-.blk-left, .blk-right { --c: var(--b-turn); --d: var(--b-turn-dark); }
 .blk-pick { --c: var(--b-pick); --d: var(--b-pick-dark); }
 .blk-loop { --c: var(--b-loop); --d: var(--b-loop-dark); }
 
@@ -591,8 +590,8 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
   pointer-events: none;
   animation: marker 0.7s ease-in-out infinite alternate;
 }
-.drop-marker[data-type="move"] { background: var(--b-move-dark); }
-.drop-marker[data-type="left"], .drop-marker[data-type="right"] { background: var(--b-turn-dark); }
+.drop-marker[data-type="up"], .drop-marker[data-type="down"],
+.drop-marker[data-type="left"], .drop-marker[data-type="right"] { background: var(--b-move-dark); }
 .drop-marker[data-type="pick"] { background: var(--b-pick-dark); }
 .drop-marker[data-type="loop"] { background: var(--b-loop-dark); }
 

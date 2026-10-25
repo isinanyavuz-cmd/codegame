@@ -252,9 +252,13 @@
       const w = this.world;
       const v = DIR_VEC[w.robot.dir] || [1, 0];
       const from = { x: this.robot.x, y: this.robot.y, angle: this.robot.angle };
+      // ok bloğu robotu suya doğru çevirmiş olabilir: önce o yöne dön
+      let delta = (DIR_ANGLE[w.robot.dir] || 0) - from.angle;
+      delta = ((delta % TAU) + TAU + Math.PI) % TAU - Math.PI;
+      const to = { x: from.x, y: from.y, angle: from.angle + delta };
       this.mood = 'crash';
       return new Promise((resolve) => {
-        this.tween = { from, to: from, start: now(), dur: duration, kind: 'crash', v, resolve, hit: false };
+        this.tween = { from, to, start: now(), dur: duration, kind: 'crash', v, resolve, hit: false };
       });
     }
 
@@ -376,6 +380,7 @@
           }
           this.robot.x = tw.from.x + tw.v[0] * off;
           this.robot.y = tw.from.y + tw.v[1] * off;
+          this.robot.angle = tw.from.angle + (tw.to.angle - tw.from.angle) * easeOut(Math.min(1, p / 0.3));
           this.robot.tilt = p < 0.4 ? 0 : Math.sin((p - 0.4) / 0.6 * Math.PI * 3) * 0.18 * (1 - p);
         } else if (tw.kind === 'puzzled') {
           this.robot.angle = tw.from.angle + Math.sin(p * Math.PI * 4) * 0.35 * (1 - p);

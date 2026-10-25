@@ -5,7 +5,7 @@ require('../js/world.js');
 require('../js/blocks.js');
 const CodeGame = require('../js/levels.js');
 
-const TOOLS = ['move', 'left', 'right', 'pick', 'loop'];
+const TOOLS = ['up', 'down', 'left', 'right', 'pick', 'loop'];
 
 function usedTypes(program, out = new Set()) {
   for (const b of program) {
@@ -33,7 +33,11 @@ for (const level of CodeGame.LEVELS) {
     assert.ok(level.par <= level.maxBlocks);
 
     const world = new CodeGame.World(level);
-    for (const _ of CodeGame.Blocks.run(level.solution, world)) { /* tüket */ }
+    let actions = 0;
+    for (const _ of CodeGame.Blocks.run(level.solution, world)) actions++;
     assert.ok(world.isWon(), 'çözüm bölümü kazanmalı');
+    if (level.tools.includes('loop')) {
+      assert.ok(actions > level.maxBlocks, `döngüsüz ${actions} blokluk çözüm ${level.maxBlocks} sınırına sığıyor`);
+    }
   });
 }

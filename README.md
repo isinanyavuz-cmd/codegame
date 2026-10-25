@@ -2,8 +2,8 @@
 
 Çocuklara kodlama mantığını öğreten, Box Island tarzı bir oyun. Yazı yok:
 ok bloklarını sürükleyip "Programım" alanına bırak, ▶ Başlat'a bas ve
-robotun adadaki bayrağa ulaşmasını izle. 32 bölüm boyunca sıralama,
-yön, elmas toplama ve tekrar (döngü) mantığı öğrenilir.
+robotun adadaki bayrağa ulaşmasını izle. 29 bölüm boyunca sıralama,
+elmas toplama ve özellikle iç içe döngü mantığı öğrenilir.
 
 ## Oynamak
 
@@ -11,14 +11,13 @@ Kurulum yok: `index.html` dosyasını tarayıcıda aç. Fare ve dokunmatik ekran
 
 | Blok | Ne yapar |
 |---|---|
-| ⬆ İleri | Bir kare ileri git |
-| ↶ Sola / ↷ Sağa | Olduğun yerde dön |
+| ⬆ ⬇ ⬅ ➡ Oklar | Ok hangi yönü gösteriyorsa robot o yöne bir kare gider |
 | 💎 Topla | Üstünde durduğun elması topla |
 | 🔁 Tekrarla | İçine konan blokları 2–9 kez tekrarla (sayıya dokunarak değiştir) |
 
 - Bir bloğa dokunmak onu programın sonuna ekler.
 - Programdaki bir bloğu palete ya da program alanının dışına sürüklemek onu siler.
-- Her bölümde konabilecek blok sayısı sınırlıdır. Ne kadar az blokla bitirirsen o kadar çok yıldız alırsın.
+- Her bölümde konabilecek blok sayısı sınırlıdır; döngüsüz çözüm sığmaz. En az blokla bitirene 3 yıldız.
 
 ## Geliştirme
 

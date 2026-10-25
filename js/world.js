@@ -85,6 +85,13 @@
       this.robot.y = ny;
     }
 
+    /** Robotu ekrandaki bir yöne ('N','E','S','W') çevirip bir kare ilerletir. */
+    go(dir) {
+      if (!DELTA[dir]) throw new Error('Geçersiz yön: ' + dir);
+      this.robot.dir = dir;
+      this.move();
+    }
+
     turnLeft() { this.robot.dir = leftOf(this.robot.dir); }
     turnRight() { this.robot.dir = rightOf(this.robot.dir); }
 

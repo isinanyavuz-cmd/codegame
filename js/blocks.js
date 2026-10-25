@@ -13,8 +13,8 @@
     }
   }
 
-  // blok türü -> world metodu
-  const ACTIONS = { move: 'move', left: 'turnLeft', right: 'turnRight', pick: 'pick' };
+  // Ok blokları ekrana göredir: ok hangi yönü gösteriyorsa robot oraya gider.
+  const DIRECTIONS = { up: 'N', right: 'E', down: 'S', left: 'W' };
   const DEFAULT_MAX_STEPS = 500;
 
   function run(program, world, options) {
@@ -30,15 +30,16 @@
         for (let n = 0; n < block.count; n++) yield* execList(block.body || [], path);
         return;
       }
-      const method = ACTIONS[block.type];
-      if (!method) throw new BlockError('Bilinmeyen blok: ' + block.type, path);
+      const dir = DIRECTIONS[block.type];
+      if (!dir && block.type !== 'pick') throw new BlockError('Bilinmeyen blok: ' + block.type, path);
       if (++steps > maxSteps) throw new BlockError('Çok fazla adım!', path);
       try {
-        world[method]();
+        if (dir) world.go(dir);
+        else world.pick();
       } catch (e) {
         throw new BlockError(e.message, path);
       }
-      yield { action: method, path };
+      yield { action: dir ? 'move' : 'pick', path };
     }
 
     return execList(program, []);
@@ -54,7 +55,7 @@
   }
 
   CodeGame.BlockError = BlockError;
-  CodeGame.Blocks = { run, count, ACTIONS, DEFAULT_MAX_STEPS };
+  CodeGame.Blocks = { run, count, DIRECTIONS, DEFAULT_MAX_STEPS };
 
   if (typeof module !== 'undefined') module.exports = CodeGame;
 })(typeof window !== 'undefined' ? window : globalThis);

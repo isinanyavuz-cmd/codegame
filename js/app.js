@@ -12,18 +12,20 @@
   }
 
   // ---------------- sabitler ----------------
-  const KEY_PROGRESS = 'kodrobot.blocks.progress';
-  const KEY_PROGRAM = 'kodrobot.blocks.program.';
-  const KEY_LEVEL = 'kodrobot.blocks.level';
+  // v3: oklar ekrana göre; eski sürümün bölümleri ve programları geçersiz
+  const KEY_PROGRESS = 'kodrobot.v3.progress';
+  const KEY_PROGRAM = 'kodrobot.v3.program.';
+  const KEY_LEVEL = 'kodrobot.v3.level';
   const KEY_SPEED = 'kodrobot.blocks.speed';
   const SPEEDS = { slow: 520, fast: 230 };
   const LOOP_MIN = 2;
   const LOOP_MAX = 9;
   const MAX_STEPS = 500;
   const INFO = {
-    move: { name: 'İleri', aria: 'İleri git', icon: 'i-move' },
-    left: { name: 'Sola', aria: 'Sola dön', icon: 'i-left' },
-    right: { name: 'Sağa', aria: 'Sağa dön', icon: 'i-right' },
+    up: { name: 'Yukarı', aria: 'Yukarı git', icon: 'i-up' },
+    down: { name: 'Aşağı', aria: 'Aşağı git', icon: 'i-down' },
+    left: { name: 'Sola', aria: 'Sola git', icon: 'i-left' },
+    right: { name: 'Sağa', aria: 'Sağa git', icon: 'i-right' },
     pick: { name: 'Topla', aria: 'Elmas topla', icon: 'i-gem' },
     loop: { name: 'Tekrarla', aria: 'Tekrarla', icon: 'i-loop' }
   };
@@ -251,7 +253,7 @@
       node.appendChild(head);
       node.appendChild(body);
     } else {
-      node.appendChild(icon(INFO[b.type] ? INFO[b.type].icon : 'i-move'));
+      node.appendChild(icon(INFO[b.type] ? INFO[b.type].icon : 'i-up'));
       node.setAttribute('aria-label', INFO[b.type] ? INFO[b.type].aria : b.type);
     }
     if (b === S.justAdded) node.classList.add('pop-in');
