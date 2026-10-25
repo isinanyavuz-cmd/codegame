@@ -189,6 +189,10 @@
         else if (mq.addListener) mq.addListener(onTheme);
       }
       this.dark = this._isDark();
+      if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined') {
+        new MutationObserver(() => { this.dark = this._isDark(); })
+          .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+      }
       this._initPan();
       this._loop = this._loop.bind(this);
       raf(this._loop);
