@@ -232,7 +232,9 @@ bölümlerinde kombosuz çözümün `maxBlocks`'a sığmadığını doğrular.
 
 ## Yıldızlar ve kayıt
 
-Yıldızlar KodRobot'taki gibidir (blok sayısı: program + kombo serisi). Kayıtlar
+Yıldızlar KodRobot'taki gibidir (blok sayısı: program + kombo serisi).
+`js/ryu/app.js` içindeki `UNLOCK_ALL` true iken (test için) bütün bölümler
+açıktır; false olunca bir bölüm, önceki bölüm geçilmişse açılır. Kayıtlar
 `localStorage` içinde, her erişim try/catch ile: `ryu.v1.progress`,
 `ryu.v1.program.<id>` (`{ program, combo }`), `ryu.v1.code.<id>` (yazılan
 metin, yorumları korumak için), `ryu.v1.level`, `ryu.speed`, `ryu.mode`

@@ -24,6 +24,7 @@
   const LOOP_MIN = 2;
   const LOOP_MAX = 9;
   const COMBO_MAX = 4;
+  const UNLOCK_ALL = true;   // test için bütün bölümler açık; normal oyunda false yap
   const MAX_STEPS = 400;
   const K = 'k';
   const INFO = {
@@ -188,7 +189,7 @@
     return typeof v === 'number' && v > 0 ? Math.min(3, Math.floor(v)) : 0;
   }
   function isUnlocked(i) {
-    if (i <= 0) return true;
+    if (i <= 0 || UNLOCK_ALL) return true;
     const lv = S.levels[i];
     return !!lv && (starsFor(S.levels[i - 1].id) > 0 || starsFor(lv.id) > 0);
   }
