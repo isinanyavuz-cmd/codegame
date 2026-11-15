@@ -301,7 +301,8 @@
       '<span class="hero-go">Başla</span></button></section>' +
       B.AREAS.map((a) => '<section class="area" style="--area: var(--a-' + a.id + ')"><h2>' + a.name + '</h2><div class="cat-grid">' +
         B.CATS.filter((c) => c.area === a.id).map(catCard).join('') + '</div></section>').join('') +
-      '<p class="foot">Her gün kısa bir çalışma, arada bir uzun çalışmadan daha çok işe yarar.</p></div>';
+      '<p class="foot">Her gün kısa bir çalışma, arada bir uzun çalışmadan daha çok işe yarar.' +
+      (app.dataset.surum ? '<span class="surum">Sürüm ' + app.dataset.surum + '</span>' : '') + '</p></div>';
   }
 
   /* ---------- soru ekranı ---------- */

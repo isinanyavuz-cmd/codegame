@@ -70,6 +70,17 @@ ve altına yeni Kolay kademe eklenir; hiç çözülmemiş konular Kolay'dan baş
 node --test
 ```
 
+Bir CSS ya da JS dosyası değişince, yayına göndermeden önce sürüm damgalarını yenile:
+
+```
+node bilsem/tools/surum.js
+```
+
+Bu, `index.html` içindeki dosya adreslerine içerik damgası ekler (`js/app.js?v=…`). Dosya
+değişince adresi de değişir; tarayıcı eski kopyayı kullanamaz ve sayfayı yenilemek yeter.
+Damgalar eskiyse testler hata verir. Ana sayfanın altındaki "Sürüm" kodu, açık olan
+sürümün hangisi olduğunu gösterir.
+
 Testler her soru türünü her seviyede yüzlerce kez üretip şunları denetler:
 şıklar birbirinden farklı mı, tek doğru cevap var mı, açıklama dolu mu, doğru
 cevap hep aynı şıkka mı düşüyor. Küp sayma, ok yolu, sıralama, terazi ve
