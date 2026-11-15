@@ -23,8 +23,8 @@ node bilsem/tools/tek-dosya.js enes-bilsem.html
 | Günün Görevi | Farklı konulardan 10 soru. Az çalışılan ve zorlanılan konular daha sık gelir. |
 | Konu alıştırması | Seçilen konu ve kademede 5, 10 ya da 15 soru. Her cevaptan sonra açıklama gösterilir. |
 | Deneme Sınavı | 20, 40 ya da 60 soru; süreli; cevaplar sınav bitince gösterilir. |
-| Sayı Hafızası | Sayı bir süre görünür ve kapanır; süre bitmeden klavyeyle düzden ve tersten yazılır. 3 basamaktan 7 basamağa kadar uzar, üç yanlışta oyun biter. Süre (hem görünme hem her yazım için): Kolay basamak sayısının iki katı, Orta basamak sayısı, Zor basamak sayısının üçte ikisi kadar saniye. Yazma süresi isteğe bağlıdır: "Süresiz" seçilirse sayı yine süreyle görünür ama yazarken süre yoktur. |
-| Veli paneli | Konu konu doğru oranı, ortalama süre, son 7 gün, öneriler, ayarlar. |
+| Sayı Hafızası | Sayı bir süre görünür ve kapanır; süre bitmeden klavyeyle düzden ve tersten yazılır. 3 basamaktan 7 basamağa kadar uzar, üç yanlışta oyun biter. Süre (hem görünme hem her yazım için): Kolay basamak sayısının iki katı, Orta basamak sayısı, Zor basamak sayısının üçte ikisi kadar saniye. Yazma süresi isteğe bağlıdır (veli panelinden): "Süresiz" seçilirse sayı yine süreyle görünür ama yazarken süre yoktur. |
+| Veli paneli | Şifreyle açılır (321321). Konu konu doğru oranı, ortalama süre, son 7 gün, öneriler, ayarlar. |
 
 Resmî sınavın soru sayısı ve süresi her yıl MEB kılavuzunda duyurulur; deneme
 uzunluğu bu yüzden seçilebilir bırakıldı.

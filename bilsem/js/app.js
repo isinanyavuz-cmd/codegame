@@ -591,6 +591,7 @@
       '<div class="set-row"><span>Oynanan oyun</span><b>' + Store.data.span.plays + '</b></div></div>' +
       '<div class="card"><h2>Ayarlar</h2>' +
       '<div class="set-row"><span>Ses efektleri</span>' + seg('sound', [[true, 'Açık'], [false, 'Kapalı']], set.sound) + '</div>' +
+      '<div class="set-row"><span>Sayı Hafızası\'nda yazarken süre</span>' + seg('spanTypeTimed', [[true, 'Süreli'], [false, 'Süresiz']], set.spanTypeTimed !== false) + '</div>' +
       '<div class="set-row"><span>Alıştırmadaki soru sayısı</span>' + seg('len', [[5, '5'], [10, '10'], [15, '15']], set.len) + '</div>' +
       '<div class="set-row"><span>Bütün ilerlemeyi sil</span><button type="button" class="btn btn-ghost btn-sm" data-act="reset-ask">Sıfırla</button></div></div>' +
       '<div class="card"><h2>Sınav hakkında</h2>' +
@@ -622,13 +623,17 @@
         '<div class="set-row"><span>İlk sayı kaç basamaklı olsun?</span><span class="stepper">' +
         '<button type="button" class="icon-btn" data-act="span-len" data-d="-1" aria-label="Azalt"' + (st <= Span.MIN ? ' disabled' : '') + '>−</button><b>' + st + '</b>' +
         '<button type="button" class="icon-btn" data-act="span-len" data-d="1" aria-label="Artır"' + (st >= Span.MAX ? ' disabled' : '') + '>+</button></span></div>' +
-        '<div class="set-row"><span>Yazarken süre olsun mu?</span><span class="seg">' + [[true, 'Süreli'], [false, 'Süresiz']].map(([v, t]) =>
-          '<button type="button" class="' + (v === timed ? 'on' : '') + '" data-act="span-timed" data-v="' + v + '" aria-pressed="' + (v === timed) + '">' + t + '</button>').join('') + '</span></div>' +
-        '<p class="tip"><b>' + lv.name + ':</b> ' + lv.text + ' ' + st + ' basamaklı sayı ' + sec + ' saniye görünür; ' +
+                '<p class="tip"><b>' + lv.name + ':</b> ' + lv.text + ' ' + st + ' basamaklı sayı ' + sec + ' saniye görünür; ' +
         (timed ? 'her yazım için de ' + sec + ' saniye verilir.' : 'yazarken süre yoktur, istediğin kadar düşünebilirsin.') + '</p>' +
         '<div class="levels">' + Span.MODES.map((m) => '<button type="button" class="level' + (m.id === 'both' ? ' rec' : '') + '" data-act="span-go" data-mode="' + m.id + '"><span>' + m.name +
           '<small>' + (rec[m.id] ? lv.name + ' rekoru: ' + rec[m.id] + ' basamak' : lv.name + ' düzeyde henüz oynanmadı') + '</small></span></button>').join('') + '</div>' +
         '<p class="note">Doğru yazınca sayı bir basamak uzar, en çok ' + Span.MAX + ' basamak.' + (timed ? ' Süre bitince o ana kadar yazdığın sayılır.' : '') + ' Üç yanlışta oyun biter.</p>';
+    } else if (sheet.kind === 'pin') {
+      body = '<div class="sheet-head"><div><h2>Veli paneli</h2><p>Devam etmek için veli şifresini yaz.</p></div>' + closeBtn + '</div>' +
+        '<form class="pin-form" data-form="pin" autocomplete="off">' +
+        '<input id="pin" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" aria-label="Veli şifresi"' + (sheet.wrong ? ' aria-invalid="true"' : '') + '>' +
+        (sheet.wrong ? '<p class="pin-err" role="alert">Şifre yanlış. Tekrar dene.</p>' : '') +
+        '<div class="sheet-actions"><button type="button" class="btn btn-ghost" data-act="close">Vazgeç</button><button type="submit" class="btn btn-sun">Giriş</button></div></form>';
     } else if (sheet.kind === 'quit') {
       body = '<div class="sheet-head"><div><h2>Çıkmak istiyor musun?</h2><p>' +
         (view === 'span' ? 'Oyundan çıkarsan bu oyun biter. Ulaştığın rekor kaydedildi.' : ses.mode === 'exam' ? 'Sınavdan çıkarsan cevapların kaydedilmez.' : 'Şimdiye kadar çözdüğün sorular kaydedildi. Yıldız kazanmak için alıştırmayı bitirmelisin.') +
@@ -673,14 +678,16 @@
       Store.save();
       render();
     },
-    'span-timed'(el) { Store.data.settings.spanTypeTimed = el.dataset.v === 'true'; Store.save(); render(); },
     'span-level'(el) { Store.data.settings.spanLevel = Number(el.dataset.level); Store.save(); render(); },
     'span-key'(el) { spanKey(el.dataset.d); },
     'span-del': spanDel,
     'span-ok': spanOk,
     'span-next': spanNext,
     'span-again'() { spanStart(span.g.mode, span.g.level); },
-    parent() { view = 'parent'; render(); window.scrollTo(0, 0); },
+    parent() {
+      sheet = { kind: 'pin', wrong: false }; render();
+      const inp = app.querySelector('#pin'); if (inp) inp.focus();
+    },
     cat(el) { sheet = { kind: 'cat', id: el.dataset.id }; render(); },
     'exam-pick'() { sheet = { kind: 'exam' }; render(); },
     close() { sheet = null; render(); },
@@ -704,7 +711,7 @@
     speak() { const q = cur().q; speak(q.speech || q.prompt); },
     set(el) {
       const v = el.dataset.val;
-      Store.data.settings[el.dataset.key] = el.dataset.key === 'sound' ? v === 'true' : Number(v);
+      Store.data.settings[el.dataset.key] = v === 'true' || v === 'false' ? v === 'true' : Number(v);
       Store.save();
       render();
     },
@@ -723,6 +730,16 @@
     if (fn) fn(el);
   });
 
+  /* Veli şifresi: yalnızca çocuğun ayarları kazara değiştirmesini önlemek için; gerçek bir güvenlik önlemi değildir. */
+  const PARENT_PIN = '321321';
+  document.addEventListener('submit', (e) => {
+    const f = e.target;
+    if (!f || f.dataset.form !== 'pin') return;
+    e.preventDefault();
+    if (f.querySelector('#pin').value.trim() === PARENT_PIN) { sheet = null; view = 'parent'; render(); window.scrollTo(0, 0); return; }
+    sheet = { kind: 'pin', wrong: true }; render();
+    const inp = app.querySelector('#pin'); if (inp) inp.focus();
+  });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && sheet) { sheet = null; render(); return; }
     if (sheet || e.ctrlKey || e.metaKey || e.altKey) return;

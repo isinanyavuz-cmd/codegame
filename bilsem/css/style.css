@@ -574,3 +574,15 @@ td .dot { display: inline-block; width: 10px; height: 10px; margin-right: 8px; b
   .quiz .fb-msg b { font-size: 19px; }
   .quiz .fb .btn { flex: 1 1 100%; }
 }
+
+/* veli şifresi */
+.pin-form { display: grid; gap: 12px; }
+.pin-input {
+  width: 100%; min-height: 56px; padding: 8px 16px;
+  border: 3px solid var(--line); border-radius: 16px;
+  background: var(--surface); color: var(--ink);
+  font: 800 28px/1 var(--font-display); letter-spacing: 8px; text-align: center;
+}
+.pin-input:focus { outline: none; border-color: var(--a-gorsel); }
+.pin-input[aria-invalid="true"] { border-color: var(--bad); animation: shake .35s ease; }
+.pin-err { color: var(--bad-ink); font-weight: 800; }
