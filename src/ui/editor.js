@@ -85,15 +85,21 @@ export class Editor {
 
   // ---------- vurgular ----------
   el(id) { return id ? this.ws.querySelector(`[data-id="${id}"]`) : null; }
-  mark(id, cls) {
+  /** Blokları vurgular: [{ id, cls }] (cls: now, sensing, err). Öncekiler silinir. */
+  markAll(list) {
     for (const e of this.ws.querySelectorAll('.now, .sensing, .err')) e.classList.remove('now', 'sensing', 'err');
-    const e = this.el(id);
-    if (!e || !cls) return;
-    const target = e.classList.contains('c') ? e.firstElementChild : e;
-    target.classList.add(cls);
-    const r = target.getBoundingClientRect(), w = this.ws.getBoundingClientRect();
-    if (r.top < w.top + 8 || r.bottom > w.bottom - 8) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    let last = null;
+    for (const { id, cls } of list) {
+      const e = this.el(id);
+      if (!e || !cls) continue;
+      last = e.classList.contains('c') ? e.firstElementChild : e;
+      last.classList.add(cls);
+    }
+    if (!last) return;
+    const r = last.getBoundingClientRect(), w = this.ws.getBoundingClientRect();
+    if (r.top < w.top + 8 || r.bottom > w.bottom - 8) last.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
+  mark(id, cls) { this.markAll(id && cls ? [{ id, cls }] : []); }
 
   select(id) {
     for (const e of this.ws.querySelectorAll('.sel')) e.classList.remove('sel');

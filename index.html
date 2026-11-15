@@ -5,7 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#070b22">
 <title>Kod Pilotu</title>
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=092d37d5">
+<meta name="surum" content="aded63e">
+<script type="importmap">
+{
+ "imports": {
+  "./src/content/gen.js": "./src/content/gen.js?v=2ebc0638",
+  "./src/content/levels.js": "./src/content/levels.js?v=d76cfc5a",
+  "./src/engine/blocks.js": "./src/engine/blocks.js?v=8bff87a1",
+  "./src/engine/rng.js": "./src/engine/rng.js?v=09b50631",
+  "./src/engine/world.js": "./src/engine/world.js?v=d95d53ce",
+  "./src/main.js": "./src/main.js?v=0615d138",
+  "./src/render/models.js": "./src/render/models.js?v=491776a5",
+  "./src/render/view.js": "./src/render/view.js?v=641774ad",
+  "./src/storage.js": "./src/storage.js?v=45651b3d",
+  "./src/ui/editor.js": "./src/ui/editor.js?v=5a9ee03e",
+  "./src/ui/game.js": "./src/ui/game.js?v=1213459a",
+  "./src/ui/map.js": "./src/ui/map.js?v=1798ed15",
+  "./src/ui/sfx.js": "./src/ui/sfx.js?v=693ac5b2",
+  "./vendor/three.bundle.min.js": "./vendor/three.bundle.min.js?v=0622f3b8"
+ }
+}
+</script>
 </head>
 <body>
 <div id="stage"></div>
@@ -55,7 +76,7 @@
     </div>
   </aside>
 
-  <div id="call" class="call" hidden></div>
+  <div id="calls"></div>
   <div id="toast" class="toast glass" hidden></div>
 </section>
 
@@ -74,6 +95,6 @@
   <symbol id="i-trash" viewBox="0 0 32 32"><path d="M7 9h18M13 9V6h6v3M9.500 9l1 17h11l1-17" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
 
-<script type="module" src="src/main.js"></script>
+<script type="module" src="src/main.js?v=0615d138"></script>
 </body>
 </html>

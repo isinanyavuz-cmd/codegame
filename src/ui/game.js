@@ -195,42 +195,59 @@ export class Game {
     if (this.wave !== 0) { this.wave = 0; this.view.setField(this.fields[0]); } else this.view.resetShip();
   }
 
+  /** Sıradaki adımı döndürür: o adımda bakılan sensörler ve ardından gelen olay. */
+  nextTick() {
+    const senses = [];
+    while (this.i < this.events.length) {
+      const ev = this.events[this.i++];
+      if (ev.t === 'sense') senses.push(ev); else return { senses, ev };
+    }
+    return null;
+  }
+
   async loop(id) {
     const alive = () => id === this.loopId;
     while (alive() && this.status === 'running') {
-      const ev = this.events[this.i++];
-      if (!ev) break;
-      this.current = this.play(ev, alive);
+      const tick = this.nextTick();
+      if (!tick) break;
+      this.current = this.play(tick, alive);
       const done = await this.current;
       if (!alive() || done) return;
-      if (this.stepMode && ev.t === 'move') { this.setStatus('paused'); return; }
+      // Adım modunda her hareketten sonra dur; çıkıştan geçiş hareketinde durma, görev bitsin.
+      if (this.stepMode && tick.ev.t === 'move' && !tick.ev.exit) { this.setStatus('paused'); return; }
     }
   }
 
-  /** Tek bir olayı oynatır. Uçuş bittiyse true döner. */
-  async play(ev, alive) {
+  /**
+   * Bir adımı oynatır. Sensör sonuçları hareketle aynı anda gösterilir; gemi
+   * beklemeden uçmaya devam eder. Uçuş bittiyse true döner.
+   */
+  async play({ senses, ev }, alive) {
     const { view, sfx, editor } = this;
-    if (ev.t === 'sense') {
-      editor.mark(ev.id, 'sensing'); this.showCall(ev); sfx.sense(ev.result);
-      await view.sense(ev);
-      return false;
-    }
+    const marks = senses.map((s) => ({ id: s.id, cls: 'sensing' }));
+    if (ev.t === 'move') marks.push({ id: ev.id, cls: 'now' });
+    else if (ev.t === 'crash' || ev.t === 'fail') marks.push({ id: ev.id, cls: 'err' });
+    editor.markAll(marks);
+    if (senses.length) { this.showCalls(senses); sfx.sense(senses[senses.length - 1].result); } else this.hideCall();
     if (ev.t === 'move') {
-      this.hideCall(); editor.mark(ev.id, 'now');
       if (ev.kind === 'fwd') sfx.move(); else sfx.dodge();
+      this.showTarget(ev);
       await view.move(ev);
-      if (alive() && ev.collect) sfx.collect();
+      if (!alive()) return true;
+      if (ev.collect) sfx.collect();
+      // Gemi silüetin olduğu kareye vardı: silüet sıradaki hedefe geçer.
+      this.showTarget(this.events.slice(this.i).find((e) => e.t === 'move' || e.t === 'crash'));
       return false;
     }
     if (ev.t === 'crash') {
-      this.hideCall(); editor.mark(ev.id, 'err'); sfx.dodge();
+      sfx.dodge(); this.showTarget(ev);
       setTimeout(() => { if (alive()) sfx.crash(); }, 250 / this.speed);
       await view.crash(ev);
       if (alive()) this.fail(ev.reason);
       return true;
     }
     if (ev.t === 'fail') {
-      this.hideCall(); editor.mark(ev.id, 'err'); sfx.bad();
+      sfx.bad();
       this.fail(ev.reason);
       return true;
     }
@@ -300,17 +317,41 @@ export class Game {
   }
 
   // ---------- katmanlar ----------
-  showCall(ev) {
-    const el = $('call'), danger = ev.cond === 'ahead' ? ev.result : !ev.result;
-    el.style.setProperty('--c', danger ? 'var(--bad)' : 'var(--ok)');
-    el.innerHTML = `<span class="cond">${CONDS[ev.cond].label}</span><span class="ans ${ev.result ? '' : 'no'}">${svg(ev.result ? 'i-check' : 'i-cross')}${ev.result ? 'EVET' : 'HAYIR'}</span>`;
-    el.hidden = false; el.classList.remove('right');
-    const box = this.view.cellBox(ev.cell), w = el.offsetWidth;
-    const left = box.left - 26 - w > this.rect.x + 6;
-    el.classList.toggle('right', !left);
-    el.style.left = `${left ? box.left - 26 : box.right + 26}px`; el.style.top = `${box.y}px`;
+  /** Bu adımda bakılan sensörleri sahnede ve kare yanındaki etiketlerde gösterir. */
+  showCalls(senses) {
+    const box = $('calls'); box.replaceChildren();
+    const isDanger = (ev) => (ev.cond === 'ahead' ? ev.result : !ev.result);
+    this.view.showSenses(senses.map((ev) => ({ from: { lane: ev.lane, y: ev.y }, cell: ev.cell, danger: isDanger(ev) })));
+    const side = senses.find((ev) => ev.cond !== 'ahead');
+    const taken = new Set();
+    for (const ev of senses) {
+      const el = document.createElement('div'); el.className = 'call';
+      el.style.setProperty('--c', isDanger(ev) ? 'var(--bad)' : 'var(--ok)');
+      el.innerHTML = `<span class="cond">${CONDS[ev.cond].label}</span><span class="ans ${ev.result ? '' : 'no'}">${svg(ev.result ? 'i-check' : 'i-cross')}${ev.result ? 'EVET' : 'HAYIR'}</span>`;
+      box.append(el);
+      const cell = this.view.cellBox(ev.cell), w = el.offsetWidth, r = this.rect;
+      const fits = { left: cell.left - 26 - w > r.x + 6, right: cell.right + 26 + w < r.x + r.w - 6 };
+      // Yan sensörün etiketi kendi tarafına, ön sensörünki karşı tarafa konur; sığmazsa karenin üstüne.
+      const want = ev.cond === 'rightFree' ? 'right' : ev.cond === 'leftFree' ? 'left' : side && side.cond === 'leftFree' ? 'right' : 'left';
+      const other = want === 'left' ? 'right' : 'left';
+      const place = fits[want] && !taken.has(want) ? want : fits[other] && !taken.has(other) ? other : 'top';
+      taken.add(place);
+      if (place === 'top') {
+        el.classList.add('top');
+        el.style.left = `${Math.max(r.x + w / 2 + 6, Math.min(r.x + r.w - w / 2 - 6, (cell.left + cell.right) / 2))}px`;
+        el.style.top = `${cell.y - (cell.right - cell.left) * 0.42 - 12}px`;
+      } else {
+        el.classList.toggle('right', place === 'right');
+        el.style.left = `${place === 'left' ? cell.left - 26 : cell.right + 26}px`; el.style.top = `${cell.y}px`;
+      }
+    }
   }
-  hideCall() { $('call').hidden = true; }
+  hideCall() { $('calls').replaceChildren(); this.view.hideSense(); }
+
+  /** Sarı silüeti verilen hareketin hedef karesine koyar; hedef yoksa ya da çıkışın ötesindeyse gizler. */
+  showTarget(ev) {
+    if (ev && !ev.exit) this.view.showTarget(ev.to); else this.view.hideTarget();
+  }
 
   showToast(kind, text, sub = '', hint = '') {
     const el = $('toast');
