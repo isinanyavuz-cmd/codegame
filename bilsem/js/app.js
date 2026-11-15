@@ -48,13 +48,10 @@
         ? '<circle cx="19" cy="25" r="3" fill="#7cf7ff"/><circle cx="31" cy="25" r="3" fill="#7cf7ff"/><path d="M21 31.2q4-2.4 8 0" fill="none" stroke="#7cf7ff" stroke-width="2.2" stroke-linecap="round"/>'
         : '<circle cx="19" cy="26" r="3.5" fill="#7cf7ff"/><circle cx="31" cy="26" r="3.5" fill="#7cf7ff"/>';
     return '<svg class="robot' + (cls ? ' ' + cls : '') + '" viewBox="0 0 56 56" aria-hidden="true">' +
-      /* başında ampul yanan robot: "fikir buldum" */
-      '<path d="M20.6 4.4l-2.2-2M35.4 4.4l2.2-2M18.6 11h-3M37.4 11h3" stroke="#f5a700" stroke-width="2.4" stroke-linecap="round"/>' +
-      '<rect x="24.6" y="14.5" width="6.8" height="6" rx="1.6" fill="#c9d3e6" stroke="#1d2b4a" stroke-width="2.4"/>' +
-      '<circle cx="28" cy="10" r="6.6" fill="#ffd84d" stroke="#1d2b4a" stroke-width="2.6"/>' +
-      '<path d="M25.2 11.6l1.4-2.2 1.4 2.2 1.4-2.2 1.4 2.2" fill="none" stroke="#f08c00" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
-      '<rect x="9" y="20" width="38" height="31" rx="12" fill="#3d8ef7" stroke="#1d2b4a" stroke-width="3.4"/>' +
-      '<g transform="translate(3 7)"><rect x="11.5" y="18" width="27" height="16" rx="8" fill="#1d2b4a"/>' + eyes + '</g></svg>';
+      /* eski robot, büyüteçsiz; ortalamak için kaydırıldı */
+      '<g transform="translate(3 5)"><path d="M25 5.5v8" stroke="#1d2b4a" stroke-width="3.4" stroke-linecap="round"/><circle cx="25" cy="5.5" r="4" fill="#ffc93c" stroke="#1d2b4a" stroke-width="2.6"/>' +
+      '<rect x="6" y="12" width="38" height="32" rx="12" fill="#3d8ef7" stroke="#1d2b4a" stroke-width="3.4"/>' +
+      '<rect x="11.5" y="18" width="27" height="16" rx="8" fill="#1d2b4a"/>' + eyes + '</g></svg>';
   }
 
   /* kategori simgeleri: soru çizimleriyle aynı şekil kütüphanesinden */
