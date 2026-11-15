@@ -5,23 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#070b22">
 <title>Kod Pilotu</title>
-<link rel="stylesheet" href="css/style.css?v=5188689b">
-<meta name="surum" content="5019da5">
+<link rel="stylesheet" href="css/style.css?v=a4b9cca6">
+<meta name="surum" content="ee9238e">
 <script type="importmap">
 {
  "imports": {
+  "./src/content/advanced.js": "./src/content/advanced.js?v=90110f52",
   "./src/content/gen.js": "./src/content/gen.js?v=2ebc0638",
-  "./src/content/levels.js": "./src/content/levels.js?v=d76cfc5a",
-  "./src/engine/blocks.js": "./src/engine/blocks.js?v=8bff87a1",
+  "./src/content/levels.js": "./src/content/levels.js?v=0d30b3d6",
+  "./src/engine/blocks.js": "./src/engine/blocks.js?v=f58d6dfd",
   "./src/engine/rng.js": "./src/engine/rng.js?v=09b50631",
-  "./src/engine/world.js": "./src/engine/world.js?v=d95d53ce",
+  "./src/engine/world.js": "./src/engine/world.js?v=5924de32",
   "./src/main.js": "./src/main.js?v=5c640935",
   "./src/render/models.js": "./src/render/models.js?v=491776a5",
-  "./src/render/view.js": "./src/render/view.js?v=641774ad",
+  "./src/render/view.js": "./src/render/view.js?v=0073ed29",
   "./src/storage.js": "./src/storage.js?v=85d21e98",
-  "./src/ui/editor.js": "./src/ui/editor.js?v=5a9ee03e",
-  "./src/ui/game.js": "./src/ui/game.js?v=1213459a",
-  "./src/ui/map.js": "./src/ui/map.js?v=28347676",
+  "./src/ui/editor.js": "./src/ui/editor.js?v=2cd087e6",
+  "./src/ui/game.js": "./src/ui/game.js?v=dda34668",
+  "./src/ui/map.js": "./src/ui/map.js?v=210762be",
   "./src/ui/sfx.js": "./src/ui/sfx.js?v=e3170ade",
   "./vendor/three.bundle.min.js": "./vendor/three.bundle.min.js?v=0622f3b8"
  }
@@ -52,6 +53,7 @@
     <div class="ttl"><small id="sectorNo">SEKTÖR 1</small><b id="sectorName">Kalkış</b></div>
   </div>
   <div class="track" id="track"></div>
+  <div class="telemetry glass" id="telemetry" aria-live="polite" hidden></div>
 
   <aside class="code glass" id="panel">
     <div class="brief">

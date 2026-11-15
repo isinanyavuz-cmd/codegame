@@ -97,8 +97,13 @@ button.node:not(.locked):active { transform: scale(.92); }
 .ev { --col: var(--ev); color: #3b2a00; border-radius: 20px 20px 10px 10px; cursor: default; }
 .ev svg { width: 14px; height: 14px; }
 .ctl { --col: var(--ctl); } .mov { --col: var(--mov); }
+.fun { --col: #9154ce; } .variable { --col: #217c60; }
+.choice { padding: 3px 8px; border-radius: 8px; background: rgba(0, 0, 0, .18); cursor: pointer; }
+.choice::after { content: ' ▾'; }
 .c { display: flex; flex-direction: column; width: max-content; position: relative; touch-action: none; }
 .c > .blk { border-radius: 10px 10px 10px 0; }
+.c > .blk { min-height: 38px; height: auto; padding-top: 5px; padding-bottom: 5px; max-width: 305px; flex-wrap: wrap; }
+.c .cond { max-width: 280px; white-space: normal; min-height: 28px; height: auto; padding-top: 4px; padding-bottom: 4px; line-height: 1.2; }
 .c > .body { border-left: 16px solid var(--col); padding: 4px 0 4px 6px; display: flex; flex-direction: column; gap: 4px; min-width: 150px; min-height: 42px; }
 .c > .body:empty::after { content: 'buraya bırak'; display: grid; place-items: center; height: 34px; padding: 0 14px; width: max-content; border-radius: 10px;
                           border: 2px dashed rgba(255, 255, 255, .22); color: rgba(255, 255, 255, .38); font-size: 13px; font-weight: 600; }
@@ -127,6 +132,7 @@ button.node:not(.locked):active { transform: scale(.92); }
 .err::after { content: 'burada'; position: absolute; left: calc(100% + 17px); top: 50%; transform: translateY(-50%); background: var(--bad); color: #fff; font-size: 12px; font-weight: 800; padding: 4px 9px; border-radius: 9px; }
 
 .pal { border-radius: 16px; background: rgba(255, 255, 255, .045); padding: 10px 12px 12px; }
+.pal { max-height: 180px; overflow: auto; flex-shrink: 0; }
 .pal .pl { font-size: 11.5px; font-weight: 800; letter-spacing: .13em; color: var(--soft); margin-bottom: 9px; }
 .palrow { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
 .palrow .blk { height: 36px; font-size: 14.5px; padding: 0 12px; border-radius: 10px; }
@@ -171,6 +177,13 @@ button.node:not(.locked):active { transform: scale(.92); }
 .pop.nums button { height: 44px; border-radius: 12px; background: rgba(255, 255, 255, .1); font-size: 18px; font-weight: 800; }
 .pop.nums button.on { background: #fff; color: #27344f; }
 .pop.conds button { display: flex; }
+.pop.choices button { padding: 10px 14px; border-radius: 9px; background: rgba(255, 255, 255, .1); text-align: left; }
+.pop.choices button.on { background: #fff; color: #27344f; }
+.telemetry { position: absolute; left: 20px; bottom: 18px; max-width: calc(100% - var(--panel) - 60px); padding: 10px 14px; pointer-events: none; z-index: 3; }
+.field-key, .flight-state { display: flex; gap: 8px 14px; flex-wrap: wrap; font-size: 12px; line-height: 1.5; }
+.field-key:empty { display: none; }
+.legend-beacon { color: #d3b1ff; } .legend-pirate { color: #ff8d9f; } .legend-energy { color: #8bf0b6; }
+.flight-state { color: #d7e0ff; } .flight-state .low { color: #ffd53d; }
 
 /* ───────── kartlar: giriş, sonuç ───────── */
 .overlay { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(4, 7, 22, .62); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); padding: 20px; animation: fade .2s; }
@@ -290,4 +303,9 @@ button.node:not(.locked):active { transform: scale(.92); }
   .slabel b { font-size: 18px; } .nova i { width: 110px; height: 110px; } .nova b { font-size: 24px; }
   .shipmark span { display: none; }
   .logo small { display: none; } .logo b { font-size: 24px; white-space: nowrap; } .total { padding: 0 12px; } .maphead { gap: 8px; }
+  .telemetry { top: 70px; bottom: auto; left: 12px; max-width: calc(100% - 24px); padding: 6px 10px; }
+  .field-key, .flight-state { font-size: 11px; gap: 2px 10px; }
+  .pal { max-height: 105px; padding: 7px; }
+  .palrow .blk { height: 30px; font-size: 12px; padding: 0 9px; }
+  .brief .row { flex-wrap: wrap; }
 }

@@ -7,7 +7,7 @@ const $ = (id) => document.getElementById(id);
 const svg = (id, cls = '') => `<svg viewBox="0 0 32 32" class="${cls}"><use href="#${id}"/></svg>`;
 // Yayındaki sürümü ayırt etmek için: tools/surum.js bu kodu index.html içine yazar.
 const SURUM = document.querySelector('meta[name="surum"]')?.content || '';
-const RANKS = [[0, 'Çaylak Pilot'], [9, 'Pilot'], [24, 'Kıdemli Pilot'], [45, 'Kaptan'], [66, 'As Kaptan']];
+const RANKS = [[0, 'Çaylak Pilot'], [9, 'Pilot'], [24, 'Kıdemli Pilot'], [45, 'Kaptan'], [66, 'As Kaptan'], [120, 'Uzay Kaşifi'], [192, 'Galaksi Ustası']];
 const NS = 'http://www.w3.org/2000/svg';
 const SHIP = `<svg viewBox="-24 -24 48 48"><path class="flame" d="M-7 13L-4.500 27-2 13zM2 13l2.500 14L7 13z"/><path d="M0-21C3.500-15 5-7 5 3v9h-10V3c0-10 1.500-18 5-24z" fill="#e6ecf7"/><path d="M-5-2L-21 11v5l16-3zM5-2l16 13v5L5 13z" fill="#dfe6f3"/><path d="M-21 11v5l6-1.200V7zM21 11v5l-6-1.200V7z" fill="#ff6a2b"/><ellipse cx="0" cy="-6" rx="2.300" ry="5.500" fill="#2fc8ff"/></svg>`;
 

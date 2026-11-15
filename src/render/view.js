@@ -54,6 +54,8 @@ export class View {
 
     this.level = new THREE.Group(); this.scene.add(this.level);
     this.ship = buildShip(); this.ship.scale.setScalar(SHIP_SCALE); this.ship.visible = false; this.scene.add(this.ship);
+    this.shieldBubble = new THREE.Mesh(new THREE.SphereGeometry(1.12, 20, 12), new THREE.MeshBasicMaterial({ color: 0x65dfff, transparent: true, opacity: 0.27, wireframe: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.shieldBubble.visible = false; this.ship.add(this.shieldBubble);
     this.ghost = buildShip(glow(bright(0xffd84a, 1.5), 0.3)); this.ghost.scale.setScalar(SHIP_SCALE); this.ghost.visible = false; this.scene.add(this.ghost);
     // Bir adımda birden çok sensöre bakılabilir (iç içe "eğer"); her biri için ayrı işaret.
     const beamTex = beamTexture();
@@ -69,6 +71,7 @@ export class View {
     this.glowTex = glowTexture(); this.streakTex = streakTexture();
     this.mats = { line: glow(0x4fd2ff, 0.34), edge: glow(0x7fe2ff, 0.7), floor: glow(0x2a6bff, 0.07), exit: glow(bright(GREEN, 2.2), 1) };
     this.tweens = new Set(); this.bursts = []; this.meteors = new Map(); this.crystals = new Map();
+    this.pirates = new Map(); this.landmarks = new Map();
     this.speed = 1; this.time = 0; this.last = performance.now(); this.shake = 0; this.thrust = 1;
     this.field = null; this.rect = null; this.offset = { x: 0, y: 0 };
     // Kalite: 2 = keskin + parlama, 1 = parlama, 0 = sade. Adrese ?kalite=yuksek|orta|dusuk
@@ -155,7 +158,7 @@ export class View {
       this.level.remove(o);
       o.traverse((n) => { if (n.geometry) n.geometry.dispose(); if (n.userData.own && n.material) n.material.dispose(); });
     }
-    this.meteors.clear(); this.crystals.clear();
+    this.meteors.clear(); this.crystals.clear(); this.pirates.clear(); this.landmarks.clear();
     this.field = field;
     this.ship.visible = !!field;
     if (!field) { this.fit(); return; }
@@ -192,6 +195,26 @@ export class View {
       halo.scale.setScalar(1.5); c.add(halo);
       g.add(c); this.crystals.set(k, c);
     }
+    for (const [kind, cells, color] of [['beacon', field.beacons, 0xb786ff], ['energy', field.energyCells, 0x4cffa4]]) {
+      for (const k of cells) {
+        const [lane, y] = k.split(',').map(Number), marker = new THREE.Group();
+        marker.position.copy(this.cellPos({ lane, y }, 0));
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.51, 0.055, 8, 32), glow(bright(color, 1.5), 0.9));
+        ring.rotation.x = Math.PI / 2; ring.position.y = 0.1; ring.userData.own = true;
+        const core = new THREE.Mesh(kind === 'beacon' ? new THREE.OctahedronGeometry(0.2) : new THREE.BoxGeometry(0.28, 0.38, 0.28), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.3, metalness: 0.4, roughness: 0.3 }));
+        core.position.y = 0.44; core.userData.own = true;
+        marker.add(ring, core); marker.userData.core = core; marker.userData.phase = rand() * 6;
+        g.add(marker); this.landmarks.set(k, marker);
+      }
+    }
+    for (const k of field.pirates) {
+      const [lane, y] = k.split(',').map(Number);
+      const mat = new THREE.MeshStandardMaterial({ color: 0xb12b4b, emissive: 0xff294b, emissiveIntensity: 0.65, metalness: 0.4, roughness: 0.3 });
+      const pirate = buildShip(mat); pirate.children[0].userData.own = true;
+      pirate.scale.setScalar(0.57); pirate.rotation.y = Math.PI;
+      pirate.position.copy(this.cellPos({ lane, y }, 0.48));
+      g.add(pirate); this.pirates.set(k, pirate);
+    }
     this.fit();
     this.resetShip();
   }
@@ -217,9 +240,13 @@ export class View {
     this.ship.visible = true; this.ship.scale.setScalar(SHIP_SCALE);
     this.ship.position.copy(this.cellPos({ lane: this.field.start, y: 0 }));
     this.ship.rotation.set(0, 0, 0);
+    this.setShield(false);
+    for (const p of this.pirates.values()) p.visible = true;
     for (const c of this.crystals.values()) { c.visible = true; c.scale.setScalar(1); }
     for (const m of this.meteors.values()) m.material.emissiveIntensity = 0;
   }
+
+  setShield(visible) { this.shieldBubble.visible = !!visible; }
 
   /** Gemi alttan süzülerek başlangıç karesine girer. */
   enter() {
@@ -263,6 +290,8 @@ export class View {
     if (this.field) {
       for (const m of this.meteors.values()) { const s = m.userData.spin; m.rotation.x += s.x * dt; m.rotation.y += s.y * dt; m.rotation.z += s.z * dt; }
       for (const c of this.crystals.values()) { c.userData.gem.rotation.y = t * 1.4 + c.userData.phase; c.position.y = 0.5 + Math.sin(t * 2 + c.userData.phase) * 0.06; }
+      for (const m of this.landmarks.values()) { m.userData.core.rotation.y = t; m.userData.core.position.y = 0.44 + Math.sin(t * 2 + m.userData.phase) * 0.08; }
+      for (const p of this.pirates.values()) p.position.y = 0.48 + Math.sin(t * 2 + p.position.z) * 0.04;
       for (const f of this.ship.userData.flames) f.scale.set(1, 1, this.thrust * (0.9 + Math.sin(t * 40 + f.position.x * 9) * 0.1));
       if (!this.tweens.size) this.ship.position.y = SHIP_Y + Math.sin(t * 2.2) * 0.025;
       const pulse = 0.75 + Math.sin(t * 9) * 0.25;
@@ -346,6 +375,12 @@ export class View {
     });
     if (gen !== this.gen) return;
     if (ev.collect) this.collect(ev.to);
+    if (ev.blocked) {
+      const pirate = this.pirates.get(`${ev.to.lane},${ev.to.y}`);
+      if (pirate) pirate.visible = false;
+      this.burst(this.cellPos(ev.to), { color: 0x65dfff, n: 34, speed: 3, life: 0.6 });
+    }
+    this.setShield(ev.shielded);
   }
 
   collect(cell) {
