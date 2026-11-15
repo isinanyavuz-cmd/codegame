@@ -94,3 +94,9 @@ dalgalarda işe yaramaz.
 ## Eski oyun
 
 Önceki ızgara bulmaca oyunu KodRobot `kodrobot-eski/` klasöründe duruyor.
+
+## Bu depodaki diğer uygulama
+
+[`bilsem/`](bilsem/README.md) klasöründe **Enes BİLSEM'e Hazırlanıyor** var: 2. sınıf için
+BİLSEM hazırlık alıştırmaları (20 soru türü, sayı hafızası, günün görevi, deneme sınavı,
+veli paneli). Açmak için `bilsem/index.html`. Testleri: `node --test bilsem/tests/*.test.js`.
