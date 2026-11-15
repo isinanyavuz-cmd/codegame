@@ -46,6 +46,25 @@ Sonra tarayıcıda `http://localhost:8080` adresini aç. Fare ve dokunmatik ekra
 - Sektör 3'te meteorların yeri her dalgada değişir; aynı program üç dalgayı da
   geçmelidir.
 
+## Yayın
+
+Oyun GitHub Pages ile ana daldan yayınlanır: ana dala giren her değişiklik bir
+iki dakika içinde yayına çıkar.
+
+- Kod Pilotu: `https://isinanyavuz-cmd.github.io/codegame/`
+- BİLSEM uygulaması: `https://isinanyavuz-cmd.github.io/codegame/bilsem/`
+
+Dosyaları değiştirdikten sonra şunu çalıştır:
+
+```bash
+npm run surum
+```
+
+Bu komut `index.html` içindeki dosya adreslerine içerik damgası ekler. Damga
+olmazsa tarayıcı on dakikaya kadar eski dosyaları göstermeye devam edebilir.
+Rota ekranının altındaki sürüm kodu, yayında hangi sürümün açık olduğunu gösterir.
+Damgalar eskiyse testler hata verir.
+
 ## Geliştirme
 
 ```bash
