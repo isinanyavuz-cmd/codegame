@@ -45,12 +45,18 @@
     const q = {};
 
     if (level < 4) {
-      const turn = rng.pick([90, 270, 180]);
-      q.prompt = turn === 90 ? 'Şekil sağa doğru çeyrek tur dönerse hangisi olur?'
-        : turn === 270 ? 'Şekil sola doğru çeyrek tur dönerse hangisi olur?' : 'Şekil yarım tur dönerse (baş aşağı) hangisi olur?';
-      q.stem = S.svg(s + 150, s + 12, figure + turnIcon(turn, s + 78, 66) + S.text(s + 78, 130, TURN_LABEL[turn], 17, soft), { maxW: 330 });
-      q.explain = turn === 90 ? 'Sağa doğru çeyrek turda üstteki kısım sağa, sağdaki kısım alta geçer.'
-        : turn === 270 ? 'Sola doğru çeyrek turda üstteki kısım sola, soldaki kısım alta geçer.' : 'Yarım turda üst ile alt, sağ ile sol yer değiştirir.';
+      // sağa ya da sola; bir, iki ya da üç kez çeyrek tur. İki çeyrek tur bazen "yarım tur" diye sorulur.
+      const right = rng.chance(0.5), k = rng.pick(level === 1 ? [1, 1, 2] : [1, 2, 2, 3, 3]), half = k === 2 && rng.chance(0.3);
+      const turn = (right ? 90 * k : 360 - 90 * k) % 360, yon = right ? 'sağa' : 'sola', KEZ = ['', 'bir', 'iki', 'üç'];
+      q.prompt = half ? 'Şekil yarım tur dönerse (baş aşağı) hangisi olur?' : 'Şekil ' + yon + ' doğru ' + KEZ[k] + ' kez çeyrek tur dönerse hangisi olur?';
+      const cx = s + 100, label = half ? 'yarım tur' : k === 1 ? 'çeyrek tur ' + yon : yon + ' ' + k + ' kez çeyrek tur';
+      const times = (half || k === 1) ? '' : '<circle cx="' + (cx + 50) + '" cy="30" r="17" fill="' + S.INK + '"/>' + S.text(cx + 50, 30, '×' + k, 18, { fill: '#fff' });
+      q.stem = S.svg(s + 200, s + 12, figure + turnIcon(half ? 180 : right ? 90 : 270, cx, 66) + times + S.text(cx, 130, label, 17, soft), { maxW: 380 });
+      q.explain = k === 1 ? (right ? 'Sağa doğru çeyrek turda üstteki kısım sağa, sağdaki kısım alta geçer.' : 'Sola doğru çeyrek turda üstteki kısım sola, soldaki kısım alta geçer.')
+        : k === 2 ? (half ? 'Yarım turda üst ile alt, sağ ile sol yer değiştirir.' : 'İki çeyrek tur bir yarım tur eder: üst ile alt, sağ ile sol yer değiştirir.')
+          : right ? 'Sağa üç çeyrek tur, sola bir çeyrek tur ile aynı yere getirir: üstteki kısım sola geçer.'
+            : 'Sola üç çeyrek tur, sağa bir çeyrek tur ile aynı yere getirir: üstteki kısım sağa geçer.';
+      q.meta = { m: o.m, right: right, k: k, result: G.tf(o.m, tf(turn)) };
       const rots = rng.shuffle([turn + 90, turn + 180, turn + 270].map((r) => objOpt(o, tf(r))));
       const mirs = rng.shuffle([turn + 90, turn + 180, turn + 270].map((r) => objOpt(o, tf(r, true))));
       const wrong = level === 1 ? [rots[0], rots[1], objOpt(o, tf(turn, true)), mirs[0]]
@@ -170,53 +176,124 @@
     return Q.finishNum(rng, q, st.total, { min: 1, prefer: [lt.layers[0], st.total - lt.layers[lt.layers.length - 1]] });
   };
 
-  /* ---------- Üst Üste Şekiller ---------- */
-  const ORD = ['', 'birinci', 'ikinci', 'üçüncü', 'dördüncü', 'beşinci'];
+  /* ---------- Üst Üste Çizgiler ---------- */
+  const ORD = ['', 'birinci', 'ikinci', 'üçüncü', 'dördüncü', 'beşinci', 'altıncı'];
+  const LW = 380, LH = 310, LPAD = 20;
+
+  /* n doğru parçası. Çerçevenin kenarında sırayla 2n nokta seçilir ve her nokta tam karşısındakiyle birleştirilir:
+     uçları böyle iç içe geçen kirişlerin her ikisi çerçevenin içinde mutlaka kesişir. Sonra uçlar küçük adımlarla
+     oynatılarak kesişme noktaları birbirinden ve kenardan uzaklaştırılır, dar açılı kesişmeler açılır;
+     böylece her çiftte hangi çizginin üstte olduğu rahat görülür. */
+  const LINE_RULES = { 4: [34, 38, 0.3, 500], 5: [27, 36, 0.3, 900], 6: [17, 30, 0.24, 1200] };   // [noktalar arası, kenar payı, en küçük sinüs, adım]
+  function edgePoint(u) {
+    const w = LW - 2 * LPAD, h = LH - 2 * LPAD;
+    let d = (((u % 1) + 1) % 1) * 2 * (w + h);
+    if (d < w) return [LPAD + d, LPAD];
+    d -= w;
+    if (d < h) return [LPAD + w, LPAD + d];
+    d -= h;
+    if (d < w) return [LPAD + w - d, LPAD + h];
+    return [LPAD, LPAD + h - (d - w)];
+  }
+  /* 1 ve üstü: bütün koşullar sağlanıyor */
+  function lineScore(us, n, rule) {
+    const e = us.map(edgePoint), pts = [];
+    let f = Infinity;
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const ax = e[i + n][0] - e[i][0], ay = e[i + n][1] - e[i][1], cx = e[j + n][0] - e[j][0], cy = e[j + n][1] - e[j][1];
+        const den = ax * cy - ay * cx, k = ((e[j][0] - e[i][0]) * cy - (e[j][1] - e[i][1]) * cx) / den;
+        const x = e[i][0] + k * ax, y = e[i][1] + k * ay;
+        f = Math.min(f, Math.abs(den) / (Math.hypot(ax, ay) * Math.hypot(cx, cy)) / rule[2], Math.min(x, y, LW - x, LH - y) / rule[1]);
+        for (const p of pts) f = Math.min(f, Math.hypot(p[0] - x, p[1] - y) / rule[0]);
+        pts.push([x, y]);
+      }
+    }
+    return f;
+  }
+  function lineSet(rng, n) {
+    const rule = LINE_RULES[n];
+    for (let r = 0; r < 12; r++) {
+      let us = Array.from({ length: 2 * n }, () => rng.next()).sort((a, c) => a - c), f = lineScore(us, n, rule);
+      for (let it = 0; it < rule[3] && f < 1; it++) {
+        const k = rng.int(0, 2 * n - 1), v = us[k] + (rng.next() - 0.5) * 0.08;
+        const lo = k ? us[k - 1] : us[2 * n - 1] - 1, hi = k < 2 * n - 1 ? us[k + 1] : us[0] + 1;
+        if (v <= lo + 0.004 || v >= hi - 0.004) continue;        // kenardaki sıra bozulmaz: kirişler kesişmeyi sürdürür
+        const t = us.slice();
+        t[k] = v;
+        const g = lineScore(t, n, rule);
+        if (g > f) { us = t; f = g; }
+      }
+      if (f >= 1) {
+        const e = us.map(edgePoint);
+        return rng.shuffle(Array.from({ length: n }, (_, i) => ({ x0: r1(e[i][0]), y0: r1(e[i][1]), x1: r1(e[i + n][0]), y1: r1(e[i + n][1]) })));
+      }
+    }
+    throw new Error('çizgiler yerleşmedi');
+  }
+
+  /* Çizginin yolu. Uçlar hep doğrunun uçlarında kalır; böylece eğri çizgiler de birbirini mutlaka keser. */
+  function linePath(l) {
+    const dx = l.x1 - l.x0, dy = l.y1 - l.y0, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+    const at = (t, o) => r1(l.x0 + ux * t + nx * o) + ' ' + r1(l.y0 + uy * t + ny * o);
+    if (l.style === 'arc') return 'M' + at(0, 0) + 'Q' + at(L / 2, l.amp * 4.5) + ' ' + at(L, 0);
+    if (l.style === 'zigzag') {
+      const k = Math.max(3, Math.round(L / 46));
+      let d = 'M' + at(0, 0);
+      for (let i = 1; i < k; i++) d += 'L' + at(L * i / k, i % 2 ? l.amp : -l.amp);
+      return d + 'L' + at(L, 0);
+    }
+    if (l.style === 'wave') {
+      const k = Math.max(2, Math.round(L / 62));
+      let d = 'M' + at(0, 0);
+      for (let t = 5; t < L; t += 5) d += 'L' + at(t, l.amp * Math.sin(Math.PI * k * t / L));
+      return d + 'L' + at(L, 0);
+    }
+    return 'M' + at(0, 0) + 'L' + at(L, 0);
+  }
+  function lineDraw(l, w) {
+    const d = linePath(l), common = '" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke="';
+    return '<path d="' + d + common + S.INK + '" stroke-width="' + (w + 5) + '"/><path d="' + d + common + S.COLORS[l.color].fill + '" stroke-width="' + w + '"/>';
+  }
+  const lineOpt = (l) => ({
+    html: '<span class="opt-pair">' + S.svg(100, 50, lineDraw({ x0: 12, y0: 25, x1: 88, y1: 25, color: l.color, style: l.style, amp: l.style === 'arc' ? 3 : 7 }, 12), { cls: 'opt-svg opt-line' }) +
+      '<span class="opt-cap">' + S.COLORS[l.color].name + '</span></span>',
+    key: 'l' + l.color,
+  });
 
   B.GEN.stack = function (rng, level) {
-    const n = level === 1 ? 4 : level === 2 ? 5 : 6;
-    const shapes = rng.sample(['circle', 'square', 'triangle', 'hexagon', 'pentagon', 'heart', 'diamond'], n), cols = rng.sample(COL, n);
-    const figs = shapes.map((sh, i) => ({ shape: sh, color: cols[i] }));   // 0 en altta
-
-    // zincir: her şekil bir öncekinin üstüne biner, daha eskilere fazla yaklaşmaz
-    const pts = [[0, 0]];
-    for (let i = 1; i < n; i++) {
-      let placed = false;
-      for (let t = 0; t < 80 && !placed; t++) {
-        const ang = rng.next() * Math.PI * 2;
-        const p = [pts[i - 1][0] + 34 * Math.cos(ang), pts[i - 1][1] + 34 * Math.sin(ang)];
-        let ok = true;
-        for (let j = 0; j < i - 1; j++) if (Math.hypot(p[0] - pts[j][0], p[1] - pts[j][1]) < 46) ok = false;
-        if (ok) { pts.push(p); placed = true; }
-      }
-      if (!placed) throw new Error('üst üste dizilemedi');
-    }
-    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
-    const minX = Math.min.apply(null, xs) - 50, minY = Math.min.apply(null, ys) - 50;
-    const W = Math.max.apply(null, xs) + 50 - minX, H = Math.max.apply(null, ys) + 50 - minY;
-    const inner = figs.map((f, i) => S.figAt(f, pts[i][0] - 50 - minX, pts[i][1] - 50 - minY, 100)).join('');
-    const opt = (f) => ({ html: S.figSvg(f), key: S.key(f) });
-    const nameGen = (f) => B.GenUtil.cap(S.COLORS[f.color].name) + ' ' + S.SHAPES[f.shape].gen;
-    const q = { stem: S.svg(W, H, inner, { maxW: Math.min(340, W * 1.5) }) };
-    q.explain = 'Alttan üste doğru sıra: ' + figs.map((f) => S.name(f)).join(', ') + '.';
-    q.meta = { n: n };
+    const n = [0, 4, 5, 5, 6][level];
+    const styles = level < 3 ? ['straight'] : level === 3 ? [rng.pick(['wave', 'zigzag', 'arc'])] : ['straight', 'wave', 'zigzag', 'arc'];
+    const cols = rng.sample(COL, n);
+    // çizim sırası = alttan üste; yerleşimle ilgisi yok
+    const lines = lineSet(rng, n).map((l, i) => Object.assign(l, { color: cols[i], style: rng.pick(styles), amp: (rng.chance(0.5) ? 1 : -1) * rng.int(8, 11) }));
+    const w = n > 5 ? 11 : 13;
+    const q = { stem: S.svg(LW, LH, lines.map((l) => lineDraw(l, w)).join(''), { maxW: LW }) };
+    const names = lines.map((l) => S.COLORS[l.color].name), cap = B.GenUtil.cap;
+    q.explain = 'Kesiştikleri yerde kesintisiz görünen çizgi üsttedir. Alttan üste doğru sıra: ' + names.join(', ') + '.';
+    q.meta = { n: n, lines: lines.map((l) => ({ x0: l.x0, y0: l.y0, x1: l.x1, y1: l.y1, color: l.color, style: l.style })), order: lines.map((l) => l.color) };
+    const others = (skip) => rng.shuffle(lines.filter((_, i) => skip.indexOf(i) < 0)).map(lineOpt);
 
     if (level === 4) {
       const ask = rng.pick(['above', 'below', 'countAbove', 'countBelow']);
+      q.meta.ask = ask;
       if (ask === 'above' || ask === 'below') {
         const r = ask === 'above' ? rng.int(0, n - 2) : rng.int(1, n - 1), a = ask === 'above' ? r + 1 : r - 1;
-        q.prompt = nameGen(figs[r]) + (ask === 'above' ? ' hemen üstündeki şekil hangisi?' : ' hemen altındaki şekil hangisi?');
-        return Q.finish(rng, q, opt(figs[a]), rng.shuffle(figs.filter((_, i) => i !== a && i !== r)).map(opt));
+        q.prompt = cap(names[r]) + ' çizginin ' + (ask === 'above' ? 'hemen üstündeki' : 'hemen altındaki') + ' çizgi hangisi?';
+        q.meta.ref = r; q.meta.answer = lines[a].color;
+        return Q.finish(rng, q, lineOpt(lines[a]), others([a, r]));
       }
       const r = rng.int(0, n - 1), ans = ask === 'countAbove' ? n - 1 - r : r;
-      q.prompt = nameGen(figs[r]) + (ask === 'countAbove' ? ' üstünde kaç şekil var?' : ' altında kaç şekil var?');
+      q.prompt = cap(names[r]) + ' çizginin ' + (ask === 'countAbove' ? 'üstünden' : 'altından') + ' kaç çizgi geçiyor?';
+      q.meta.ref = r; q.meta.answer = ans;
       return Q.finishNum(rng, q, ans, { min: 0, max: n - 1 });
     }
 
-    const idx = level === 2 ? rng.pick([1, n - 2, 2, 1, n - 2]) : rng.int(0, n - 1);
-    q.prompt = idx === 0 ? 'En altta hangi şekil var?' : idx === n - 1 ? 'En üstte hangi şekil var?'
-      : idx < n / 2 ? 'Alttan ' + ORD[idx + 1] + ' şekil hangisi?' : 'Üstten ' + ORD[n - idx] + ' şekil hangisi?';
-    return Q.finish(rng, q, opt(figs[idx]), rng.shuffle(figs.filter((_, i) => i !== idx)).map(opt));
+    const idx = level === 1 ? rng.pick([0, n - 1]) : level === 2 ? rng.pick([0, n - 1, 1, n - 2]) : rng.int(0, n - 1);
+    q.prompt = idx === 0 ? 'En alttaki çizgi hangisi?' : idx === n - 1 ? 'En üstteki çizgi hangisi?'
+      : idx < n / 2 ? 'Alttan ' + ORD[idx + 1] + ' çizgi hangisi?' : 'Üstten ' + ORD[n - idx] + ' çizgi hangisi?';
+    q.meta.ask = 'rank'; q.meta.answer = lines[idx].color;
+    return Q.finish(rng, q, lineOpt(lines[idx]), others([idx]));
   };
 
   if (typeof module !== 'undefined') module.exports = B;

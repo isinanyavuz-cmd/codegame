@@ -41,7 +41,7 @@
     { id: 'rotate', area: 'uzamsal', name: 'Döndürme', desc: 'Şekli kafanda çevir', tip: 'Şeklin bir köşesini seç ve dönünce nereye gideceğini düşün.' },
     { id: 'mirror', area: 'uzamsal', name: 'Ayna Görüntüsü', desc: 'Yansımayı bul', tip: 'Aynada sağ ile sol yer değiştirir. Aynaya yakın olan parça yine aynaya yakın kalır.' },
     { id: 'cubes', area: 'uzamsal', name: 'Küp Sayma', desc: 'Gizli küpleri unutma', tip: 'Kat kat say. Üstteki küplerin altında da küp olduğunu unutma.' },
-    { id: 'stack', area: 'uzamsal', name: 'Üst Üste Şekiller', desc: 'Hangisi altta, hangisi üstte?', tip: 'Tamamı görünen şekil en üsttedir. Bir kısmı kapanan şekil alttadır.' },
+    { id: 'stack', area: 'uzamsal', name: 'Üst Üste Çizgiler', desc: 'Hangi çizgi üstte, hangisi altta?', tip: 'İki çizginin kesiştiği yere bak: kesintisiz devam eden üstte, arkadan geçen alttadır. Çizgileri ikişer ikişer karşılaştır.' },
     { id: 'numseq', area: 'sayisal', name: 'Sayı Örüntüsü', desc: 'Sayıların kuralını bul', tip: 'Yan yana iki sayının farkına bak. Fark hep aynı mı, yoksa değişiyor mu?' },
     { id: 'fruit', area: 'sayisal', name: 'Meyve İşlemleri', desc: 'Her meyve bir sayı', tip: 'Önce aynı meyveden oluşan satırı çöz. Bulduğun sayıyı diğer satırda yerine koy.' },
     { id: 'code', area: 'sayisal', name: 'Şifre Çözme', desc: 'Şekilleri sayıya çevir', tip: 'Tablodan her şeklin sayısını sırayla bul. Renge de şekle de dikkat et.' },
