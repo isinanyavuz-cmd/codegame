@@ -7,7 +7,7 @@
 
   const spanBlank = () => ({ plays: 0, best: { 1: { both: 0, fwd: 0, bwd: 0 }, 2: { both: 0, fwd: 0, bwd: 0 }, 3: { both: 0, fwd: 0, bwd: 0 } } });
   function blank() {
-    return { v: 3, settings: { sound: true, len: 10, spanStart: 3, spanLevel: 1 }, cats: {}, days: {}, exams: [], span: spanBlank() };
+    return { v: 3, settings: { sound: true, len: 10, spanStart: 3, spanLevel: 1, spanTypeTimed: true }, cats: {}, days: {}, exams: [], span: spanBlank() };
   }
 
   /* Sayı hafızası kaydını bugünkü biçime getirir: rekorlar düzeye göre tutulur ve en çok MAX basamaktır.
@@ -85,6 +85,7 @@
             const set = this.data.settings;
             set.spanStart = Math.max(Sp.MIN, Math.min(Sp.MAX, set.spanStart));
             set.spanLevel = Sp.levelOf(set.spanLevel).id;
+            set.spanTypeTimed = set.spanTypeTimed !== false;
           }
         }
       } catch (e) { /* kayıt okunamadıysa boş başla */ }
