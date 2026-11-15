@@ -558,3 +558,19 @@ td .dot { display: inline-block; width: 10px; height: 10px; margin-right: 8px; b
   .sheet, .fb, .opt.no, .big-stars svg.on { animation: none; }
   .btn, .opt, .cat, .hero-card, .span-card, .key, .prog-bar { transition: none; }
 }
+
+/* Cevaptan sonra gelen kutu ekranın altına yapışır: küçük ekranlarda
+   "Devam" düğmesine ulaşmak için kaydırmak gerekmez. */
+.quiz .fb {
+  position: sticky; z-index: 5;
+  bottom: max(10px, env(safe-area-inset-bottom));
+}
+.quiz .fb-ok { background: linear-gradient(var(--good-soft), var(--good-soft)), var(--surface); box-shadow: inset 0 0 0 2px var(--good), 0 8px 24px rgba(0, 0, 0, .18); }
+.quiz .fb-no { background: linear-gradient(var(--bad-soft), var(--bad-soft)), var(--surface); box-shadow: inset 0 0 0 2px var(--bad), 0 8px 24px rgba(0, 0, 0, .18); }
+@media (max-width: 520px) {
+  .quiz .fb { gap: 8px 10px; padding: 10px 12px; }
+  .quiz .fb .robot { width: 44px; height: 44px; }
+  .quiz .fb-msg { flex-basis: 180px; font-size: 15px; max-height: 30vh; overflow-y: auto; }
+  .quiz .fb-msg b { font-size: 19px; }
+  .quiz .fb .btn { flex: 1 1 100%; }
+}
