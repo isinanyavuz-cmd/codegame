@@ -28,7 +28,7 @@ npm start
 Sonra tarayıcıda `http://localhost:8080` adresini aç. Fare ve dokunmatik ekranla
 çalışır; tablet (yatay) ve bilgisayar için tasarlandı.
 
-- Adresin sonuna `?hepsi` eklersen bütün sahneler açılır (gözden geçirmek için).
+- Adresin sonuna `?hepsi` (ya da `#hepsi`) eklersen bütün sahneler açılır (gözden geçirmek için).
 - `#3-4` gibi bir ek doğrudan o sahneyi açar: `http://localhost:8080/?hepsi#3-4`.
 
 ## Nasıl oynanır

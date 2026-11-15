@@ -8,8 +8,8 @@ try {
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* kayıt kapalı olabilir */ } };
 
 export const store = {
-  /** Adrese ?hepsi eklenirse bütün sahneler açılır (gözden geçirmek için). */
-  unlockAll: typeof location !== 'undefined' && new URLSearchParams(location.search).has('hepsi'),
+  /** Adrese ?hepsi ya da #hepsi eklenirse bütün sahneler açılır (gözden geçirmek için). */
+  unlockAll: typeof location !== 'undefined' && (new URLSearchParams(location.search).has('hepsi') || location.hash === '#hepsi'),
   stars: (id) => data.stars[id] || 0,
   setStars(id, n) { if (n > (data.stars[id] || 0)) { data.stars[id] = n; save(); } },
   total: () => Object.values(data.stars).reduce((a, b) => a + b, 0),
