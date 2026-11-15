@@ -7,4 +7,5 @@ require('../js/gen-number.js');
 require('../js/gen-attention.js');
 require('../js/gen-logic.js');
 require('../js/gen-extra.js');
+require('../js/span.js');
 module.exports = require('../js/store.js');

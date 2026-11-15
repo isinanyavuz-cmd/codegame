@@ -69,3 +69,28 @@ test('günün görevi yıldızı toplama eklenir, aynı gün tekrar oynamak yıl
   S.finishDaily(1);
   assert.strictEqual(S.totalStars(), 3);
 });
+
+test('eski kayıt taşınır: eski Zor yıldızları yeni Kolay düzeye geçer', () => {
+  const old = { v: 1, settings: { sound: false, len: 5 }, cats: { cubes: { stars: [3, 2, 1], seen: 30, ok: 20, ms: 9000, recent: [1, 0], skill: 3.4 }, odd: { stars: [3, 0, 0], seen: 10, ok: 9, ms: 100, recent: [1], skill: 1.6 } }, days: { '2026-11-14': { n: 10, ok: 8, daily: true, stars: 2 } }, exams: [] };
+  const d = U.migrate(JSON.parse(JSON.stringify(old)));
+  assert.strictEqual(d.v, 2);
+  assert.deepStrictEqual(d.cats.cubes.stars, [1, 0, 0]);
+  assert.strictEqual(d.cats.cubes.skill, 1.4);
+  assert.deepStrictEqual(d.cats.odd.stars, [0, 0, 0]);
+  assert.strictEqual(d.cats.odd.skill, 1);
+  assert.strictEqual(d.cats.cubes.seen, 30, 'çözülen soru sayısı korunur');
+  assert.strictEqual(d.days['2026-11-14'].stars, 2, 'günlük yıldızlar korunur');
+  assert.deepStrictEqual(U.migrate({ v: 2, x: 1 }), { v: 2, x: 1 }, 'yeni kayıt değişmez');
+});
+
+test('sayı hafızası kaydı: rekor yalnız yükselir, denemeler güne işlenir', () => {
+  const S = B.Store;
+  S.data = U.blank();
+  assert.strictEqual(S.spanBest('both', 5), true);
+  assert.strictEqual(S.spanBest('both', 4), false);
+  assert.strictEqual(S.spanBest('fwd', 7), true);
+  assert.deepStrictEqual([S.data.span.both, S.data.span.fwd, S.data.span.bwd], [5, 7, 0]);
+  S.spanTrial(true); S.spanTrial(false); S.spanPlayed();
+  assert.deepStrictEqual([S.day().n, S.day().ok, S.data.span.plays], [2, 1, 1]);
+  assert.strictEqual(S.streak(), 1);
+});

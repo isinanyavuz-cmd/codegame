@@ -1,11 +1,24 @@
-/* Zekâ Kâşifi — ilerleme kaydı: yıldızlar, günlük seri, kategori istatistikleri */
+/* İlerleme kaydı: yıldızlar, günlük seri, kategori istatistikleri, sayı hafızası rekorları */
 (function (root) {
   'use strict';
   const Bilsem = root.Bilsem = root.Bilsem || {};
-  const KEY = 'zekakasifi.v1';
+  const KEY = 'bilsem.v2';
+  const OLD_KEY = 'zekakasifi.v1';     // seviyeler kaydırılmadan önceki kayıt
 
   function blank() {
-    return { v: 1, settings: { sound: true, len: 10 }, cats: {}, days: {}, exams: [] };
+    return { v: 2, settings: { sound: true, len: 10, spanStart: 3 }, cats: {}, days: {}, exams: [], span: { both: 0, fwd: 0, bwd: 0, plays: 0 } };
+  }
+
+  /* v1 -> v2: eski Zor düzey yeni Kolay düzey oldu. Eski Zor yıldızları Kolay'a taşınır, eski Kolay ve Orta yıldızları düşer. */
+  function migrate(d) {
+    if (!d || d.v !== 1) return d;
+    Object.keys(d.cats || {}).forEach((k) => {
+      const c = d.cats[k];
+      c.stars = [c.stars ? c.stars[2] || 0 : 0, 0, 0];
+      c.skill = Math.max(1, Math.round(((c.skill || 1) - 2) * 100) / 100);
+    });
+    d.v = 2;
+    return d;
   }
 
   function dayKey(d) {
@@ -45,10 +58,11 @@
     data: blank(),
     load() {
       try {
-        const raw = root.localStorage && root.localStorage.getItem(KEY);
+        const ls = root.localStorage;
+        const raw = ls && (ls.getItem(KEY) || ls.getItem(OLD_KEY));
         if (raw) {
-          const d = JSON.parse(raw);
-          if (d && d.v === 1) this.data = Object.assign(blank(), d, { settings: Object.assign(blank().settings, d.settings) });
+          const d = migrate(JSON.parse(raw)), b = blank();
+          if (d && d.v === 2) this.data = Object.assign(b, d, { settings: Object.assign(b.settings, d.settings), span: Object.assign(b.span, d.span) });
         }
       } catch (e) { /* kayıt okunamadıysa boş başla */ }
       return this.data;
@@ -60,6 +74,7 @@
       const s = this.data.settings;
       this.data = blank();
       this.data.settings = s;
+      try { root.localStorage && root.localStorage.removeItem(OLD_KEY); } catch (e) { /* önemli değil */ }
       this.save();
     },
     cat(id) {
@@ -108,6 +123,18 @@
       this.data.exams.push(sum);
       if (this.data.exams.length > 30) this.data.exams.shift();
     },
+    /* Sayı Hafızası: her sayı denemesi günlük çalışmaya sayılır; rekor, ulaşılan en uzun basamak sayısıdır. */
+    spanTrial(ok) {
+      const d = this.day();
+      d.n++;
+      if (ok) d.ok++;
+    },
+    spanBest(mode, best) {
+      const s = this.data.span;
+      if (best > s[mode]) { s[mode] = best; return true; }
+      return false;
+    },
+    spanPlayed() { this.data.span.plays++; },
     /* Günün görevi: az çalışılan ve zorlanılan kategoriler daha sık gelir. */
     dailyPlan(rng, n) {
       const pool = Bilsem.CATS.map((c) => {
@@ -128,7 +155,7 @@
   };
 
   Bilsem.Store = Store;
-  Bilsem.StoreUtil = { dayKey: dayKey, addDays: addDays, starsFor: starsFor, nextSkill: nextSkill, streak: streak };
+  Bilsem.StoreUtil = { dayKey: dayKey, addDays: addDays, starsFor: starsFor, nextSkill: nextSkill, streak: streak, migrate: migrate, blank: blank };
 
   if (typeof module !== 'undefined') module.exports = Bilsem;
 })(typeof window !== 'undefined' ? window : globalThis);

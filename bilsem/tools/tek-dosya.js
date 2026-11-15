@@ -16,7 +16,7 @@ const css = fs.readFileSync(path.join(root, 'css/style.css'), 'utf8');
 const scripts = Array.from(html.matchAll(/<script src="([^"]+)"><\/script>/g)).map((m) => m[1]);
 const js = scripts.map((s) => fs.readFileSync(path.join(root, s), 'utf8').replace(/<\/script/g, '<\\/script')).join('\n');
 const fonts = (html.match(/<link rel="stylesheet" href="https:\/\/fonts[^>]+>/) || [''])[0];
-const title = (html.match(/<title>[^<]*<\/title>/) || ['<title>Zekâ Kâşifi</title>'])[0];
+const title = (html.match(/<title>[^<]*<\/title>/) || ['<title>BİLSEM Hazırlık</title>'])[0];
 
 const core = fonts + '\n<style>\n' + css + '</style>\n<div id="app"></div>\n<script>\n' + js + '</script>\n';
 const page = bodyOnly

@@ -1,4 +1,4 @@
-/* Zekâ Kâşifi — şekil çizimleri. Her şey SVG metni üretir; DOM gerekmez. */
+/* Şekil çizimleri. Her şey SVG metni üretir; DOM gerekmez. */
 (function (root) {
   'use strict';
   const Bilsem = root.Bilsem = root.Bilsem || {};
@@ -34,14 +34,14 @@
 
   /* sym: şekil kaç derecede bir kendisiyle aynı görünür (90'ın katlarıyla döndürmede). */
   const SHAPES = {
-    circle: { name: 'daire', sym: 90, d: '<circle r="36"/>' },
-    square: { name: 'kare', sym: 90, d: '<rect x="-32" y="-32" width="64" height="64" rx="5"/>' },
-    triangle: { name: 'üçgen', sym: 360, d: '<path d="M0 -38L35 24L-35 24Z"/>' },
-    diamond: { name: 'baklava', sym: 180, d: '<path d="M0 -40L27 0L0 40L-27 0Z"/>' },
-    pentagon: { name: 'beşgen', sym: 360, d: '<polygon points="' + polyPts(5, 38) + '"/>' },
-    hexagon: { name: 'altıgen', sym: 180, d: '<polygon points="' + polyPts(6, 38) + '"/>' },
-    star: { name: 'yıldız', sym: 360, d: '<polygon points="' + starPts(40, 17) + '"/>' },
-    heart: { name: 'kalp', sym: 360, d: '<path d="M0 33C-14 21-38 7-38-12C-38-26-27-34-16-34C-8-34-2-29 0-23C2-29 8-34 16-34C27-34 38-26 38-12C38 7 14 21 0 33Z"/>' },
+    circle: { name: 'daire', gen: 'dairenin', abl: 'daireden', sym: 90, d: '<circle r="36"/>' },
+    square: { name: 'kare', gen: 'karenin', abl: 'kareden', sym: 90, d: '<rect x="-32" y="-32" width="64" height="64" rx="5"/>' },
+    triangle: { name: 'üçgen', gen: 'üçgenin', abl: 'üçgenden', sym: 360, d: '<path d="M0 -38L35 24L-35 24Z"/>' },
+    diamond: { name: 'baklava', gen: 'baklavanın', abl: 'baklavadan', sym: 180, d: '<path d="M0 -40L27 0L0 40L-27 0Z"/>' },
+    pentagon: { name: 'beşgen', gen: 'beşgenin', abl: 'beşgenden', sym: 360, d: '<polygon points="' + polyPts(5, 38) + '"/>' },
+    hexagon: { name: 'altıgen', gen: 'altıgenin', abl: 'altıgenden', sym: 180, d: '<polygon points="' + polyPts(6, 38) + '"/>' },
+    star: { name: 'yıldız', gen: 'yıldızın', abl: 'yıldızdan', sym: 360, d: '<polygon points="' + starPts(40, 17) + '"/>' },
+    heart: { name: 'kalp', gen: 'kalbin', abl: 'kalpten', sym: 360, d: '<path d="M0 33C-14 21-38 7-38-12C-38-26-27-34-16-34C-8-34-2-29 0-23C2-29 8-34 16-34C27-34 38-26 38-12C38 7 14 21 0 33Z"/>' },
     plus: { name: 'artı', sym: 90, d: '<path d="M-12 -36H12V-12H36V12H12V36H-12V12H-36V-12H-12Z"/>' },
     arrow: { name: 'ok', sym: 360, d: '<path d="M0 -40L32 -4H14V38H-14V-4H-32Z"/>' },
     moon: { name: 'ay', sym: 360, d: '<path d="M18 -36A36 36 0 0 0 18 36A44 44 0 0 1 18 -36Z"/>' },
@@ -144,7 +144,30 @@
   const Grid = {
     rot(m) { const n = m.length; return m.map((_, r) => m.map((__, c) => m[n - 1 - c][r])); },
     flipH(m) { return m.map((row) => row.slice().reverse()); },
+    flipV(m) { return m.slice().reverse().map((row) => row.slice()); },
     key(m) { return m.map((r) => r.join('')).join('/'); },
+    /* Tek karelik fark: dolu bir kareyi komşu boş kareye taşır ya da rengini değiştirir. */
+    nudge(rng, m, colors, kinds) {
+      const n = m.length, x = m.map((r) => r.slice()), filled = [], empty = [];
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) (x[r][c] ? filled : empty).push([r, c]);
+      const kind = rng.pick(kinds || ['move']), p = rng.pick(filled);
+      if (kind === 'recolor' && colors > 1) {
+        let v;
+        do { v = rng.int(1, colors); } while (v === x[p[0]][p[1]]);
+        x[p[0]][p[1]] = v;
+      } else if (kind === 'add' && empty.length) {
+        const e = rng.pick(empty);
+        x[e[0]][e[1]] = rng.int(1, colors || 1);
+      } else if (kind === 'remove' && filled.length > 1) {
+        x[p[0]][p[1]] = 0;
+      } else if (empty.length) {
+        const near = empty.filter((e) => Math.abs(e[0] - p[0]) + Math.abs(e[1] - p[1]) === 1);
+        const e = near.length ? rng.pick(near) : rng.pick(empty);
+        x[e[0]][e[1]] = x[p[0]][p[1]];
+        x[p[0]][p[1]] = 0;
+      }
+      return x;
+    },
     tf(m, t) {
       let x = t.mirror ? Grid.flipH(m) : m;
       for (let i = 0; i < ((t.rot || 0) / 90) % 4; i++) x = Grid.rot(x);
@@ -219,7 +242,7 @@
     { t: '#b5efc9', l: '#5fd08a', r: '#2ea45c' },
     { t: '#ffc9cd', l: '#f7848b', r: '#d9434d' },
   ];
-  function cubes(h, s, tone) {
+  function cubes(h, s, tone, box) {
     const a = s * 0.866, b = s * 0.5, items = [];
     for (let x = 0; x < h.length; x++) for (let y = 0; y < h[x].length; y++) for (let z = 0; z < h[x][y]; z++) items.push([x, y, z]);
     items.sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]) || p[2] - q[2]);
@@ -233,9 +256,17 @@
         '<polygon points="' + P([[ox - a, oy + b], [ox, oy + 2 * b], [ox, oy + 2 * b + s], [ox - a, oy + b + s]]) + '" fill="' + tone.l + '"/>' +
         '<polygon points="' + P([[ox, oy + 2 * b], [ox + a, oy + b], [ox + a, oy + b + s], [ox, oy + 2 * b + s]]) + '" fill="' + tone.r + '"/>';
     }
+    let wire = '';
+    if (box) {
+      // kutunun görünen kenarları: üst yüz, öndeki üç dikme ve iki alt kenar
+      const pt = (x, y, e) => { const v = [(x - y) * a, (x + y) * b - e * s]; minX = Math.min(minX, v[0]); maxX = Math.max(maxX, v[0]); minY = Math.min(minY, v[1]); maxY = Math.max(maxY, v[1]); return r1(v[0]) + ' ' + r1(v[1]); };
+      const W = box[0], D = box[1], H = box[2];
+      wire = '<path d="M' + pt(0, 0, H) + 'L' + pt(W, 0, H) + 'L' + pt(W, D, H) + 'L' + pt(0, D, H) + 'ZM' + pt(W, 0, H) + 'L' + pt(W, 0, 0) + 'L' + pt(W, D, 0) + 'L' + pt(0, D, 0) + 'L' + pt(0, D, H) +
+        'M' + pt(W, D, H) + 'L' + pt(W, D, 0) + '" fill="none" stroke="#566889" stroke-width="2.6" stroke-dasharray="8 7" stroke-linecap="round"/>';
+    }
     const pad = 8;
     return {
-      inner: '<g transform="translate(' + r1(pad - minX) + ' ' + r1(pad - minY) + ')" stroke="' + INK + '" stroke-width="2.6" stroke-linejoin="round">' + out + '</g>',
+      inner: '<g transform="translate(' + r1(pad - minX) + ' ' + r1(pad - minY) + ')" stroke="' + INK + '" stroke-width="2.6" stroke-linejoin="round">' + out + wire + '</g>',
       w: maxX - minX + pad * 2,
       h: maxY - minY + pad * 2,
     };

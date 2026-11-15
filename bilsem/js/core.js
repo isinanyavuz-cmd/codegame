@@ -1,4 +1,4 @@
-/* Zekâ Kâşifi — çekirdek: rastgele sayı üreteci, kategori listesi, soru yardımcıları */
+/* Çekirdek: rastgele sayı üreteci, kategori listesi, soru yardımcıları */
 (function (root) {
   'use strict';
   const Bilsem = root.Bilsem = root.Bilsem || {};
@@ -88,12 +88,14 @@
   /* Sayısal şıklar: küçükten büyüğe sıralı; doğru cevabın sırası rastgele. */
   Q.finishNum = function (rng, q, correct, o) {
     o = o || {};
-    const min = o.min == null ? 0 : o.min;
+    const min = o.min == null ? 0 : o.min, max = o.max == null ? Infinity : o.max;
+    if (max - min < 3) throw new Error('sayı aralığı dar');
     // doğru cevaptan küçük kaç şık olacağı baştan seçilir; böylece yeri tahmin edilemez
-    const below = Math.min(rng.int(0, 3), correct - min);
+    let below = Math.min(rng.int(0, 3), correct - min);
+    if (3 - below > max - correct) below = 3 - (max - correct);
     const lows = [], highs = [];
     rng.shuffle(o.prefer || []).forEach((v) => {
-      if (!Number.isInteger(v) || v < min || v === correct) return;
+      if (!Number.isInteger(v) || v < min || v > max || v === correct) return;
       if (v < correct && lows.length < below && lows.indexOf(v) < 0) lows.push(v);
       if (v > correct && highs.length < 3 - below && highs.indexOf(v) < 0) highs.push(v);
     });

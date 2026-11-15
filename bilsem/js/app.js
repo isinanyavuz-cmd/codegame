@@ -1,7 +1,7 @@
-/* Zekâ Kâşifi — arayüz: ana sayfa, soru ekranı, sonuç, veli paneli */
+/* Enes BİLSEM'e Hazırlanıyor — arayüz: ana sayfa, soru ekranı, sayı hafızası, sonuç, veli paneli */
 (function () {
   'use strict';
-  const B = window.Bilsem, S = B.Shapes, Store = B.Store, U = B.StoreUtil;
+  const B = window.Bilsem, S = B.Shapes, Store = B.Store, U = B.StoreUtil, Span = B.Span;
   const app = document.getElementById('app');
   const rng = new B.RNG((Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0);
   const LETTERS = ['A', 'B', 'C', 'D'];
@@ -10,8 +10,9 @@
   const CHEER = ['Olsun, birlikte bakalım.', 'Az kaldı!', 'Bir dahakine olacak.'];
   const DAYS = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
 
-  let view = 'home';     // home | quiz | result | parent
+  let view = 'home';     // home | quiz | result | parent | span
   let ses = null;        // etkin oturum
+  let span = null;       // etkin sayı hafızası oyunu
   let sheet = null;      // açık pencere
   let clock = null, memoT = null, trVoice = null, actx = null;
 
@@ -20,6 +21,10 @@
     return '<svg viewBox="0 0 24 24" class="' + (on ? 'on' : 'off') + '" aria-hidden="true"><path d="M12 2.4l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.3l-5.9 3.1 1.2-6.5-4.8-4.6 6.6-.9z" fill="' +
       (on ? 'var(--sun)' : 'var(--surface-2)') + '" stroke="' + (on ? 'var(--sun-dark)' : 'var(--line-strong)') + '" stroke-width="1.7" stroke-linejoin="round"/></svg>';
   }
+  function heart(on) {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5C5.5 15.6 3 12.4 3 8.9 3 6.2 5 4.3 7.5 4.3c1.8 0 3.4 1 4.5 2.7 1.1-1.7 2.7-2.7 4.5-2.7C19 4.3 21 6.2 21 8.9c0 3.5-2.5 6.7-9 11.6z" fill="' +
+      (on ? 'var(--bad)' : 'var(--surface-2)') + '" stroke="' + (on ? 'var(--bad-dark)' : 'var(--line-strong)') + '" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+  }
   const starsRow = (n) => '<span class="stars-row">' + [0, 1, 2].map((i) => star(i < n)).join('') + '</span>';
   const I = {
     flame: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.4 2.2c.5 3.4 5 5.6 5 10.9a5.4 5.4 0 0 1-10.8 0c0-2.1.8-3.6 1.9-4.8.2 1.6.9 2.6 1.9 3.1-.5-3.6.4-6.9 2-9.2z" fill="#ff7a2e" stroke="#c94f10" stroke-width="1.7" stroke-linejoin="round"/></svg>',
@@ -27,6 +32,10 @@
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5l-7 7 7 7"/></svg>',
     sound: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4z" fill="currentColor"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.2 6.5a7.6 7.6 0 0 1 0 11"/></svg>',
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 2.5h5"/></svg>',
+    del: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6-7z"/><path d="M12 9.5l5 5M17 9.5l-5 5"/></svg>',
+    span: '<svg class="hero-ico" viewBox="0 0 56 56" aria-hidden="true">' + [['4', 3, '#fff'], ['7', 20.5, '#fff'], ['2', 38, '#ffc93c']].map((d) =>
+      '<rect x="' + d[1] + '" y="14" width="15" height="24" rx="5" fill="' + d[2] + '" stroke="#1d2b4a" stroke-width="3"/><text x="' + (d[1] + 7.5) + '" y="26" dy="0.35em" text-anchor="middle" font-size="14" font-weight="800" fill="#1d2b4a">' + d[0] + '</text>').join('') +
+      '<path d="M14 47h28m-6 -5l6 5l-6 5M42 47H14m6 -5l-6 5l6 5" fill="none" stroke="#1d2b4a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     exam: '<svg class="hero-ico" viewBox="0 0 56 56" aria-hidden="true"><rect x="8" y="5" width="32" height="42" rx="6" fill="#fff" stroke="#1d2b4a" stroke-width="3.4"/>' +
       '<path d="M15 16h18M15 24h18M15 32h10" stroke="#b4c5e2" stroke-width="3.4" stroke-linecap="round"/>' +
       '<circle cx="39" cy="39" r="12" fill="#ffc93c" stroke="#1d2b4a" stroke-width="3.4"/><path d="M39 32v7l4.5 3" fill="none" stroke="#1d2b4a" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -258,11 +267,15 @@
       '<span class="cat-ico">' + icon(c.id) + '</span><span class="cat-name">' + c.name + '</span><span class="cat-desc">' + c.desc + '</span>' +
       '<span class="cat-stars">' + star(total > 0) + total + '<i>/ 9</i></span></button>';
   }
+  function spanRecords() {
+    const r = Store.data.span, list = Span.MODES.filter((m) => r[m.id]);
+    return list.length ? 'Rekor: ' + list.map((m) => m.short + ' ' + r[m.id] + ' basamak').join(' · ') : 'Henüz rekor yok.';
+  }
   function homeView() {
     const done = Store.dailyDone();
     return '<div class="page home">' +
       '<header class="top"><div class="brand">' + robot('idle', 'logo badge') +
-      '<div><span class="brand-name">Zekâ <b>Kâşifi</b></span><span class="brand-sub">BİLSEM hazırlık · 2. sınıf</span></div></div>' +
+      '<div><span class="brand-name">Enes <b>BİLSEM\'e</b> Hazırlanıyor</span><span class="brand-sub">2. sınıf · genel yetenek alıştırmaları</span></div></div>' +
       '<div class="chips"><span class="chip">' + star(true) + '<b>' + Store.totalStars() + '</b><small>yıldız</small></span>' +
       '<span class="chip">' + I.flame + '<b>' + Store.streak() + '</b><small>gün üst üste</small></span>' +
       '<button type="button" class="btn btn-ghost btn-sm" data-act="parent">Veli paneli</button></div></header>' +
@@ -274,6 +287,11 @@
       '<button type="button" class="hero-card hero-exam" data-act="exam-pick">' + I.exam +
       '<span class="hc"><span class="hc-title">Deneme Sınavı</span><span class="hc-text">Süreli ve karışık sorular. Cevaplar sınav bitince gösterilir.</span>' +
       '<span class="hero-go">Sınav seç</span></span></button></section>' +
+      '<section class="area" style="--area: var(--a-hafiza)"><h2>Sayı Hafızası</h2>' +
+      '<button type="button" class="span-card" data-act="span-pick">' + I.span +
+      '<span class="hc"><span class="hc-title">Sayıyı aklında tut</span><span class="hc-text">Sayıya bak; kapanınca klavyeyle düzden ve tersten yaz. ' +
+      Span.MIN + ' basamakla başlar, ' + Span.MAX + ' basamağa kadar uzar.</span><span class="span-recs">' + spanRecords() + '</span></span>' +
+      '<span class="hero-go">Başla</span></button></section>' +
       B.AREAS.map((a) => '<section class="area" style="--area: var(--a-' + a.id + ')"><h2>' + a.name + '</h2><div class="cat-grid">' +
         B.CATS.filter((c) => c.area === a.id).map(catCard).join('') + '</div></section>').join('') +
       '<p class="foot">Her gün kısa bir çalışma, arada bir uzun çalışmadan daha çok işe yarar.</p></div>';
@@ -330,6 +348,118 @@
         (last ? '' : '<button type="button" class="btn btn-sun" data-act="next">Sonraki</button>') + '</div>';
     }
     return html + '</div>';
+  }
+
+  /* ---------- sayı hafızası ---------- */
+  function spanStart(mode) {
+    stopTimers();
+    ses = null; sheet = null;
+    view = 'span';
+    span = { g: Span.newGame(mode, Store.data.settings.spanStart), phase: 'show', number: '', askIdx: 0, typed: '', entries: [], ok: false, record: false };
+    spanShow();
+  }
+  function spanShow() {
+    span.number = Span.makeNumber(rng, span.g.len);
+    span.phase = 'show'; span.askIdx = 0; span.typed = ''; span.entries = [];
+    clearTimeout(memoT);
+    memoT = setTimeout(spanHide, Span.seconds(span.g.len) * 1000);
+    render();
+    window.scrollTo(0, 0);
+  }
+  function spanHide() {
+    clearTimeout(memoT);
+    if (!span || view !== 'span' || span.phase !== 'show') return;
+    span.phase = 'type';
+    render();
+  }
+  function spanKey(d) {
+    if (!span || view !== 'span' || sheet || span.phase !== 'type' || span.typed.length >= span.g.len) return;
+    span.typed += d;
+    render();
+  }
+  function spanDel() {
+    if (!span || view !== 'span' || sheet || span.phase !== 'type' || !span.typed) return;
+    span.typed = span.typed.slice(0, -1);
+    render();
+  }
+  function spanOk() {
+    if (!span || view !== 'span' || sheet || span.phase !== 'type' || span.typed.length !== span.g.len) return;
+    const list = Span.asks(span.g.mode), len = span.g.len;
+    span.entries.push(span.typed);
+    span.typed = '';
+    if (span.askIdx < list.length - 1) { span.askIdx++; render(); return; }
+    span.ok = list.every((a, i) => span.entries[i] === Span.expected(span.number, a));
+    span.shownLen = len;
+    Span.advance(span.g, span.ok);
+    Store.spanTrial(span.ok);
+    if (span.ok && Store.spanBest(span.g.mode, span.g.best)) span.record = true;
+    if (span.g.over) Store.spanPlayed();
+    Store.save();
+    span.phase = 'result';
+    beep(span.ok ? SND.ok : SND.no);
+    render();
+  }
+  function spanNext() {
+    if (!span || view !== 'span' || sheet || span.phase !== 'result') return;
+    if (span.g.over) { span.phase = 'over'; render(); window.scrollTo(0, 0); beep(span.g.best ? SND.win : SND.done); }
+    else spanShow();
+  }
+  /* rakam kutuları; marks verilirse her kutu doğru/yanlış boyanır */
+  function digitsHtml(str, n, marks) {
+    let out = '<div class="digits" style="--n:' + n + '">';
+    for (let i = 0; i < n; i++) {
+      const ch = str[i];
+      out += '<span class="digit' + (ch == null ? (i === str.length ? ' cur' : ' empty') : marks ? (marks[i] ? ' ok' : ' no') : '') + '">' + (ch == null ? '' : ch) + '</span>';
+    }
+    return out + '</div>';
+  }
+  function spanView() {
+    const g = span.g, list = Span.asks(g.mode), mode = Span.MODES.find((m) => m.id === g.mode);
+    const n = span.phase === 'result' ? span.shownLen : g.len;
+    let steps = '';
+    for (let k = Span.MIN; k <= Span.MAX; k++) steps += '<i class="' + (k <= g.best ? 'done' : '') + (k === n && span.phase !== 'over' ? ' cur' : '') + '">' + k + '</i>';
+    const top = '<header class="quiz-top"><button type="button" class="icon-btn" data-act="quit" aria-label="Çık">' + I.x + '</button>' +
+      '<div class="steps" aria-label="Basamak sayısı">' + steps + '</div><span class="chip hearts" aria-label="Kalan can: ' + g.lives + '">' + [0, 1, 2].map((i) => heart(i < g.lives)).join('') + '</span></header>';
+    const open = '<div class="page quiz span" style="--area: var(--a-hafiza)">' + top;
+
+    if (span.phase === 'over') {
+      const rec = Store.data.span[g.mode];
+      return '<div class="page result" style="--area: var(--a-hafiza)">' + robot(g.best ? 'happy' : 'idle', 'badge') +
+        '<h1>' + (g.won ? '10 basamağı da bildin!' : g.best ? 'Güzel hafıza!' : 'Bu sefer olmadı') + '</h1>' +
+        '<div class="score">' + g.best + '<small> basamak</small></div>' +
+        '<p class="result-sub">' + mode.name + ' · ' + g.hits + ' doğru, ' + (g.trials - g.hits) + ' yanlış · ' + (span.record ? 'Yeni rekor!' : rec ? 'Rekorun ' + rec + ' basamak' : 'Henüz rekor yok') + '</p>' +
+        '<div class="result-actions"><button type="button" class="btn btn-sun" data-act="span-again">Tekrar oyna</button><button type="button" class="btn btn-ghost" data-act="home">Ana sayfa</button></div></div>';
+    }
+    if (span.phase === 'show') {
+      return open + '<div class="span-head"><span class="q-tag">Sayı Hafızası · ' + mode.name + '</span><h1>Sayıya iyi bak!</h1><p>' + n + ' basamak, ' + Span.seconds(n) + ' saniye</p></div>' +
+        '<div class="paper stem">' + digitsHtml(span.number, n) + '</div>' +
+        '<div class="memo-bar"><i style="animation-duration:' + Span.seconds(n) + 's"></i></div></div>';
+    }
+    if (span.phase === 'type') {
+      const ask = list[span.askIdx], full = span.typed.length === n;
+      let keys = '';
+      for (let d = 1; d <= 9; d++) keys += '<button type="button" class="key" data-act="span-key" data-d="' + d + '">' + d + '</button>';
+      return open + '<div class="span-head"><span class="q-tag">Sayı Hafızası · ' + mode.name + '</span>' +
+        '<h1>' + (ask === 'fwd' ? 'Sayıyı yaz' : 'Sayıyı tersten yaz') + '</h1><p>' + (list.length > 1 ? (span.askIdx + 1) + '. adım: ' : '') +
+        (ask === 'fwd' ? 'gördüğün sırayla, soldan sağa' : 'son rakamdan başla, geriye doğru git') + '</p></div>' +
+        '<div class="paper stem">' + digitsHtml(span.typed, n) + '</div>' +
+        '<div class="numpad">' + keys + '<button type="button" class="key key-del" data-act="span-del" aria-label="Sil"' + (span.typed ? '' : ' disabled') + '>' + I.del + '</button>' +
+        '<button type="button" class="key" data-act="span-key" data-d="0">0</button>' +
+        '<button type="button" class="key key-ok" data-act="span-ok"' + (full ? '' : ' disabled') + '>Tamam</button></div></div>';
+    }
+    // sonuç: sayı ve yazılanlar yan yana
+    let rows = '<div class="span-row"><span>Sayı</span>' + digitsHtml(span.number, n) + '</div>';
+    list.forEach((a, i) => {
+      const want = Span.expected(span.number, a), got = span.entries[i], good = got === want;
+      rows += '<div class="span-row"><span>' + (a === 'fwd' ? 'Düzden yazdığın' : 'Tersten yazdığın') + '</span>' + digitsHtml(got, n, got.split('').map((ch, k) => ch === want[k])) + '</div>';
+      if (!good) rows += '<div class="span-row"><span>' + (a === 'fwd' ? 'Doğrusu' : 'Tersten doğrusu') + '</span>' + digitsHtml(want, n) + '</div>';
+    });
+    const nextInfo = g.over ? (g.won ? 'En uzun sayıyı da bildin.' : 'Canların bitti.')
+      : span.ok ? 'Sıradaki sayı ' + g.len + ' basamaklı.' : 'Aynı uzunlukta yeni bir sayı gelecek. Kalan can: ' + g.lives + '.';
+    return open + '<div class="paper span-result">' + rows + '</div>' +
+      '<div class="fb ' + (span.ok ? 'fb-ok' : 'fb-no') + '" role="status">' + robot(span.ok ? 'happy' : 'sad', 'badge') +
+      '<div class="fb-msg"><b>' + (span.ok ? rng.pick(PRAISE) : 'Olmadı, bir daha deneyelim.') + '</b>' + nextInfo + '</div>' +
+      '<button type="button" class="btn btn-sun" data-act="span-next">' + (g.over ? 'Bitir' : 'Devam') + '</button></div></div>';
   }
 
   /* ---------- sonuç ---------- */
@@ -423,6 +553,9 @@
           exams.map((e) => '<tr><td>' + e.date.split('-').reverse().join('.') + '</td><td class="num">' + e.n + '</td><td class="num">' + e.ok + ' (%' + pct(e.ok, e.n) + ')</td><td class="num">' + e.blank + '</td><td class="num">' + fmtTime(e.sec) + '</td></tr>').join('') +
           '</tbody></table></div>'
         : '<p class="note">Henüz deneme sınavı çözülmedi.</p>') + '</div>' +
+      '<div class="card"><h2>Sayı Hafızası</h2>' +
+      Span.MODES.map((m) => '<div class="set-row"><span>' + m.name + '</span><b>' + (Store.data.span[m.id] ? 'rekor ' + Store.data.span[m.id] + ' basamak' : '—') + '</b></div>').join('') +
+      '<div class="set-row"><span>Oynanan oyun</span><b>' + Store.data.span.plays + '</b></div></div>' +
       '<div class="card"><h2>Ayarlar</h2>' +
       '<div class="set-row"><span>Ses efektleri</span>' + seg('sound', [[true, 'Açık'], [false, 'Kapalı']], set.sound) + '</div>' +
       '<div class="set-row"><span>Alıştırmadaki soru sayısı</span>' + seg('len', [[5, '5'], [10, '10'], [15, '15']], set.len) + '</div>' +
@@ -448,9 +581,18 @@
       body = '<div class="sheet-head"><div><h2>Deneme Sınavı</h2><p>Bütün konulardan, kolaydan zora sıralı sorular.</p></div>' + closeBtn + '</div><div class="levels">' +
         EXAMS.map((e, i) => '<button type="button" class="level" data-act="exam" data-i="' + i + '"><span>' + e.name + '<small>' + e.n + ' soru · ' + e.min + ' dakika</small></span></button>').join('') +
         '</div><p class="note">Sınav sırasında doğru cevap gösterilmez. İstediğin soruya geri dönüp cevabını değiştirebilirsin.</p>';
+    } else if (sheet.kind === 'span') {
+      const st = Store.data.settings.spanStart, rec = Store.data.span;
+      body = '<div class="sheet-head"><span class="cat-ico">' + I.span + '</span><div><h2>Sayı Hafızası</h2><p>Sayı, basamak sayısı kadar saniye görünür ve kapanır. Sonra klavyeyle yazarsın.</p></div>' + closeBtn + '</div><div class="levels">' +
+        Span.MODES.map((m) => '<button type="button" class="level' + (m.id === 'both' ? ' rec' : '') + '" data-act="span-go" data-mode="' + m.id + '"><span>' + m.name +
+          '<small>' + (rec[m.id] ? 'Rekor: ' + rec[m.id] + ' basamak' : 'Henüz oynanmadı') + '</small></span></button>').join('') + '</div>' +
+        '<div class="set-row"><span>İlk sayı kaç basamaklı olsun?</span><span class="stepper">' +
+        '<button type="button" class="icon-btn" data-act="span-len" data-d="-1" aria-label="Azalt"' + (st <= Span.MIN ? ' disabled' : '') + '>−</button><b>' + st + '</b>' +
+        '<button type="button" class="icon-btn" data-act="span-len" data-d="1" aria-label="Artır"' + (st >= Span.MAX ? ' disabled' : '') + '>+</button></span></div>' +
+        '<p class="note">Doğru yazınca sayı bir basamak uzar. Üç yanlışta oyun biter.</p>';
     } else if (sheet.kind === 'quit') {
       body = '<div class="sheet-head"><div><h2>Çıkmak istiyor musun?</h2><p>' +
-        (ses.mode === 'exam' ? 'Sınavdan çıkarsan cevapların kaydedilmez.' : 'Şimdiye kadar çözdüğün sorular kaydedildi. Yıldız kazanmak için alıştırmayı bitirmelisin.') +
+        (view === 'span' ? 'Oyundan çıkarsan bu oyun biter. Ulaştığın rekor kaydedildi.' : ses.mode === 'exam' ? 'Sınavdan çıkarsan cevapların kaydedilmez.' : 'Şimdiye kadar çözdüğün sorular kaydedildi. Yıldız kazanmak için alıştırmayı bitirmelisin.') +
         '</p></div></div><div class="sheet-actions"><button type="button" class="btn btn-ghost" data-act="home">Çık</button><button type="button" class="btn btn-sun" data-act="close">Devam et</button></div>';
     } else if (sheet.kind === 'finish') {
       const blank = ses.items.filter((it) => it.chosen == null).length;
@@ -476,13 +618,26 @@
   }
 
   function render() {
-    const html = view === 'quiz' ? quizView() : view === 'result' ? resultView() : view === 'parent' ? parentView() : homeView();
+    const html = view === 'quiz' ? quizView() : view === 'result' ? resultView() : view === 'parent' ? parentView() : view === 'span' ? spanView() : homeView();
     app.innerHTML = S.defs() + html + sheetView();
   }
 
   /* ---------- olaylar ---------- */
   const actions = {
-    home() { stopTimers(); ses = null; sheet = null; view = 'home'; render(); window.scrollTo(0, 0); },
+    home() { stopTimers(); ses = null; span = null; sheet = null; view = 'home'; render(); window.scrollTo(0, 0); },
+    'span-pick'() { sheet = { kind: 'span' }; render(); },
+    'span-go'(el) { spanStart(el.dataset.mode); },
+    'span-len'(el) {
+      const set = Store.data.settings;
+      set.spanStart = Math.max(Span.MIN, Math.min(Span.MAX, set.spanStart + Number(el.dataset.d)));
+      Store.save();
+      render();
+    },
+    'span-key'(el) { spanKey(el.dataset.d); },
+    'span-del': spanDel,
+    'span-ok': spanOk,
+    'span-next': spanNext,
+    'span-again'() { spanStart(span.g.mode); },
     parent() { view = 'parent'; render(); window.scrollTo(0, 0); },
     cat(el) { sheet = { kind: 'cat', id: el.dataset.id }; render(); },
     'exam-pick'() { sheet = { kind: 'exam' }; render(); },
@@ -528,7 +683,15 @@
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && sheet) { sheet = null; render(); return; }
-    if (view !== 'quiz' || sheet || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (sheet || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (view === 'span' && span) {
+      // sayı hafızası: rakamlar, Geri tuşu ve Enter
+      if (/^[0-9]$/.test(e.key)) spanKey(e.key);
+      else if (e.key === 'Backspace') { e.preventDefault(); spanDel(); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (span.phase === 'type') spanOk(); else spanNext(); }
+      return;
+    }
+    if (view !== 'quiz') return;
     const k = e.key.toLowerCase();
     const i = '1234'.indexOf(k) >= 0 ? '1234'.indexOf(k) : 'abcd'.indexOf(k);
     if (k.length === 1 && i >= 0) { pick(i); return; }
@@ -544,5 +707,5 @@
   render();
 
   // otomatik denetimler için
-  window.ZekaKasifi = { startPractice: startPractice, startDaily: startDaily, startExam: startExam, state: () => ({ view: view, ses: ses, sheet: sheet }) };
+  window.BilsemApp = { startPractice: startPractice, startDaily: startDaily, startExam: startExam, startSpan: spanStart, state: () => ({ view: view, ses: ses, span: span, sheet: sheet }) };
 })();
