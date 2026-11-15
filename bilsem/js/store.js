@@ -2,12 +2,12 @@
 (function (root) {
   'use strict';
   const Bilsem = root.Bilsem = root.Bilsem || {};
-  const KEY = 'bilsem.v2';
-  const OLD_KEY = 'zekakasifi.v1';     // seviyeler kaydırılmadan önceki kayıt
+  const KEY = 'bilsem.v3';
+  const OLD_KEYS = ['bilsem.v2', 'zekakasifi.v1'];     // kademeler değişmeden önceki kayıtlar
 
   const spanBlank = () => ({ plays: 0, best: { 1: { both: 0, fwd: 0, bwd: 0 }, 2: { both: 0, fwd: 0, bwd: 0 }, 3: { both: 0, fwd: 0, bwd: 0 } } });
   function blank() {
-    return { v: 2, settings: { sound: true, len: 10, spanStart: 3, spanLevel: 1 }, cats: {}, days: {}, exams: [], span: spanBlank() };
+    return { v: 3, settings: { sound: true, len: 10, spanStart: 3, spanLevel: 1 }, cats: {}, days: {}, exams: [], span: spanBlank() };
   }
 
   /* Sayı hafızası kaydını bugünkü biçime getirir: rekorlar düzeye göre tutulur ve en çok MAX basamaktır.
@@ -22,15 +22,19 @@
     return out;
   }
 
-  /* v1 -> v2: eski Zor düzey yeni Kolay düzey oldu. Eski Zor yıldızları Kolay'a taşınır, eski Kolay ve Orta yıldızları düşer. */
+  /* Eski kayıtları bugünkü dört kademeye taşır (1 Kolay, 2 Orta, 3 Zor, 4 En Zor).
+     v1 (ilk sürüm: kolay, orta, zor): eski orta = 1. kademe, eski zor = 2. kademe; eski kolayın karşılığı yok.
+     v2 (üç kademe): her kademe bir yukarı kayar; altına yeni 1. kademe eklenir.
+     Hiç çözülmemiş konular 1. kademeden başlar. */
   function migrate(d) {
-    if (!d || d.v !== 1) return d;
+    if (!d || (d.v !== 1 && d.v !== 2)) return d;
     Object.keys(d.cats || {}).forEach((k) => {
-      const c = d.cats[k];
-      c.stars = [c.stars ? c.stars[2] || 0 : 0, 0, 0];
-      c.skill = Math.max(1, Math.round(((c.skill || 1) - 2) * 100) / 100);
+      const c = d.cats[k], st = c.stars || [0, 0, 0], sk = c.skill || 1;
+      if (d.v === 1) { c.stars = [st[1] || 0, st[2] || 0, 0, 0]; c.skill = sk - 1; }
+      else { c.stars = [0, st[0] || 0, st[1] || 0, st[2] || 0]; c.skill = sk + 1; }
+      c.skill = c.seen ? Math.max(1, Math.min(4.9, Math.round(c.skill * 100) / 100)) : 1;
     });
-    d.v = 2;
+    d.v = 3;
     return d;
   }
 
@@ -51,11 +55,11 @@
     return r >= 0.9 ? 3 : r >= 0.7 ? 2 : r >= 0.5 ? 1 : 0;
   }
 
-  /* Beceri puanı 1 ile 3.9 arasında gezer; tam kısmı önerilen seviyedir. */
+  /* Beceri puanı 1 ile 4.9 arasında gezer; tam kısmı önerilen kademedir. */
   function nextSkill(skill, level, ok) {
     const cur = Math.floor(skill);
     const d = ok ? (level >= cur ? 0.15 : 0.05) : (level <= cur ? -0.2 : -0.05);
-    return Math.max(1, Math.min(3.9, Math.round((skill + d) * 100) / 100));
+    return Math.max(1, Math.min(4.9, Math.round((skill + d) * 100) / 100));
   }
 
   /* Bugün (ya da bugün henüz oynanmadıysa dün) biten kesintisiz gün sayısı */
@@ -72,10 +76,10 @@
     load() {
       try {
         const ls = root.localStorage;
-        const raw = ls && (ls.getItem(KEY) || ls.getItem(OLD_KEY));
+        const raw = ls && [KEY].concat(OLD_KEYS).map((k) => ls.getItem(k)).find(Boolean);
         if (raw) {
           const d = migrate(JSON.parse(raw)), b = blank();
-          if (d && d.v === 2) {
+          if (d && d.v === 3) {
             const Sp = Bilsem.Span;
             this.data = Object.assign(b, d, { settings: Object.assign(b.settings, d.settings), span: normalizeSpan(d.span, Sp.MAX) });
             const set = this.data.settings;
@@ -93,12 +97,12 @@
       const s = this.data.settings;
       this.data = blank();
       this.data.settings = s;
-      try { root.localStorage && root.localStorage.removeItem(OLD_KEY); } catch (e) { /* önemli değil */ }
+      try { OLD_KEYS.forEach((k) => root.localStorage && root.localStorage.removeItem(k)); } catch (e) { /* önemli değil */ }
       this.save();
     },
     cat(id) {
       const c = this.data.cats;
-      if (!c[id]) c[id] = { stars: [0, 0, 0], seen: 0, ok: 0, ms: 0, recent: [], skill: 1 };
+      if (!c[id]) c[id] = { stars: [0, 0, 0, 0], seen: 0, ok: 0, ms: 0, recent: [], skill: 1 };
       return c[id];
     },
     day(key) {
@@ -123,7 +127,7 @@
       const c = this.cat(id);
       if (stars > c.stars[level - 1]) c.stars[level - 1] = stars;
     },
-    workLevel(id) { return Math.max(1, Math.min(3, Math.floor(this.cat(id).skill))); },
+    workLevel(id) { return Math.max(1, Math.min(4, Math.floor(this.cat(id).skill))); },
     /* Toplam yıldız: kategori yıldızları + her günün görevinden kazanılan en iyi yıldız */
     totalStars() {
       let n = 0;

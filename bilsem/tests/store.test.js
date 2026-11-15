@@ -13,11 +13,11 @@ test('yıldızlar: 9+ doğru 3, 7+ doğru 2, 5+ doğru 1', () => {
   assert.strictEqual(U.starsFor(0, 0), 0);
 });
 
-test('beceri puanı doğruyla artar, yanlışla düşer, 1-3.9 arasında kalır', () => {
+test('beceri puanı doğruyla artar, yanlışla düşer, 1-4.9 arasında kalır', () => {
   assert.ok(U.nextSkill(1, 1, true) > 1);
   assert.strictEqual(U.nextSkill(1, 1, false), 1);
   assert.ok(U.nextSkill(2.5, 2, false) < 2.5);
-  assert.strictEqual(U.nextSkill(3.9, 3, true), 3.9);
+  assert.strictEqual(U.nextSkill(4.9, 4, true), 4.9);
   let s = 1;
   for (let i = 0; i < 7; i++) s = U.nextSkill(s, 1, true);
   assert.ok(s >= 2, '7 doğru cevap bir üst seviyeye taşır: ' + s);
@@ -70,17 +70,38 @@ test('günün görevi yıldızı toplama eklenir, aynı gün tekrar oynamak yıl
   assert.strictEqual(S.totalStars(), 3);
 });
 
-test('eski kayıt taşınır: eski Zor yıldızları yeni Kolay düzeye geçer', () => {
+test('ilk sürüm kaydı taşınır: eski orta 1. kademe, eski zor 2. kademe olur', () => {
   const old = { v: 1, settings: { sound: false, len: 5 }, cats: { cubes: { stars: [3, 2, 1], seen: 30, ok: 20, ms: 9000, recent: [1, 0], skill: 3.4 }, odd: { stars: [3, 0, 0], seen: 10, ok: 9, ms: 100, recent: [1], skill: 1.6 } }, days: { '2026-11-14': { n: 10, ok: 8, daily: true, stars: 2 } }, exams: [] };
   const d = U.migrate(JSON.parse(JSON.stringify(old)));
-  assert.strictEqual(d.v, 2);
-  assert.deepStrictEqual(d.cats.cubes.stars, [1, 0, 0]);
-  assert.strictEqual(d.cats.cubes.skill, 1.4);
-  assert.deepStrictEqual(d.cats.odd.stars, [0, 0, 0]);
+  assert.strictEqual(d.v, 3);
+  assert.deepStrictEqual(d.cats.cubes.stars, [2, 1, 0, 0]);
+  assert.strictEqual(d.cats.cubes.skill, 2.4);
+  assert.deepStrictEqual(d.cats.odd.stars, [0, 0, 0, 0]);
   assert.strictEqual(d.cats.odd.skill, 1);
   assert.strictEqual(d.cats.cubes.seen, 30, 'çözülen soru sayısı korunur');
   assert.strictEqual(d.days['2026-11-14'].stars, 2, 'günlük yıldızlar korunur');
-  assert.deepStrictEqual(U.migrate({ v: 2, x: 1 }), { v: 2, x: 1 }, 'yeni kayıt değişmez');
+});
+
+test('üç kademeli kayıt taşınır: her kademe bir yukarı kayar, altına yeni Kolay eklenir', () => {
+  const d = U.migrate({ v: 2, cats: { same: { stars: [2, 1, 0], seen: 12, skill: 2.3 }, who: { stars: [0, 0, 0], seen: 0, skill: 1 }, path: { stars: [3, 3, 3], seen: 90, skill: 3.9 } } });
+  assert.strictEqual(d.v, 3);
+  assert.deepStrictEqual(d.cats.same.stars, [0, 2, 1, 0]);
+  assert.strictEqual(d.cats.same.skill, 3.3);
+  assert.strictEqual(d.cats.who.skill, 1, 'hiç çözülmemiş konu yeni Kolay kademeden başlar');
+  assert.deepStrictEqual(d.cats.path.stars, [0, 3, 3, 3]);
+  assert.strictEqual(d.cats.path.skill, 4.9);
+  assert.deepStrictEqual(U.migrate({ v: 3, x: 1 }), { v: 3, x: 1 }, 'güncel kayıt değişmez');
+});
+
+test('yeni konu dört kademe için yıldız tutar ve 1. kademeden başlar', () => {
+  const S = B.Store;
+  S.data = U.blank();
+  assert.deepStrictEqual(S.cat('cubes').stars, [0, 0, 0, 0]);
+  assert.strictEqual(S.workLevel('cubes'), 1);
+  S.setStars('cubes', 4, 3);
+  assert.strictEqual(S.totalStars(), 3);
+  S.cat('cubes').skill = 4.9;
+  assert.strictEqual(S.workLevel('cubes'), 4);
 });
 
 test('sayı hafızası kaydı: rekor düzeye göre tutulur ve yalnız yükselir, denemeler güne işlenir', () => {

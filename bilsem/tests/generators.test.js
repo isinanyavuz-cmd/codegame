@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const B = require('./load.js');
 
-const LEVELS = [1, 2, 3];
+const LEVELS = B.LEVELS;      // 1 Kolay, 2 Orta, 3 Zor, 4 En Zor
 const RUNS = 300;
 const gen = (id, lv, seed) => B.generate(id, lv, new B.RNG(seed));
 const value = (q) => q.options[q.answer].value;
@@ -108,7 +108,9 @@ test('ok yolu: oklar ve robot komutları hedefe götürür, yanlış şıklar g�
     assert.deepStrictEqual(B.LogicUtil.walk(m.n, m.start, m.steps), m.target);
     assert.strictEqual(new Set(m.cells.map((c) => c.x + ',' + c.y)).size, 4, 'yiyecekler farklı karelerde');
     assert.ok(!m.cells.some((c) => c.x === m.start[0] && c.y === m.start[1]));
-    assert.strictEqual(m.kind === 'robot', lv === 3);
+    assert.strictEqual(m.kind === 'robot', lv === 4);
+    if (lv === 1) assert.strictEqual(m.kind, 'forward', 'en kolay kademede yalnız ok takibi sorulur');
+    if (lv < 3) assert.ok(m.steps.every((st) => st.k === 1), 'ilk iki kademede oklar tek karelik');
     if (m.kind === 'robot') {
       // komutları bağımsız olarak yürüt
       let x = m.start[0], y = m.start[1], f = KEYS.indexOf(m.facing);
@@ -196,11 +198,12 @@ test('sayı makinesi: bütün satırlar kurala uyar; iki girişli örnekler tek 
     assert.strictEqual(value(q), m.ans);
     assert.strictEqual(new Set(m.rows.map((r) => r.ins.join())).size, 4, 'girişler farklı');
     for (const r of m.rows) assert.ok(Number.isInteger(r.out) && r.out >= 0 && r.out <= 60, 'çıkan aralık dışı: ' + r.out);
-    if (lv === 3) {
+    if (lv === 1) assert.strictEqual(m.rows[3].out, m.ans, 'en kolay kademede hep çıkan sayı sorulur');
+    if (lv === 4) {
       for (const r of m.rows) assert.strictEqual(U.RULES2[m.rule][0](r.ins[0], r.ins[1]), r.out);
       const fits = Object.keys(U.RULES2).filter((k) => m.rows.slice(0, 3).every((r) => U.RULES2[k][0](r.ins[0], r.ins[1]) === r.out));
       assert.deepStrictEqual(fits, [m.rule]);
-    } else if (m.rule === 'add') {
+    } else if (m.rule === 'add' || m.rule === 'sub') {
       assert.ok(m.rows.every((r) => r.out - r.ins[0] === m.rows[0].out - m.rows[0].ins[0]));
     } else for (const r of m.rows) assert.strictEqual(U.RULES1[m.rule][0](r.ins[0]), r.out);
   });
@@ -209,7 +212,7 @@ test('sayı makinesi: bütün satırlar kurala uyar; iki girişli örnekler tek 
 test('terazi: zincir eksiksiz; dengeli terazilerde cevap doğru', () => {
   forEach('balance', (q, lv) => {
     const m = q.meta;
-    if (lv === 3) { assert.strictEqual(value(q), m.kind === 'chain' ? m.k * m.m : m.m + 1); return; }
+    if (lv === 4) { assert.strictEqual(value(q), m.kind === 'chain' ? m.k * m.m : m.m + 1); return; }
     assert.strictEqual(m.pairs.length, m.n - 1);
     assert.strictEqual(new Set(m.pairs.map((p) => Math.min(p[0], p[1]))).size, m.n - 1, 'her komşu çift bir kez karşılaştırılır');
     for (const p of m.pairs) assert.strictEqual(Math.abs(p[0] - p[1]), 1);
@@ -224,19 +227,20 @@ test('kim hangisi: ipuçlarının tek çözümü var, gereksiz ipucu yok, cevap 
     assert.deepStrictEqual(sols[0], Array.from({ length: m.n }, (_, i) => i));
     assert.ok(!m.clues.some((c) => c.t === 'is' && c.kid === m.ask), 'cevap ipucunda hazır verilmemeli');
     assert.strictEqual(q.options.length, m.n);
-    if (lv > 1) {
+    if (lv > 2) {
       for (const c of m.clues) assert.ok(B.ExtraUtil.solutions(m.n, m.clues.filter((x) => x !== c)).length > 1, 'gereksiz ipucu');
       assert.ok(m.clues.length >= 3 && m.clues.length <= 5);
     }
-    if (lv === 3) assert.ok(!m.clues.some((c) => c.t === 'is'));
+    if (lv === 4) assert.ok(!m.clues.some((c) => c.t === 'is'));
+    if (lv === 1) assert.strictEqual(m.n, 3);
   });
 });
 
-test('döndürme (en zor düzey): iki adımın sonucu bağımsız hesapla aynı', () => {
+test('döndürme (en zor kademe): iki adımın sonucu bağımsız hesapla aynı', () => {
   const cw = (m) => m.map((_, r) => m.map((__, c) => m[m.length - 1 - c][r]));
   const lr = (m) => m.map((row) => row.slice().reverse()), ud = (m) => m.slice().reverse();
   for (let seed = 1; seed <= RUNS; seed++) {
-    const q = gen('rotate', 3, seed), m = q.meta;
+    const q = gen('rotate', 4, seed), m = q.meta;
     const turn = (g) => { for (let i = 0; i < m.turn / 90; i++) g = cw(g); return g; };
     const flip = m.water ? ud : lr;
     assert.deepStrictEqual(m.result, m.turnFirst ? flip(turn(m.m)) : turn(flip(m.m)));
@@ -277,7 +281,7 @@ test('sayısal şıklar verilen alt ve üst sınırın dışına çıkmaz', () =
 
 test('şekil tablosu (üst üste koyma): üçüncü sütun ilk ikisinin birleşimi ya da farkı', () => {
   let seen = 0;
-  for (const lv of [2, 3]) for (let seed = 1; seed <= RUNS; seed++) {
+  for (const lv of [3, 4]) for (let seed = 1; seed <= RUNS; seed++) {
     const q = gen('matrix', lv, seed), m = q.meta;
     if (!m) continue;
     seen++;
@@ -291,4 +295,29 @@ test('şekil tablosu (üst üste koyma): üçüncü sütun ilk ikisinin birleşi
     if (m.kind === 'union') assert.strictEqual(m.hole % 3, 2, 'birleşimde yalnız üçüncü sütun sorulur');
   }
   assert.ok(seen > 100);
+});
+
+test('dört kademe var ve adları Kolay, Orta, Zor, En Zor', () => {
+  assert.deepStrictEqual(B.LEVELS, [1, 2, 3, 4]);
+  assert.deepStrictEqual(B.LEVEL_NAMES.slice(1), ['Kolay', 'Orta', 'Zor', 'En Zor']);
+});
+
+test('kademe yükseldikçe sorular büyür: küp sayısı, hafıza resmi, sıralamadaki kişi sayısı', () => {
+  const avg = (fn) => LEVELS.map((lv) => { let t = 0; for (let seed = 1; seed <= 200; seed++) t += fn(gen.apply(null, [fn.id, lv, seed])); return t / 200; });
+  const cubes = (q) => q.meta.heights.flat().reduce((a, b) => a + b, 0); cubes.id = 'cubes';
+  const pics = (q) => q.meta.shown.length; pics.id = 'memory';
+  const kids = (q) => q.meta.order.length; kids.id = 'order';
+  for (const fn of [cubes, pics, kids]) {
+    const a = avg(fn);
+    for (let i = 1; i < a.length; i++) assert.ok(a[i] >= a[i - 1], fn.id + ': ' + a.join(' < '));
+    assert.ok(a[3] > a[0], fn.id);
+  }
+});
+
+test('öncüllü sorularda soru cümlesi öncüllerin altında gösterilir', () => {
+  for (const lv of LEVELS) for (let seed = 1; seed <= 50; seed++) {
+    assert.strictEqual(gen('who', lv, seed).promptBelow, true);
+    assert.strictEqual(gen('order', lv, seed).promptBelow, true);
+    assert.ok(!gen('pattern', lv, seed).promptBelow);
+  }
 });

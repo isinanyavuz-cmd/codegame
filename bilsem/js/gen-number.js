@@ -3,6 +3,7 @@
   'use strict';
   const B = root.Bilsem, S = B.Shapes, Q = B.Q;
   const COL = S.COLOR_IDS;
+  const ER = { 3: "3'er", 4: "4'er", 5: "5'er", 6: "6'şar", 7: "7'şer", 8: "8'er", 9: "9'ar", 10: "10'ar" };
 
   /* ---------- Sayı Örüntüsü ---------- */
   function seqSvg(vals, hole) {
@@ -18,13 +19,28 @@
 
   B.GEN.numseq = function (rng, level) {
     const q = { prompt: 'Soru işaretinin yerine hangi sayı gelmeli?' };
-    const kind = rng.pick(level === 1 ? ['grow', 'double', 'inter', 'updown']
-      : level === 2 ? ['fib', 'mul2add', 'triple', 'growdown', 'inter2', 'grow2']
-        : ['trib', 'altmul', 'diffdbl', 'mul2sub', 'square']);
+    const kind = rng.pick([null, ['add', 'add', 'sub', 'alt'], ['grow', 'double', 'inter', 'updown'],
+      ['fib', 'mul2add', 'triple', 'growdown', 'inter2', 'grow2'], ['trib', 'altmul', 'diffdbl', 'mul2sub', 'square']][level]);
     const seq = [];
     let why, minHole = 3;
 
-    if (kind === 'grow') {
+    if (kind === 'add') {
+      const d = rng.pick([3, 4, 6, 7, 8, 9]), a = rng.int(1, 20);
+      for (let i = 0; i < 6; i++) seq.push(a + i * d);
+      why = 'Sayılar ' + ER[d] + ' artıyor.';
+      minHole = 2;
+    } else if (kind === 'sub') {
+      const d = rng.pick([3, 4, 5, 6, 10]), a = d * 5 + rng.int(d === 10 ? 0 : 1, 30);
+      for (let i = 0; i < 6; i++) seq.push(a - i * d);
+      why = 'Sayılar ' + ER[d] + ' azalıyor.';
+      minHole = 2;
+    } else if (kind === 'alt') {
+      const st = rng.sample([1, 2, 3, 4, 5], 2);
+      let v = rng.int(1, 10);
+      for (let i = 0; i < 7; i++) { seq.push(v); v += st[i % 2]; }
+      why = 'Sayılar sırayla ' + st[0] + ' ve ' + st[1] + ' artıyor: +' + st[0] + ', +' + st[1] + ', +' + st[0] + ', +' + st[1] + '…';
+      minHole = 4;
+    } else if (kind === 'grow') {
       const k = rng.pick([1, 1, 2]);
       let v = rng.int(1, 6);
       for (let i = 0; i < 6; i++) { seq.push(v); v += k * (i + 1); }
@@ -130,10 +146,22 @@
     const v = rng.sample([1, 2, 3, 4, 5, 6, 7, 8, 9], 4);
     let a = v[0], b = v[1], c = v[2], d = v[3];
     let lines, ans, why, prefer;
-    const kind = rng.pick(level === 1 ? ['all', 'sumdiff', 'elim'] : level === 2 ? ['swap', 'sub', 'four'] : ['tri', 'ratio', 'mix']);
+    const kind = rng.pick([null, ['chain', 'sum', 'triple'], ['all', 'sumdiff', 'elim'], ['swap', 'sub', 'four'], ['tri', 'ratio', 'mix']][level]);
     const A = fr.A, Bq = fr.B, C = fr.C, D = fr.D;
 
-    if (kind === 'all') {
+    if (kind === 'chain') {
+      lines = [['A', '+', 'A', '=', 2 * a], ['A', '+', 'B', '=', a + b], ['B', '+', 'C', '=', b + c], ['C', '=', '?']];
+      ans = c; prefer = [b, a];
+      why = A + ' + ' + A + ' = ' + 2 * a + ' ise ' + A + ' = ' + a + '. ' + a + ' + ' + Bq + ' = ' + (a + b) + ' ise ' + Bq + ' = ' + b + '. ' + b + ' + ' + C + ' = ' + (b + c) + ' ise ' + C + ' = ' + c + '.';
+    } else if (kind === 'sum') {
+      lines = [['A', '+', 'A', '=', 2 * a], ['B', '+', 'B', '+', 'B', '=', 3 * b], ['A', '+', 'B', '=', '?']];
+      ans = a + b; prefer = [a, b, 2 * a + 3 * b];
+      why = A + ' + ' + A + ' = ' + 2 * a + ' ise ' + A + ' = ' + a + '. Üç ' + Bq + ' ' + 3 * b + ' ediyorsa ' + Bq + ' = ' + b + '. ' + a + ' + ' + b + ' = ' + (a + b) + '.';
+    } else if (kind === 'triple') {
+      lines = [['A', '+', 'A', '+', 'A', '=', 3 * a], ['A', '+', 'B', '=', a + b], ['A', '+', 'B', '+', 'B', '=', '?']];
+      ans = a + 2 * b; prefer = [a + b, 2 * a + b];
+      why = 'Üç ' + A + ' ' + 3 * a + ' ediyorsa ' + A + ' = ' + a + '. ' + a + ' + ' + Bq + ' = ' + (a + b) + ' ise ' + Bq + ' = ' + b + '. ' + a + ' + ' + b + ' + ' + b + ' = ' + (a + 2 * b) + '.';
+    } else if (kind === 'all') {
       if (b < c) { const t = b; b = c; c = t; }
       lines = [['A', '+', 'A', '+', 'A', '=', 3 * a], ['A', '+', 'B', '+', 'B', '=', a + 2 * b], ['B', '−', 'C', '=', b - c], ['A', '+', 'B', '+', 'C', '=', '?']];
       ans = a + b + c; prefer = [a + b, a + 2 * b];
@@ -209,16 +237,23 @@
   }
 
   B.GEN.code = function (rng, level) {
-    // aynı şekil farklı renklerle: hem şekle hem renge dikkat etmek gerekir
-    const n = level === 1 ? 5 : 6;
-    const sh = rng.sample(['circle', 'square', 'triangle', 'star', 'heart'], 3), co = rng.sample(COL, 3), all = [];
-    sh.forEach((s) => co.forEach((c) => all.push({ shape: s, color: c })));
-    const syms = rng.sample(all, n), digits = rng.sample([1, 2, 3, 4, 5, 6, 7, 8, 9], n);
+    const n = level === 1 ? 4 : level === 2 ? 5 : 6;
+    let syms;
+    if (level === 1) {
+      const sh = rng.sample(['circle', 'square', 'triangle', 'star', 'heart', 'plus', 'hexagon'], n), co = rng.sample(COL, n);
+      syms = sh.map((s, i) => ({ shape: s, color: co[i] }));
+    } else {
+      // aynı şekil farklı renklerle: hem şekle hem renge dikkat etmek gerekir
+      const sh = rng.sample(['circle', 'square', 'triangle', 'star', 'heart'], 3), co = rng.sample(COL, 3), all = [];
+      sh.forEach((s) => co.forEach((c) => all.push({ shape: s, color: c })));
+      syms = rng.sample(all, n);
+    }
+    const digits = rng.sample([1, 2, 3, 4, 5, 6, 7, 8, 9], n);
     const t = codeTable(syms, digits), q = {};
     const numOf = (sq) => sq.map((k) => digits[k]).join('');
     const randSeq = (len) => { let s; do { s = Array.from({ length: len }, () => rng.int(0, n - 1)); } while (new Set(s).size < 2); return s; };
     const under = (inner, w, h) => { const W = Math.max(t.w, w + 12); return S.svg(W, t.h + h, '<g transform="translate(' + (W - t.w) / 2 + ' 0)">' + t.inner + '</g><g transform="translate(' + (W - w) / 2 + ' ' + t.h + ')">' + inner + '</g>', { maxW: W * 1.05 }); };
-    const kind = level === 1 ? rng.pick(['decode', 'encode']) : level === 2 ? rng.pick(['digitsum', 'decode', 'encode']) : rng.pick(['add', 'add', 'sub']);
+    const kind = rng.pick([null, ['decode', 'decode', 'encode'], ['decode', 'encode'], ['digitsum', 'decode', 'encode'], ['add', 'add', 'sub']][level]);
 
     if (kind === 'add' || kind === 'sub') {
       // iki basamaklı iki şifreli sayı ile işlem
@@ -234,7 +269,7 @@
       return Q.finishNum(rng, q, ans, { min: 0, prefer: [ans + 10, ans - 10, kind === 'add' ? ans - 1 : ans + 1] });
     }
 
-    const len = level === 1 ? rng.int(4, 5) : kind === 'digitsum' ? rng.int(4, 5) : 6, seq = randSeq(len);
+    const len = level === 1 ? 4 : (level === 2 || kind === 'digitsum') ? rng.int(4, 5) : 6, seq = randSeq(len);
     q.meta = { digits: digits, kind: kind, seq: seq };
     if (kind === 'digitsum') {
       const s = 54, sum = seq.reduce((acc, k) => acc + digits[k], 0);

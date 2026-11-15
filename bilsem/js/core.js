@@ -56,7 +56,8 @@
     { id: 'who', area: 'sozel', name: 'Kim Hangisi?', desc: 'İpuçlarıyla eşleştir', tip: 'Kesin bildiklerini önce yerleştir. Sonra "değil" diyen ipuçlarıyla kalanları ele.' },
   ];
   Bilsem.catById = function (id) { return Bilsem.CATS.find((c) => c.id === id); };
-  Bilsem.LEVEL_NAMES = ['', 'Kolay', 'Orta', 'Zor'];
+  Bilsem.LEVELS = [1, 2, 3, 4];
+  Bilsem.LEVEL_NAMES = ['', 'Kolay', 'Orta', 'Zor', 'En Zor'];
 
   /* Soru üreticileri buraya kaydolur: GEN[tip] = function (rng, seviye) -> soru */
   Bilsem.GEN = {};

@@ -20,7 +20,7 @@
   B.GEN.same = function (rng, level) {
     const q = { prompt: 'Üstteki şeklin tıpatıp aynısı hangisi?' };
     if (rng.chance(0.6)) {
-      const n = level + 4, colors = level === 3 ? 4 : 3, k = [11, 15, 21][level - 1];
+      const n = level + 3, colors = level === 4 ? 4 : 3, k = [0, 7, 11, 15, 21][level];
       const pal = rng.sample(COL, 4), m = randCells(rng, n, k, colors);
       const mk = (g) => ({ html: S.svg(100, 100, G.draw(g, pal, 6, 6, 88), { cls: 'opt-svg' }), key: G.key(g) });
       const wrong = [];
@@ -30,8 +30,8 @@
       return Q.finish(rng, q, mk(m), wrong);
     }
     // şekil dizisi; en zor düzeyde şekillerin yönü de değişir
-    const len = [6, 8, 9][level - 1], turning = level === 3;
-    const shapes = rng.sample(turning ? ['arrow', 'triangle', 'heart', 'drop'] : ['circle', 'square', 'triangle', 'star', 'heart', 'plus'], level === 1 ? 3 : 4);
+    const len = [0, 5, 6, 8, 9][level], turning = level === 4;
+    const shapes = rng.sample(turning ? ['arrow', 'triangle', 'heart', 'drop'] : ['circle', 'square', 'triangle', 'star', 'heart', 'plus'], level < 3 ? 3 : 4);
     const cols = rng.sample(COL, 3);
     let seq;
     do {
@@ -59,13 +59,13 @@
   const CNT = ['circle', 'square', 'triangle', 'star', 'heart', 'plus'];
 
   /* İç içe şekiller: tepeden yelpaze gibi açılan üçgenler, kareli alan, köşegenli kare */
-  function nested(rng, level) {
+  function nested(rng, tier) {
     const q = {}, INK = S.INK;
-    const kind = rng.pick(level === 1 ? ['fan', 'grid'] : level === 2 ? ['fan', 'fanline', 'grid'] : ['fanline', 'fanline', 'grid', 'diag']);
+    const kind = rng.pick(tier === 1 ? ['fan', 'grid'] : tier === 2 ? ['fan', 'fanline', 'grid'] : ['fanline', 'fanline', 'grid', 'diag']);
     let total, why, inner, W, H, prefer, dims = {};
     if (kind === 'fan' || kind === 'fanline') {
-      const lines = kind === 'fan' ? 0 : level === 2 ? 1 : rng.pick([1, 2]);
-      const n = kind === 'fan' ? (level === 1 ? rng.pick([2, 3, 3, 4]) : rng.pick([4, 5])) : (lines === 2 ? rng.pick([2, 3]) : level === 2 ? rng.pick([2, 3]) : rng.pick([3, 4]));
+      const lines = kind === 'fan' ? 0 : tier === 2 ? 1 : rng.pick([1, 2]);
+      const n = kind === 'fan' ? (tier === 1 ? rng.pick([2, 3, 3, 4]) : rng.pick([4, 5])) : (lines === 2 ? rng.pick([2, 3]) : tier === 2 ? rng.pick([2, 3]) : rng.pick([3, 4]));
       const base = n * (n + 1) / 2;
       total = base * (lines + 1);
       dims = { n: n, lines: lines };
@@ -86,7 +86,7 @@
         (lines ? ' Aynı üçgenler her yatay çizgide de biter. ' + base + ' × ' + (lines + 1) + ' = ' + total + ' üçgen.' : '');
       prefer = [n, base, n * (lines + 1), total - 1];
     } else if (kind === 'grid') {
-      const rc = rng.pick(level === 1 ? [[2, 2], [2, 3], [3, 3]] : level === 2 ? [[3, 3], [2, 4], [3, 4]] : [[4, 4], [3, 4], [3, 5]]);
+      const rc = rng.pick(tier === 1 ? [[2, 2], [2, 3], [3, 3]] : tier === 2 ? [[3, 3], [2, 4], [3, 4]] : [[4, 4], [3, 4], [3, 5]]);
       const rows = rc[0], cols = rc[1], c = 300 / Math.max(cols, 4.6), parts = [];
       dims = { rows: rows, cols: cols };
       total = 0;
@@ -119,11 +119,11 @@
   }
 
   B.GEN.count = function (rng, level) {
-    if (rng.chance(0.5)) return nested(rng, level);
+    if (level > 1 && rng.chance(0.5)) return nested(rng, level - 1);
     // dağınık şekiller: renk ve şekle (en zor düzeyde boya da) göre say
-    const cols = level === 1 ? 6 : 7, rows = 4, bySize = level === 3;
-    const total = level === 1 ? rng.int(18, 21) : rng.int(23, 26), k = rng.int(3, level === 1 ? 6 : 7);
-    const shapes = rng.sample(CNT, level === 1 ? 4 : 5), colors = rng.sample(COL, 4);
+    const cols = [0, 5, 6, 7, 7][level], rows = level === 1 ? 3 : 4, bySize = level === 4;
+    const total = level === 1 ? rng.int(12, 14) : level === 2 ? rng.int(18, 21) : rng.int(23, 26), k = rng.int(level === 1 ? 2 : 3, level < 3 ? 6 : 7);
+    const shapes = rng.sample(CNT, level < 3 ? 4 : 5), colors = rng.sample(COL, 4);
     const tShape = shapes[0], tColor = colors[0], tSmall = rng.chance(0.5);
     const isTarget = (f) => f.shape === tShape && f.color === tColor && (!bySize || f.small === tSmall);
     const items = [];
@@ -170,9 +170,9 @@
   }
 
   B.GEN.memory = function (rng, level) {
-    const dims = level === 1 ? [3, 2] : level === 2 ? [4, 2] : [3, 3], n = dims[0] * dims[1];
+    const dims = [null, [2, 2], [3, 2], [4, 2], [3, 3]][level], n = dims[0] * dims[1];
     const pool = rng.shuffle(PICS), shown = pool.slice(0, n), fresh = pool.slice(n, n + 3);
-    const kind = rng.pick(level === 1 ? ['where', 'where', 'absent'] : ['where', 'absent', 'new']);
+    const kind = rng.pick(level < 3 ? ['where', 'where', 'absent'] : ['where', 'absent', 'new']);
     const q = { memo: { html: picGrid(dims[0], dims[1], shown), seconds: n }, stem: '' };
     q.explain = 'Resimde bunlar vardı: ' + shown.join(' ');
     q.meta = { shown: shown, kind: kind };

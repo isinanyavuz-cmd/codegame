@@ -31,6 +31,7 @@
 
   // tek girişli kurallar: [işlev, açıklama, en küçük giriş, en büyük giriş]
   const RULES1 = {
+    dbl: [(n) => 2 * n, 'Makine her sayının 2 katını alıyor.', 1, 10],
     dbl1: [(n) => 2 * n + 1, 'Makine sayının 2 katını alıp 1 ekliyor.', 1, 10],
     dblm: [(n) => 2 * n - 1, 'Makine sayının 2 katını alıp 1 çıkarıyor.', 1, 10],
     tri: [(n) => 3 * n, 'Makine her sayının 3 katını alıyor.', 1, 8],
@@ -55,7 +56,7 @@
 
   B.GEN.machine = function (rng, level) {
     const q = {};
-    if (level === 3) {
+    if (level === 4) {
       const id = rng.pick(['sum1', 'sum2', 'prod', 'prod1', 'dsum', 'ddif']), fn = RULES2[id][0];
       let rows;
       for (let t = 0; t < 200; t++) {
@@ -79,18 +80,24 @@
       q.explain = RULES2[id][1] + ' ' + rows[3].ins[0] + ' ve ' + rows[3].ins[1] + ' girince ' + rows[3].out + ' çıkar.';
       return Q.finishNum(rng, q, rows[3].out, { min: 0, prefer: [rows[3].ins[0] + rows[3].ins[1], rows[3].ins[0] * rows[3].ins[1]] });
     }
-    let fn, why, lo, hi, id;
-    if (level === 1 && rng.chance(0.2)) {
-      const k = rng.int(11, 15);
-      id = 'add'; fn = (n) => n + k; why = 'Makine her sayıya ' + k + ' ekliyor.'; lo = 1; hi = 20;
+    // 1. kademe: ekleme, çıkarma, 2 katı. 2. kademe: 2 katı ± 1, 3 katı, 10'dan çıkarma. 3. kademe: 3 katı ± 1, kare, yarı.
+    let fn, why, lo, hi;
+    const id = level === 1 ? rng.pick(['add', 'sub', 'dbl', 'dbl'])
+      : level === 2 ? (rng.chance(0.2) ? 'add' : rng.pick(['dbl1', 'dblm', 'tri', 'ten']))
+        : rng.pick(['tri1', 'trim', 'dbl3', 'sq', 'twenty', 'half']);
+    if (id === 'add') {
+      const k = level === 1 ? rng.int(6, 10) : rng.int(11, 15);
+      fn = (n) => n + k; why = 'Makine her sayıya ' + k + ' ekliyor.'; lo = 1; hi = 20;
+    } else if (id === 'sub') {
+      const k = rng.int(4, 9);
+      fn = (n) => n - k; why = 'Makine her sayıdan ' + k + ' çıkarıyor.'; lo = k; hi = k + 15;
     } else {
-      id = rng.pick(level === 1 ? ['dbl1', 'dblm', 'tri', 'ten'] : ['tri1', 'trim', 'dbl3', 'sq', 'twenty', 'half']);
       fn = RULES1[id][0]; why = RULES1[id][1]; lo = RULES1[id][2]; hi = RULES1[id][3];
     }
     const pool = [];
     for (let n = lo; n <= hi; n++) if (id !== 'half' || n % 2 === 0) pool.push(n);
     const rows = rng.sample(pool, 4).map((n) => ({ ins: [n], out: fn(n) }));
-    const holeIn = rng.chance(level === 1 ? 0.4 : 0.5), ans = holeIn ? rows[3].ins[0] : rows[3].out;
+    const holeIn = level > 1 && rng.chance(level === 2 ? 0.4 : 0.5), ans = holeIn ? rows[3].ins[0] : rows[3].out;
     q.prompt = holeIn ? 'Makineye hangi sayı girerse bu sayı çıkar?' : 'Makinenin kuralını bul. Soru işaretinin yerine hangi sayı gelmeli?';
     q.stem = machineSvg(rows, holeIn ? 'in' : 'out');
     q.meta = { rule: id, rows: rows, ans: ans };
@@ -116,12 +123,12 @@
   }
 
   B.GEN.shadow = function (rng, level) {
-    const n = level === 1 ? rng.pick([3, 4]) : rng.pick([4, 5]), lay = rng.pick(LAYOUTS[n]);
-    const turn = level === 3 ? rng.pick([90, 180, 270]) : 0;
+    const n = level === 1 ? 3 : level === 2 ? rng.pick([3, 4]) : rng.pick([4, 5]), lay = rng.pick(LAYOUTS[n]);
+    const turn = level === 4 ? rng.pick([90, 180, 270]) : 0;
     const q = { prompt: turn ? 'Bu resmin gölgesi döndürülmüş. Hangisi bu resmin gölgesi?' : 'Bu resmin gölgesi hangisi?' };
     const shapes = rng.sample(SH, n), colors = rng.shuffle(COL.concat(COL)).slice(0, n);
     const parts = shapes.map((s, i) => ({ shape: s, color: colors[i], rot: S.SHAPES[s].sym === 360 ? rng.pick([0, 0, 90, 180, 270]) : 0, k: 1 }));
-    const kinds = level === 1 ? ['rot', 'size', 'swap', 'rot', 'shape'] : ['rot', 'rot', 'size', 'size', 'swap'];
+    const kinds = level === 1 ? ['shape', 'swap', 'rot'] : level === 2 ? ['rot', 'size', 'swap', 'rot', 'shape'] : ['rot', 'rot', 'size', 'size', 'swap'];
     const mk = (ps) => ({
       html: S.svg(100, 100, '<g transform="rotate(' + turn + ' 50 50)">' + partsDraw(ps, lay, true) + '</g>', { cls: 'opt-svg' }),
       key: partsKey(ps),
@@ -178,7 +185,7 @@
     const abl = (f) => S.COLORS[f.color].name + ' ' + S.SHAPES[f.shape].abl;
     const q = {};
 
-    if (level === 3) {
+    if (level === 4) {
       // dengede duran teraziler: bir şekil diğerinden kaç tane eder?
       const sh = rng.sample(['circle', 'square', 'triangle', 'star', 'heart', 'hexagon'], 3), co = rng.sample(COL, 3);
       const A = { shape: sh[0], color: co[0] }, Bf = { shape: sh[1], color: co[1] }, C = { shape: sh[2], color: co[2] };
@@ -203,13 +210,13 @@
       return Q.finishNum(rng, q, ans, { min: 1, prefer: [ans - 1, ans + 1, ans + 2] });
     }
 
-    const n = level === 1 ? rng.pick([4, 5]) : 6;
+    const n = level === 1 ? 4 : level === 2 ? rng.pick([4, 5]) : 6;
     const shapes = rng.sample(['circle', 'square', 'triangle', 'star', 'heart', 'hexagon'], n), cols = rng.sample(COL, n);
     const figs = shapes.map((s, i) => ({ shape: s, color: cols[i] }));      // 0 en ağır
     const pairs = rng.shuffle(Array.from({ length: n - 1 }, (_, i) => (rng.chance(0.5) ? [i, i + 1] : [i + 1, i])));
     q.stem = scalesSvg(pairs.map((p) => [[figs[p[0]]], [figs[p[1]]], p[0] < p[1] ? -1 : 1]));
     q.explain = 'Aşağı inen kefedeki şekil daha ağırdır. En ağırdan en hafife sıra: ' + figs.map((f) => S.name(f)).join(', ') + '.';
-    const ask = rng.pick(level === 1 ? ['rank', 'rank', 'end'] : ['rank', 'count', 'count']);
+    const ask = rng.pick([null, ['end'], ['rank', 'rank', 'end'], ['rank', 'count', 'count']][level]);
     q.meta = { kind: 'chain', n: n, pairs: pairs, ask: ask };
     if (ask === 'count') {
       const r = rng.int(0, n - 1), heavier = rng.chance(0.5), ans = heavier ? r : n - 1 - r;
@@ -288,17 +295,20 @@
   }
 
   B.GEN.who = function (rng, level) {
-    const n = level === 1 ? rng.pick([3, 4]) : 4;
+    const n = level === 1 ? 3 : level === 2 ? rng.pick([3, 4]) : 4;
     const th = rng.pick(THEMES), kids = rng.sample(KIDS, n), items = rng.sample(th.items, n);   // çocuk i'nin eşyası items[i]
     let clues;
     if (level === 1) {
+      // biri doğrudan söylenir, bir "değil" ipucu kalan ikisini ayırır
+      clues = [{ t: 'is', kid: 0, item: 0 }, { t: 'not', kid: 1, item: 2 }];
+    } else if (level === 2) {
       clues = n === 3
         ? [{ t: 'not', kid: 0, item: 1 }, { t: 'not', kid: 0, item: 2 }, { t: 'not', kid: 1, item: 2 }]
         : [{ t: 'is', kid: 0, item: 0 }, { t: 'is', kid: 1, item: 1 }, { t: 'not', kid: 2, item: 3 }];
     } else {
-      clues = searchClues(rng, n, level === 3);
+      clues = searchClues(rng, n, level === 4);
       if (!clues || clues.length < 3 || clues.length > 5) throw new Error('ipucu kümesi uygun değil');
-      if (level === 3 && !clues.some((c) => c.t !== 'not')) throw new Error('ipuçları fazla düz');
+      if (level === 4 && !clues.some((c) => c.t !== 'not')) throw new Error('ipuçları fazla düz');
     }
     if (solutions(n, clues).length !== 1) throw new Error('ipuçları tek çözüm vermiyor');
     clues = rng.shuffle(clues);
@@ -314,6 +324,7 @@
     const intro = NUMW[n] + ' ' + th.intro + ': ' + names.slice(0, -1).join(', ') + ' ve ' + names[n - 1] + '.';
     const q = { prompt: kids[ask][1] + ' ' + th.what + ' hangisi?' };
     q.stem = '<div class="story"><p>' + intro + '</p><ul>' + facts.map((f) => '<li>' + f + '</li>').join('') + '</ul></div>';
+    q.promptBelow = true;       // önce öncüller okunur, soru cümlesi altlarında durur
     q.speech = intro + ' ' + facts.join(' ') + ' ' + q.prompt;
     q.meta = { n: n, clues: clues, ask: ask };
     q.explain = 'İpuçlarını tek tek eleyince: ' + kids.map((k, i) => k[0] + ' → ' + items[i][1]).join(', ') + '.';

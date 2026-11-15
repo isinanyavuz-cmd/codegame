@@ -87,7 +87,7 @@
 
   B.GEN.pattern = function (rng, level) {
     const q = { prompt: 'Soru işaretinin yerine hangisi gelmeli?' };
-    const kind = rng.pick(level === 1 ? ['two', 'two', 'rotcol'] : level === 2 ? ['three', 'ring1', 'rot45'] : ['ring2', 'ring2', 'rot45x']);
+    const kind = rng.pick([null, ['unit', 'rot', 'count', 'two1'], ['two', 'two', 'rotcol'], ['three', 'ring1', 'rot45'], ['ring2', 'ring2', 'rot45x']][level]);
 
     if (kind === 'ring1' || kind === 'ring2') {
       const r = ringPattern(rng, kind === 'ring2');
@@ -98,8 +98,27 @@
 
     const seq = [];
     let hole, wrong, why;
-    if (kind === 'two') {
-      const attrs = rng.sample(['shape', 'color', 'size', 'fill'], 2), periods = rng.pick([[2, 3], [3, 2]]);
+    if (kind === 'unit') {
+      // üç ya da dört şekillik birim yinelenir; boşluk ortalarda da olabilir
+      const tpl = rng.pick(['ABC', 'AAB', 'ABB', 'ABAC', 'AABB']);
+      const sh = rng.sample(BASE, 3), co = rng.sample(COL, 3);
+      const F = { A: mk(sh[0], co[0]), B: mk(sh[1], co[1]), C: mk(sh[2], co[2]) };
+      const p = tpl.length, len = p === 3 ? 7 : 8;
+      for (let i = 0; i < len; i++) seq.push(F[tpl[i % p]]);
+      hole = rng.int(2, len - 1);
+      wrong = rng.shuffle([F.A, F.B, F.C]).concat(variants(rng, seq[hole], { shape: sh, color: co }));
+      why = 'Şekiller şu sırayla tekrar ediyor: ' + tpl.split('').map((k) => S.name(F[k])).join(', ') + '. Boş yere ' + S.name(seq[hole]) + ' gelmeli.';
+    } else if (kind === 'count') {
+      const f = mk(rng.pick(BASE), rng.pick(COL)), cyc = rng.pick([[1, 2, 3], [3, 2, 1], [1, 2, 3, 4]]);
+      const len = cyc.length === 3 ? 7 : 8;
+      for (let i = 0; i < len; i++) seq.push(clone(f, { count: cyc[i % cyc.length] }));
+      hole = rng.chance(0.5) ? len - 1 : rng.int(3, len - 2);
+      wrong = variants(rng, seq[hole], { count: [1, 2, 3, 4] });
+      why = 'Şekil sayısı ' + cyc.join(', ') + ' diye tekrar ediyor. Boş yere ' + S.name(seq[hole]) + ' gelmeli.';
+    } else if (kind === 'two' || kind === 'two1') {
+      // two1: şekil ikide bir, renk üçte bir değişir ve boşluk sondadır; two: herhangi iki özellik, boşluk her yerde
+      const easy = kind === 'two1';
+      const attrs = easy ? ['shape', 'color'] : rng.sample(['shape', 'color', 'size', 'fill'], 2), periods = easy ? [2, 3] : rng.pick([[2, 3], [3, 2]]);
       const base = mk(rng.pick(BASE), rng.pick(COL)), vals = {}, pools = {}, parts = [];
       attrs.forEach((a, i) => {
         const p = periods[i];
@@ -111,18 +130,19 @@
         parts.push(head + ' sırayla: ' + vals[a].map((v) => valName(a, v)).join(', ') + '.');
       });
       for (let i = 0; i < 7; i++) seq.push(clone(base, { [attrs[0]]: vals[attrs[0]][i % periods[0]], [attrs[1]]: vals[attrs[1]][i % periods[1]] }));
-      hole = rng.int(2, 6);
+      hole = easy ? 6 : rng.int(2, 6);
       wrong = variants(rng, seq[hole], pools);
       why = parts.join(' ') + ' İkisi birlikte tekrar ediyor. Boş yere ' + S.name(seq[hole]) + ' gelmeli.';
     } else {
-      // dönen şekil: rotcol 90° + renk; three 90° + renk + boyut; rot45 45° ; rot45x 45°/135° + renk + boyut
+      // dönen şekil: rot 90°; rotcol 90° + renk; three 90° + renk + boyut; rot45 45°; rot45x 45°/135° + renk + boyut
+      const plain = kind === 'rot' || kind === 'rot45';
       const fine = kind === 'rot45' || kind === 'rot45x';
       const shape = rng.pick(fine ? ['arrow', 'drop', 'heart', 'triangle'] : ROTS);
       const step = fine ? (kind === 'rot45x' ? rng.pick([45, 315, 135, 225]) : rng.pick([45, 315])) : rng.pick([90, 270]);
       const start = rng.pick([0, 90, 180, 270]);
-      const cols = kind === 'rot45' ? [rng.pick(COL)] : rng.sample(COL, kind === 'rotcol' ? rng.pick([2, 3]) : 3);
+      const cols = plain ? [rng.pick(COL)] : rng.sample(COL, kind === 'rotcol' ? rng.pick([2, 3]) : 3);
       const sizes = (kind === 'three' || kind === 'rot45x') ? rng.shuffle([1, 0.6]) : [1];
-      const len = kind === 'rot45' ? 6 : 7;
+      const len = plain ? 6 : 7;
       for (let i = 0; i < len; i++) seq.push(mk(shape, cols[i % cols.length], { rot: (start + i * step) % 360, size: sizes[i % sizes.length] }));
       hole = rng.int(2, len - 1);
       const c = seq[hole], pools = { rot: fine ? [45, 90, 135, 315, 270, 225].map((d) => (c.rot + d) % 360) : [0, 90, 180, 270] };
@@ -200,7 +220,7 @@
 
   B.GEN.matrix = function (rng, level) {
     const q = { prompt: 'Tablodaki boş kutuya hangisi gelmeli?' };
-    const kind = rng.pick(level === 1 ? ['latin2', 'latin2', 'rc'] : level === 2 ? ['latin3', 'sum', 'union'] : ['xor', 'xor', 'latin4']);
+    const kind = rng.pick([null, ['rc1', 'rc1', 'latin1'], ['latin2', 'latin2', 'rc'], ['latin3', 'sum', 'union'], ['xor', 'xor', 'latin4']][level]);
 
     if (kind === 'union' || kind === 'xor') {
       const m = overlayMatrix(rng, kind === 'xor');
@@ -217,8 +237,11 @@
       pairs.forEach((p, r) => [p[0], p[1], p[0] + p[1]].forEach((n) => cells.push(mk(sh[r], co[r], { count: n }))));
       pools = { count: [1, 2, 3, 4], shape: sh };
       why = 'Her satırda birinci ve ikinci kutudaki şekillerin sayısı toplanınca üçüncü kutudaki sayı çıkıyor.';
-    } else if (kind === 'rc') {
-      let pair = rng.pick([['rot', 'fill'], ['size', 'fill'], ['count', 'fill'], ['rot', 'size'], ['rot', 'count']]);
+    } else if (kind === 'rc' || kind === 'rc1') {
+      // satır bir özelliği, sütun başka bir özelliği belirler; rc1'de özelliklerden biri hep şekil ya da renk
+      let pair = rng.pick(kind === 'rc1'
+        ? [['shape', 'count'], ['shape', 'size'], ['color', 'count'], ['shape', 'fill'], ['color', 'rot']]
+        : [['rot', 'fill'], ['size', 'fill'], ['count', 'fill'], ['rot', 'size'], ['rot', 'count']]);
       if (rng.chance(0.5)) pair = [pair[1], pair[0]];
       const shapePool = pair.indexOf('rot') >= 0 ? ROTS : BASE, base = mk(rng.pick(shapePool), rng.pick(COL));
       const rv = attrVals(rng, pair[0], shapePool), cv = attrVals(rng, pair[1], shapePool);
@@ -226,23 +249,23 @@
       pools = { [pair[0]]: rv, [pair[1]]: cv };
       why = 'Her satırda ' + LABEL[pair[0]] + ' aynı, her sütunda ' + LABEL[pair[1]] + ' aynı.';
     } else {
-      // latin2: şekil + renk; latin3: + sütuna bağlı üçüncü özellik; latin4: + satıra bağlı dördüncü özellik
-      const rows = rng.shuffle([0, 1, 2]), four = kind === 'latin4';
+      // latin1: yalnız şekil; latin2: şekil + renk; latin3: + sütuna bağlı üçüncü özellik; latin4: + satıra bağlı dördüncü özellik
+      const rows = rng.shuffle([0, 1, 2]), four = kind === 'latin4', one = kind === 'latin1';
       const sh = rng.sample(four ? ROTS : BASE, 3), co = rng.sample(COL, 3);
-      const third = kind === 'latin2' ? null : four ? 'rot' : rng.pick(['fill', 'size', 'count']);
+      const third = (one || kind === 'latin2') ? null : four ? 'rot' : rng.pick(['fill', 'size', 'count']);
       const tv = third ? attrVals(rng, third, ROTS) : null, fv = four ? rng.shuffle(FILLS3) : null;
       for (let r = 0; r < 3; r++) {
         for (let c = 0; c < 3; c++) {
-          const f = mk(sh[LATINS[0][rows[r]][c]], co[LATINS[1][rows[r]][c]]);
+          const f = mk(sh[LATINS[0][rows[r]][c]], one ? co[0] : co[LATINS[1][rows[r]][c]]);
           if (third) f[third] = tv[c];
           if (four) f.fill = fv[r];
           cells.push(f);
         }
       }
-      pools = { shape: sh, color: co };
+      pools = { shape: sh, color: one ? co.slice(0, 2) : co };
       if (third) pools[third] = tv;
       if (four) pools.fill = fv;
-      why = 'Her satırda ve her sütunda her şekilden ve her renkten birer tane var.' +
+      why = (one ? 'Her satırda ve her sütunda her şekilden birer tane var.' : 'Her satırda ve her sütunda her şekilden ve her renkten birer tane var.') +
         (third ? ' Her sütunda ' + LABEL[third] + ' aynı.' : '') + (four ? ' Her satırda iç dolgusu aynı.' : '');
     }
     q.stem = tableSvg(hole, (i, x, y, s) => S.figAt(cells[i], x, y, s));
@@ -290,7 +313,7 @@
 
   B.GEN.analogy = function (rng, level) {
     const q = { prompt: 'Soldaki değişime bak. Aynı kurala göre soru işaretinin yerine hangisi gelir?' };
-    const kind = level === 1 ? 'figs2' : rng.pick(level === 2 ? ['figs3', 'figs3', 'gridrot'] : ['gridtf', 'gridtf', 'inout', 'figs3x']);
+    const kind = level === 1 ? 'figs1' : level === 2 ? 'figs2' : rng.pick(level === 3 ? ['figs3', 'figs3', 'gridrot'] : ['gridtf', 'gridtf', 'inout', 'figs3x']);
 
     if (kind === 'gridrot' || kind === 'gridtf') {
       const g = gridAnalogy(rng, kind === 'gridtf');
@@ -309,7 +332,7 @@
       return Q.finish(rng, q, opt(ans), rng.shuffle([make(sh[3], co[2], sh[2], co[3]), make(sh[2], co[3], sh[3], co[2]), C]).concat([Bf]).map(opt));
     }
 
-    const ids = kind === 'figs2'
+    const ids = kind === 'figs1' ? rng.pick([['rot'], ['inner'], ['count'], ['fill'], ['color', 'size']]) : kind === 'figs2'
       ? rng.pick([['rot', 'fill'], ['rot', 'color'], ['count', 'color'], ['size', 'inner'], ['size', 'fill'], ['rot', 'size'], ['count', 'fill'], ['color', 'inner']])
       : kind === 'figs3'
         ? rng.pick([['rot', 'color', 'size'], ['rot', 'fill', 'color'], ['count', 'color', 'fill'], ['size', 'fill', 'color'], ['rot', 'size', 'fill']])
@@ -334,7 +357,7 @@
       } else if (id === 'rot') {
         const d = rng.pick([90, 270, 180]);
         A.rot = rng.pick([0, 90, 180, 270]);
-        C.rot = rng.pick([0, 90, 180, 270]);
+        C.rot = kind === 'figs1' ? A.rot : rng.pick([0, 90, 180, 270]);
         T.push({
           ap: (f) => clone(f, { rot: (f.rot + d) % 360 }),
           alt: (f) => [90, 180, 270].filter((x) => x !== d).map((x) => clone(f, { rot: (f.rot + x) % 360 })),
@@ -372,7 +395,7 @@
   /* ---------- Farklı Olan ---------- */
   B.GEN.odd = function (rng, level) {
     const q = { prompt: 'Hangisi diğerlerinden farklı?', stem: '' };
-    const kind = rng.pick(level === 1 ? ['mirror', 'mirror', 'relation', 'noise2'] : level === 2 ? ['mirror4', 'curved', 'parity', 'relcolor'] : ['near', 'near', 'mirror5']);
+    const kind = rng.pick([null, ['size', 'fill', 'count', 'rot'], ['mirror', 'mirror', 'relation', 'noise2'], ['mirror4', 'curved', 'parity', 'relcolor'], ['near', 'near', 'mirror5']][level]);
     const tf = (rot, mirror) => ({ rot: rot, mirror: !!mirror });
 
     if (kind === 'mirror' || kind === 'mirror4' || kind === 'mirror5') {
@@ -423,14 +446,19 @@
       rest = [1, 2, 3].map((i) => mk(shapes[i], colors[i], { count: common[i - 1] }));
       q.explain = even ? 'Diğer kutularda çift sayıda şekil var. Farklı olanda tek sayıda şekil var.' : 'Diğer kutularda tek sayıda şekil var. Farklı olanda çift sayıda şekil var.';
     } else {
-      // noise2: şekil ve renk dördünde de farklı; yalnız boyut, dolgu ya da sayı ortak
-      const target = rng.pick(['size', 'fill', 'count']), shapes = rng.sample(BASE, 4);
-      const vals = target === 'size' ? rng.shuffle([1, 0.46]) : target === 'fill' ? rng.sample(FILLS3, 2) : rng.sample([1, 2, 3, 4], 2);
-      odd = mk(shapes[0], colors[0], { [target]: vals[1] });
-      rest = [1, 2, 3].map((i) => mk(shapes[i], colors[i], { [target]: vals[0] }));
+      // tek özellik farkı. size/fill/count/rot: şekil ya da renkten yalnız biri değişir; noise2: ikisi de dördünde farklıdır
+      const single = kind !== 'noise2', target = single ? kind : rng.pick(['size', 'fill', 'count']);
+      const shapes = rng.sample(target === 'rot' ? ROTS : BASE, 4);
+      const varyShape = !single || (target !== 'rot' && rng.chance(0.5)), varyColor = !single || !varyShape;
+      const vals = target === 'size' ? rng.shuffle([1, 0.46]) : target === 'fill' ? rng.sample(FILLS3, 2)
+        : target === 'count' ? rng.sample([1, 2, 3, 4], 2) : rng.sample([0, 90, 180, 270], 2);
+      const fig = (i, v) => mk(varyShape ? shapes[i] : shapes[0], varyColor ? colors[i] : colors[0], { [target]: v });
+      odd = fig(0, vals[1]);
+      rest = [1, 2, 3].map((i) => fig(i, vals[0]));
       q.explain = target === 'size' ? 'Diğer üçü ' + S.SIZE_NAMES[vals[0]] + '. Farklı olan ' + S.SIZE_NAMES[vals[1]] + '.'
         : target === 'fill' ? 'Diğer üçü ' + S.FILL_NAMES[vals[0]] + '. Farklı olan ' + S.FILL_NAMES[vals[1]] + '.'
-          : 'Diğer kutularda ' + vals[0] + ' şekil var. Farklı olanda ' + vals[1] + ' şekil var.';
+          : target === 'count' ? 'Diğer kutularda ' + vals[0] + ' şekil var. Farklı olanda ' + vals[1] + ' şekil var.'
+            : 'Diğer üçü aynı yöne bakıyor. Farklı olan başka yöne bakıyor.';
     }
     return Q.finish(rng, q, opt(odd), rest.map(opt));
   };

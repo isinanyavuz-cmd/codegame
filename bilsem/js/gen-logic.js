@@ -17,7 +17,7 @@
   ];
 
   B.GEN.order = function (rng, level) {
-    const n = level === 1 ? rng.pick([4, 5]) : level === 2 ? 5 : 6;
+    const n = level === 1 ? 4 : level === 2 ? rng.pick([4, 5]) : level === 3 ? 5 : 6;
     const kids = rng.sample(NAMES, n);            // 0 en çok (en uzun, en hızlı…), sonuncu en az
     const at = rng.pick(ATTRS), facts = [], pairs = [];
     const simple = (hi, lo) => {
@@ -26,17 +26,17 @@
     };
     // komşu çiftlerin hepsi söylenir; üst düzeylerde bazıları tek cümlede birleşir ("... ama ...")
     for (let i = 0; i < n - 1;) {
-      if (level > 1 && i + 1 < n - 1 && rng.chance(0.55)) {
+      if (level > 2 && i + 1 < n - 1 && rng.chance(0.55)) {
         pairs.push([i, i + 1], [i + 1, i + 2]);
         facts.push(kids[i + 1][0] + ', ' + kids[i][1] + ' ' + at.less + ' ama ' + kids[i + 2][1] + ' ' + at.more + '.');
         i += 2;
       } else { facts.push(simple(i, i + 1)); i += 1; }
     }
-    if (level > 1) { const a = rng.int(0, n - 3); facts.push(simple(a, rng.int(a + 2, n - 1))); }   // gereksiz ama doğru bir ipucu
+    if (level > 2) { const a = rng.int(0, n - 3); facts.push(simple(a, rng.int(a + 2, n - 1))); }   // gereksiz ama doğru bir ipucu
     const list = rng.shuffle(facts);
 
-    const ask = rng.pick(level === 1 ? ['rank', 'rank', 'end'] : level === 2 ? ['rank', 'count'] : ['count', 'count', 'between', 'rank']);
-    const q = { meta: { order: kids.map((k) => k[0]), pairs: pairs, ask: ask } };
+    const ask = rng.pick([null, ['end'], ['rank', 'rank', 'end'], ['rank', 'count'], ['count', 'count', 'between', 'rank']][level]);
+    const q = { promptBelow: true, meta: { order: kids.map((k) => k[0]), pairs: pairs, ask: ask } };   // soru cümlesi öncüllerin altında durur
     q.explain = at.from.charAt(0).toUpperCase() + at.from.slice(1) + ' ' + at.to + ' sıralama: ' + kids.map((k) => k[0]).join(', ') + '.';
     let idx;
     if (ask === 'count') {
@@ -131,17 +131,17 @@
   }
 
   B.GEN.path = function (rng, level) {
-    const n = level === 1 ? 5 : 6, hero = rng.pick(HEROES);
-    // köşeli yol: her parça bir öncekine dik; 1. düzeyde parçalar tek kare
+    const n = level < 3 ? 5 : 6, hero = rng.pick(HEROES), single = level < 3;
+    // 1. ve 2. kademe: tek karelik adımlar; 3. ve 4. kademe: her parçası bir öncekine dik, 1-3 karelik köşeli yol
     const start = [rng.int(0, n - 1), rng.int(0, n - 1)], seen = new Set([start.join()]), steps = [];
-    const runs = level === 1 ? rng.int(6, 8) : level === 2 ? rng.int(4, 5) : rng.int(3, 4);
+    const span = [null, [5, 6], [6, 8], [4, 5], [3, 4]][level], runs = rng.int(span[0], span[1]);
     let x = start[0], y = start[1];
     for (let i = 0; i < runs; i++) {
       const prev = steps.length ? steps[steps.length - 1].d : null;
-      const dirs = rng.shuffle(DKEYS.filter((d) => level === 1 || !prev || (DIRS[d][0] === 0) !== (DIRS[prev][0] === 0)));
+      const dirs = rng.shuffle(DKEYS.filter((d) => single || !prev || (DIRS[d][0] === 0) !== (DIRS[prev][0] === 0)));
       let done = false;
       for (const d of dirs) {
-        for (const k of rng.shuffle(level === 1 ? [1] : [1, 2, 2, 3])) {
+        for (const k of rng.shuffle(single ? [1] : [1, 2, 2, 3])) {
           const cells = [];
           for (let j = 1; j <= k; j++) cells.push([x + DIRS[d][0] * j, y + DIRS[d][1] * j]);
           if (cells.every((p) => p[0] >= 0 && p[1] >= 0 && p[0] < n && p[1] < n && !seen.has(p.join()))) {
@@ -165,7 +165,7 @@
     const q = { meta: { n: n, start: start, steps: steps, target: [x, y], cells: cells, kind: 'forward' } };
     const s = 44;
 
-    if (level === 3) {
+    if (level === 4) {
       // robot baktığı yöne göre komut alır: ileri git, sağa dön, sola dön
       // başlangıçta tam ters yöne bakmasın: ilk komut en çok bir dönüş olsun
       const facing = rng.pick(DKEYS.filter((d) => (DKEYS.indexOf(d) + 2) % 4 !== DKEYS.indexOf(steps[0].d))), cmds = [];
@@ -187,15 +187,15 @@
     }
 
     const board = boardSvg(n, start, hero[0], cells);
-    if (rng.chance(0.5)) {
+    if (level === 1 || rng.chance(0.5)) {
       const rowW = steps.length * (s + 8) - 8, W = Math.max(board.w, rowW + 16);
-      q.prompt = hero[1] + ' okları sırayla takip ederse hangisine ulaşır?' + (level > 1 ? ' Okun köşesindeki sayı kaç kare gidileceğini gösterir.' : '');
+      q.prompt = hero[1] + ' okları sırayla takip ederse hangisine ulaşır?' + (!single ? ' Okun köşesindeki sayı kaç kare gidileceğini gösterir.' : '');
       q.stem = S.svg(W, board.w + s + 22, '<g transform="translate(' + (W - board.w) / 2 + ' 0)">' + board.inner + '</g>' + arrowRow(steps, s, (W - rowW) / 2, board.w + 12), { maxW: W * 1.02 });
       q.explain = 'Sarı kareden başla: ' + told + '. ' + hero[1] + ' ' + items[0][0] + ' olan kareye ulaşır.';
       return Q.finish(rng, q, Q.emoji(items[0][0]), items.slice(1).map((it) => Q.emoji(it[0])));
     }
 
-    q.prompt = hero[1] + ' ' + items[0][0] + ' olan kareye gitmek için hangi okları takip etmeli?' + (level > 1 ? ' Okun köşesindeki sayı kaç kare gidileceğini gösterir.' : '');
+    q.prompt = hero[1] + ' ' + items[0][0] + ' olan kareye gitmek için hangi okları takip etmeli?' + (!single ? ' Okun köşesindeki sayı kaç kare gidileceğini gösterir.' : '');
     q.speech = hero[1] + ' ' + items[0][1] + ' gitmek için hangi okları takip etmeli?';
     q.stem = S.svg(board.w, board.w, board.inner, { maxW: board.w * 1.05 });
     q.layout = 'wide';
@@ -208,7 +208,7 @@
     for (let t = 0; t < 80; t++) {
       const m = steps.map((st) => ({ d: st.d, k: st.k })), i = rng.int(0, m.length - 1), r = rng.next();
       if (r < 0.4) m[i].d = rng.pick(DKEYS.filter((d) => d !== m[i].d));
-      else if (r < 0.7 && level > 1) m[i].k = rng.pick([1, 2, 3].filter((k) => k !== m[i].k));
+      else if (r < 0.7 && !single) m[i].k = rng.pick([1, 2, 3].filter((k) => k !== m[i].k));
       else { const j = rng.int(0, m.length - 1), tmp = m[i]; m[i] = m[j]; m[j] = tmp; }
       const end = walk(n, start, m);
       if (end && end[0] === x && end[1] === y) continue;

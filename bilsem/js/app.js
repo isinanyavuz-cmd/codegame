@@ -161,7 +161,7 @@
     for (let k = 0; k < ex.n; k++) {
       if (!pool.length) pool = rng.shuffle(B.CATS.map((c) => c.id));
       const f = k / ex.n;
-      specs.push({ type: pool.pop(), level: f < 0.3 ? 1 : f < 0.75 ? 2 : 3 });
+      specs.push({ type: pool.pop(), level: f < 0.25 ? 1 : f < 0.5 ? 2 : f < 0.8 ? 3 : 4 });   // kolaydan zora
     }
     begin({ mode: 'exam', exam: i, left: ex.min * 60, items: makeItems(specs) });
   }
@@ -261,11 +261,13 @@
   }
 
   /* ---------- ana sayfa ---------- */
+  const STAR_MAX = B.LEVELS.length * 3;
+  const starSum = (st) => st.stars.reduce((a, b) => a + b, 0);
   function catCard(c) {
-    const st = Store.cat(c.id), total = st.stars[0] + st.stars[1] + st.stars[2];
+    const total = starSum(Store.cat(c.id));
     return '<button type="button" class="cat" data-act="cat" data-id="' + c.id + '">' +
       '<span class="cat-ico">' + icon(c.id) + '</span><span class="cat-name">' + c.name + '</span><span class="cat-desc">' + c.desc + '</span>' +
-      '<span class="cat-stars">' + star(total > 0) + total + '<i>/ 9</i></span></button>';
+      '<span class="cat-stars">' + star(total > 0) + total + '<i>/ ' + STAR_MAX + '</i></span></button>';
   }
   const fmtSec = (v) => String(v).replace('.', ',');
   function spanRecords() {
@@ -332,11 +334,13 @@
         '<button type="button" class="btn btn-ghost" data-act="memo-done">Hazırım</button></div>';
     }
     const answered = it.chosen != null && !exam, last = ses.idx === ses.items.length - 1;
+    const tag = '<span class="q-tag">' + cat.name + ' · ' + B.LEVEL_NAMES[q.level] + '</span>';
+    const prompt = '<div class="q-prompt"><h1>' + q.prompt + '</h1>' +
+      (trVoice ? '<button type="button" class="icon-btn" data-act="speak" aria-label="Soruyu sesli oku">' + I.sound + '</button>' : '') + '</div>';
+    const stem = q.stem ? '<div class="paper stem">' + q.stem + '</div>' : '';
+    // öncüllü sorularda (Kim Hangisi, Sıralama) soru cümlesi öncüllerin altında durur
     let html = '<div class="page quiz"' + area + '>' + quizTop() +
-      '<div class="q-head"><span class="q-tag">' + cat.name + ' · ' + B.LEVEL_NAMES[q.level] + '</span>' +
-      '<div class="q-prompt"><h1>' + q.prompt + '</h1>' +
-      (trVoice ? '<button type="button" class="icon-btn" data-act="speak" aria-label="Soruyu sesli oku">' + I.sound + '</button>' : '') + '</div></div>' +
-      (q.stem ? '<div class="paper stem">' + q.stem + '</div>' : '') +
+      (q.promptBelow ? tag + stem + prompt : '<div class="q-head">' + tag + prompt + '</div>' + stem) +
       optsHtml(q, it, exam ? 'exam' : answered ? 'done' : 'live');
     if (answered) {
       const ok = it.chosen === q.answer;
@@ -513,7 +517,7 @@
       return '<button type="button" class="qchip ' + cls + '" data-act="review" data-i="' + i + '" aria-label="Soru ' + (i + 1) + '">' + (i + 1) + '</button>';
     }).join('') + '</div></div>';
     html += '<div class="result-actions">';
-    if (ses.mode === 'practice' && r.stars >= 2 && ses.level < 3) {
+    if (ses.mode === 'practice' && r.stars >= 2 && ses.level < B.LEVELS.length) {
       html += '<button type="button" class="btn btn-sun" data-act="level-up">Sonraki seviye</button><button type="button" class="btn btn-ghost" data-act="again">Tekrar oyna</button>';
     } else {
       html += '<button type="button" class="btn btn-sun" data-act="again">' + (exam ? 'Yeni deneme' : 'Tekrar oyna') + '</button>';
@@ -554,7 +558,7 @@
           '<td class="num">' + (acc == null ? '—' : '<span class="pill ' + (s.seen >= 5 && acc < 70 ? 'weak' : s.seen >= 5 && acc >= 90 ? 'strong' : '') + '">%' + acc + '</span>') + '</td>' +
           '<td class="num">' + (s.seen ? Math.round(s.ms / s.seen / 1000) + ' sn' : '—') + '</td>' +
           '<td><span class="dots">' + s.recent.slice(-10).map((v) => '<i class="' + (v ? '' : 'x') + '"></i>').join('') + '</span></td>' +
-          '<td class="num">' + (s.stars[0] + s.stars[1] + s.stars[2]) + ' / 9</td></tr>';
+          '<td class="num">' + starSum(s) + ' / ' + STAR_MAX + '</td></tr>';
       }).join('') + '</tbody></table></div>';
 
     const exams = Store.data.exams.slice(-8).reverse();
@@ -598,7 +602,7 @@
       const c = B.catById(sheet.id), st = Store.cat(c.id), rec = Store.workLevel(c.id);
       body = '<div class="sheet-head"><span class="cat-ico">' + icon(c.id) + '</span><div><h2>' + c.name + '</h2><p>' + c.desc + '</p></div>' + closeBtn + '</div>' +
         '<p class="tip"><b>İpucu:</b> ' + c.tip + '</p><div class="levels">' +
-        [1, 2, 3].map((lv) => '<button type="button" class="level' + (lv === rec ? ' rec' : '') + '" data-act="start" data-id="' + c.id + '" data-level="' + lv + '"><span>' +
+        B.LEVELS.map((lv) => '<button type="button" class="level' + (lv === rec ? ' rec' : '') + '" data-act="start" data-id="' + c.id + '" data-level="' + lv + '"><span>' +
           B.LEVEL_NAMES[lv] + (lv === rec ? '<small>Sana uygun seviye</small>' : '') + '</span>' + starsRow(st.stars[lv - 1]) + '</button>').join('') +
         '</div><p class="note">' + Store.data.settings.len + ' soruluk alıştırma. Soruların çoğunu doğru yaparsan yıldız kazanırsın.</p>';
     } else if (sheet.kind === 'exam') {
@@ -633,9 +637,10 @@
       const i = sheet.i, it = ses.items[i], q = it.q, cat = B.catById(q.type);
       const state = it.chosen == null ? 'Boş bırakıldı.' : it.chosen === q.answer ? 'Doğru cevapladın.' : 'Yanlış cevapladın.';
       body = '<div class="sheet-head"><div><h2>Soru ' + (i + 1) + '</h2><p>' + cat.name + ' · ' + B.LEVEL_NAMES[q.level] + '</p></div>' + closeBtn + '</div>' +
-        '<p class="rv-prompt">' + q.prompt + '</p>' +
+        (q.promptBelow ? '' : '<p class="rv-prompt">' + q.prompt + '</p>') +
         (q.memo ? '<div class="paper stem">' + q.memo.html + '</div>' : '') +
         (q.stem ? '<div class="paper stem">' + q.stem + '</div>' : '') +
+        (q.promptBelow ? '<p class="rv-prompt">' + q.prompt + '</p>' : '') +
         optsHtml(q, it, 'done') +
         '<p class="tip"><b>' + state + '</b> Doğru cevap ' + LETTERS[q.answer] + ' şıkkı. ' + q.explain + '</p>' +
         '<div class="sheet-actions"><button type="button" class="btn btn-ghost" data-act="review" data-i="' + (i - 1) + '"' + (i === 0 ? ' disabled' : '') + '>Önceki soru</button>' +

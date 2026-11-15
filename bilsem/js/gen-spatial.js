@@ -7,7 +7,8 @@
   const tf = (rot, mirror) => ({ rot: ((rot % 360) + 360) % 360, mirror: !!mirror });
   const objOpt = (o, t) => ({ html: S.objSvg(o, t), key: S.objKey(o, t) });
   const gridOpt = (o, m) => ({ html: S.svg(100, 100, G.draw(m, o.pal, 9, 9, 82), { cls: 'opt-svg' }), key: 'g' + G.key(m) + o.pal.join('') });
-  const gridObj = (rng, n) => S.randObj(rng, n === 5 ? { kind: 'grid', n: 5, cells: rng.int(9, 11), accent: 3 } : { kind: 'grid', n: 4, cells: rng.int(6, 8), accent: 2 });
+  const gridObj = (rng, n) => S.randObj(rng, n === 5 ? { kind: 'grid', n: 5, cells: rng.int(9, 11), accent: 3 }
+    : n === 4 ? { kind: 'grid', n: 4, cells: rng.int(6, 8), accent: 2 } : { kind: 'grid', n: 3, cells: rng.int(4, 5), accent: 1 });
 
   /* Doğru şekle çok benzeyen, tek karesi kaymış çeldiriciler */
   function nearMisses(rng, o, m, count) {
@@ -39,11 +40,11 @@
 
   /* ---------- Döndürme ---------- */
   B.GEN.rotate = function (rng, level) {
-    const s = 150, o = gridObj(rng, level === 2 ? 5 : 4);
+    const s = 150, o = gridObj(rng, level === 1 ? 3 : level === 3 ? 5 : 4);
     const figure = S.tile(6, 6, s) + S.objDraw(o, tf(0), 20, 20, s - 28);
     const q = {};
 
-    if (level < 3) {
+    if (level < 4) {
       const turn = rng.pick([90, 270, 180]);
       q.prompt = turn === 90 ? 'Şekil sağa doğru çeyrek tur dönerse hangisi olur?'
         : turn === 270 ? 'Şekil sola doğru çeyrek tur dönerse hangisi olur?' : 'Şekil yarım tur dönerse (baş aşağı) hangisi olur?';
@@ -52,9 +53,9 @@
         : turn === 270 ? 'Sola doğru çeyrek turda üstteki kısım sola, soldaki kısım alta geçer.' : 'Yarım turda üst ile alt, sağ ile sol yer değiştirir.';
       const rots = rng.shuffle([turn + 90, turn + 180, turn + 270].map((r) => objOpt(o, tf(r))));
       const mirs = rng.shuffle([turn + 90, turn + 180, turn + 270].map((r) => objOpt(o, tf(r, true))));
-      const wrong = level === 1
-        ? [objOpt(o, tf(turn, true)), mirs[0], rots[0], rots[1]]
-        : [objOpt(o, tf(turn, true))].concat(nearMisses(rng, o, G.tf(o.m, tf(turn)), 1).slice(0, 1), [rots[0]], nearMisses(rng, o, G.tf(o.m, tf(turn)), 1), rots);
+      const wrong = level === 1 ? [rots[0], rots[1], objOpt(o, tf(turn, true)), mirs[0]]
+        : level === 2 ? [objOpt(o, tf(turn, true)), mirs[0], rots[0], rots[1]]
+          : [objOpt(o, tf(turn, true))].concat(nearMisses(rng, o, G.tf(o.m, tf(turn)), 1).slice(0, 1), [rots[0]], nearMisses(rng, o, G.tf(o.m, tf(turn)), 1), rots);
       return Q.finish(rng, q, objOpt(o, tf(turn)), wrong);
     }
 
@@ -77,7 +78,7 @@
 
   /* ---------- Ayna Görüntüsü ---------- */
   B.GEN.mirror = function (rng, level) {
-    const o = gridObj(rng, level === 1 ? 4 : rng.pick([4, 5, 5]));
+    const o = gridObj(rng, level === 1 ? 3 : level === 2 ? 4 : rng.pick([4, 5, 5]));
     const s = 130, g = 22, q = {};
     const tile = (x, y) => S.tile(x, y, s) + S.objDraw(o, tf(0), x + 12, y + 12, s - 24);
     const mirrorLine = (x, y0, y1) => '<rect x="' + (x - 5) + '" y="' + y0 + '" width="10" height="' + (y1 - y0) + '" rx="5" fill="#bfe3ff"/>' +
@@ -88,7 +89,7 @@
       return '<path d="' + d + '" fill="none" stroke="#2f9be1" stroke-width="4" stroke-linecap="round"/>';
     };
 
-    if (level === 3) {
+    if (level === 4) {
       // önce ayna, sonra su: şekil baş aşağı döner
       const W = s * 2 + g * 2 + 12, mx = 6 + s + g, my = 6 + s + g;
       q.prompt = 'Şekil önce aynada, sonra suda yansıyor. Soru işaretinin yerine hangisi gelir?';
@@ -113,7 +114,7 @@
     q.explain = water ? 'Suda üst ile alt yer değiştirir; sağ ve sol aynı kalır.' : 'Aynada sağ ile sol yer değiştirir; üst ve alt aynı kalır.';
     const ans = water ? G.flipV(o.m) : G.flipH(o.m), other = water ? G.flipH(o.m) : G.flipV(o.m);
     const plain = [other, G.tf(o.m, tf(180)), o.m].map((m) => gridOpt(o, m));
-    const wrong = level === 1
+    const wrong = level < 3
       ? rng.shuffle(plain).concat([tf(90), tf(270)].map((t) => objOpt(o, t)))
       : nearMisses(rng, o, ans, 1).slice(0, 1).concat(rng.shuffle(plain));
     return Q.finish(rng, q, gridOpt(o, ans), wrong);
@@ -150,7 +151,7 @@
 
   B.GEN.cubes = function (rng, level) {
     const tone = rng.pick(S.CUBE_TONES), q = {};
-    if (level === 3 && rng.chance(0.5)) {
+    if (level === 4 && rng.chance(0.5)) {
       // eksik küpler: 3x3x3'lük büyük küpe tamamlama
       const st = heights(rng, 3, 3, 3, [9, 21]), need = 27 - st.total, c = S.cubes(st.h, 44, tone, [3, 3, 3]);
       q.prompt = 'Bu yapıyı kesik çizgiyle gösterilen büyük küpe tamamlamak için kaç küp daha gerekir?';
@@ -159,9 +160,9 @@
       q.explain = layerText(st.h, 3).text + ' Yapıda toplam ' + st.total + ' küp var. Büyük küpte her katta 9, üç katta 27 küp olur. 27 − ' + st.total + ' = ' + need + ' küp daha gerekir.';
       return Q.finishNum(rng, q, need, { min: 1, prefer: [st.total, need + 9, need - 9] });
     }
-    const dims = level === 1 ? [3, 3] : rng.pick(level === 2 ? [[4, 3], [3, 4], [4, 4]] : [[4, 4], [4, 4], [5, 4]]);
-    const maxH = level === 1 ? 3 : 4, range = level === 1 ? [10, 17] : level === 2 ? [16, 26] : [26, 40];
-    const st = heights(rng, dims[0], dims[1], maxH, range), c = S.cubes(st.h, level === 1 ? 44 : 36, tone), lt = layerText(st.h, maxH);
+    const dims = rng.pick([null, [[3, 2], [2, 3], [3, 3]], [[3, 3]], [[4, 3], [3, 4], [4, 4]], [[4, 4], [4, 4], [5, 4]]][level]);
+    const maxH = level < 3 ? 3 : 4, range = [null, [6, 10], [10, 17], [16, 26], [26, 40]][level];
+    const st = heights(rng, dims[0], dims[1], maxH, range), c = S.cubes(st.h, level < 3 ? 44 : 36, tone), lt = layerText(st.h, maxH);
     q.prompt = 'Bu yapıda toplam kaç küp var?';
     q.stem = S.svg(c.w, c.h, c.inner, { maxW: Math.min(360, c.w * 1.25) });
     q.meta = { heights: st.h, answer: st.total };
@@ -173,7 +174,7 @@
   const ORD = ['', 'birinci', 'ikinci', 'üçüncü', 'dördüncü', 'beşinci'];
 
   B.GEN.stack = function (rng, level) {
-    const n = level === 1 ? 5 : 6;
+    const n = level === 1 ? 4 : level === 2 ? 5 : 6;
     const shapes = rng.sample(['circle', 'square', 'triangle', 'hexagon', 'pentagon', 'heart', 'diamond'], n), cols = rng.sample(COL, n);
     const figs = shapes.map((sh, i) => ({ shape: sh, color: cols[i] }));   // 0 en altta
 
@@ -200,7 +201,7 @@
     q.explain = 'Alttan üste doğru sıra: ' + figs.map((f) => S.name(f)).join(', ') + '.';
     q.meta = { n: n };
 
-    if (level === 3) {
+    if (level === 4) {
       const ask = rng.pick(['above', 'below', 'countAbove', 'countBelow']);
       if (ask === 'above' || ask === 'below') {
         const r = ask === 'above' ? rng.int(0, n - 2) : rng.int(1, n - 1), a = ask === 'above' ? r + 1 : r - 1;
@@ -212,7 +213,7 @@
       return Q.finishNum(rng, q, ans, { min: 0, max: n - 1 });
     }
 
-    const idx = level === 1 ? rng.pick([1, n - 2, 2, 1, n - 2]) : rng.int(0, n - 1);
+    const idx = level === 2 ? rng.pick([1, n - 2, 2, 1, n - 2]) : rng.int(0, n - 1);
     q.prompt = idx === 0 ? 'En altta hangi şekil var?' : idx === n - 1 ? 'En üstte hangi şekil var?'
       : idx < n / 2 ? 'Alttan ' + ORD[idx + 1] + ' şekil hangisi?' : 'Üstten ' + ORD[n - idx] + ' şekil hangisi?';
     return Q.finish(rng, q, opt(figs[idx]), rng.shuffle(figs.filter((_, i) => i !== idx)).map(opt));
