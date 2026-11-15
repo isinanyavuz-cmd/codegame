@@ -300,6 +300,7 @@ svg { display: block; }
 .stepper .icon-btn[disabled] { opacity: .4; cursor: default; }
 .set-row b { font-family: var(--font-display); }
 
+.surum { display: block; margin-top: 4px; font-size: 12px; font-variant-numeric: tabular-nums; opacity: .8; }
 .foot { text-align: center; font-size: 13px; color: var(--ink-soft); }
 
 /* ---------- pencere ---------- */
@@ -320,6 +321,7 @@ svg { display: block; }
 .sheet-wide { width: min(100%, 760px); }
 .sheet-head { display: flex; align-items: center; gap: 14px; }
 .sheet-head .cat-ico { flex: none; width: 76px; height: 76px; }
+.sheet-head .cat-ico .robot { width: 100%; height: 100%; }
 .sheet-head h2 { font: 800 26px/1.1 var(--font-display); }
 .sheet-head p { font-size: 14px; color: var(--ink-soft); }
 .sheet-x { margin-left: auto; align-self: flex-start; }
@@ -431,6 +433,7 @@ svg { display: block; }
 .opt-emoji { font-size: clamp(46px, 10vw, 66px); line-height: 1.1; }
 .opt-pair { display: grid; justify-items: center; gap: 2px; }
 .opt-pair .opt-emoji { font-size: clamp(38px, 8vw, 54px); }
+.opt-line { width: 104px; max-width: 100%; }
 .opt-cap { font: 800 clamp(16px, 3.6vw, 20px)/1.1 var(--font-display); }
 @media (max-width: 520px) {
   /* üç şık yan yana dar kalır: harf rozeti içeriğin üstüne binmesin */
@@ -528,7 +531,7 @@ td .dot { display: inline-block; width: 10px; height: 10px; margin-right: 8px; b
 .dots i.x { background: var(--bad); }
 .set-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 2px solid var(--line); }
 .set-row:last-child { border-bottom: 0; }
-.seg { display: inline-flex; padding: 4px; border-radius: 14px; background: var(--surface-2); box-shadow: inset 0 0 0 2px var(--line); }
+.seg { display: inline-flex; flex-wrap: wrap; padding: 4px; border-radius: 14px; background: var(--surface-2); box-shadow: inset 0 0 0 2px var(--line); }
 .seg button { min-width: 52px; min-height: 40px; padding: 4px 12px; border: 0; border-radius: 10px; background: transparent; font: 800 16px/1 var(--font-display); }
 .seg button.on { background: var(--sun); color: var(--sun-ink); }
 .note { font-size: 14px; color: var(--ink-soft); }
@@ -548,6 +551,7 @@ td .dot { display: inline-block; width: 10px; height: 10px; margin-right: 8px; b
 @keyframes drain { to { transform: scaleX(0); } }
 
 @media (max-width: 420px) {
+  .seg button { min-width: 44px; padding: 4px 8px; }
   .brand-name { font-size: 26px; }
   .hero-card .robot, .hero-ico { width: 68px; height: 68px; }
   .paper { padding: 12px 12px 12px 24px; }

@@ -48,10 +48,13 @@
         ? '<circle cx="19" cy="25" r="3" fill="#7cf7ff"/><circle cx="31" cy="25" r="3" fill="#7cf7ff"/><path d="M21 31.2q4-2.4 8 0" fill="none" stroke="#7cf7ff" stroke-width="2.2" stroke-linecap="round"/>'
         : '<circle cx="19" cy="26" r="3.5" fill="#7cf7ff"/><circle cx="31" cy="26" r="3.5" fill="#7cf7ff"/>';
     return '<svg class="robot' + (cls ? ' ' + cls : '') + '" viewBox="0 0 56 56" aria-hidden="true">' +
-      '<path d="M25 5.5v8" stroke="#1d2b4a" stroke-width="3.4" stroke-linecap="round"/><circle cx="25" cy="5.5" r="4" fill="#ffc93c" stroke="#1d2b4a" stroke-width="2.6"/>' +
-      '<rect x="6" y="12" width="38" height="32" rx="12" fill="#3d8ef7" stroke="#1d2b4a" stroke-width="3.4"/>' +
-      '<rect x="11.5" y="18" width="27" height="16" rx="8" fill="#1d2b4a"/>' + eyes +
-      '<circle cx="42" cy="40" r="9" fill="#fff" fill-opacity=".92" stroke="#1d2b4a" stroke-width="3.4"/><path d="M48.5 46.5l4.6 4.6" stroke="#1d2b4a" stroke-width="4.8" stroke-linecap="round"/></svg>';
+      /* başında ampul yanan robot: "fikir buldum" */
+      '<path d="M20.6 4.4l-2.2-2M35.4 4.4l2.2-2M18.6 11h-3M37.4 11h3" stroke="#f5a700" stroke-width="2.4" stroke-linecap="round"/>' +
+      '<rect x="24.6" y="14.5" width="6.8" height="6" rx="1.6" fill="#c9d3e6" stroke="#1d2b4a" stroke-width="2.4"/>' +
+      '<circle cx="28" cy="10" r="6.6" fill="#ffd84d" stroke="#1d2b4a" stroke-width="2.6"/>' +
+      '<path d="M25.2 11.6l1.4-2.2 1.4 2.2 1.4-2.2 1.4 2.2" fill="none" stroke="#f08c00" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<rect x="9" y="20" width="38" height="31" rx="12" fill="#3d8ef7" stroke="#1d2b4a" stroke-width="3.4"/>' +
+      '<g transform="translate(3 7)"><rect x="11.5" y="18" width="27" height="16" rx="8" fill="#1d2b4a"/>' + eyes + '</g></svg>';
   }
 
   /* kategori simgeleri: soru çizimleriyle aynı şekil kütüphanesinden */
@@ -67,7 +70,8 @@
     rotate: () => S.figAt(F('flag', 'purple'), 6, 24, 62) + '<path d="M62 20a26 26 0 0 1 24 26" fill="none" stroke="#f08c00" stroke-width="7" stroke-linecap="round"/><path d="M86 58l-10 -13h20z" fill="#f08c00"/>',
     mirror: () => S.figAt(F('flag', 'green'), 0, 22, 56) + '<path d="M50 10v80" stroke="#2f7de1" stroke-width="3.4" stroke-dasharray="6 6" stroke-linecap="round"/>' + S.figAt(F('flag', 'green', { mirror: true }), 44, 22, 56),
     cubes: () => { const c = S.cubes([[2, 1], [1, 0]], 26, S.CUBE_TONES[0]); return '<g transform="translate(' + (100 - c.w) / 2 + ' ' + (100 - c.h) / 2 + ')">' + c.inner + '</g>'; },
-    stack: () => S.figAt(F('square', 'blue'), 4, 28, 60) + S.figAt(F('circle', 'red'), 32, 12, 60),
+    stack: () => [['#3d8ef7', 'M12 72L88 28'], ['#ffd233', 'M10 40L90 58'], ['#f2545b', 'M24 16L76 86']].map((l) =>
+      '<path d="' + l[1] + '" stroke="#1d2b4a" stroke-width="15" stroke-linecap="round"/><path d="' + l[1] + '" stroke="' + l[0] + '" stroke-width="10" stroke-linecap="round"/>').join(''),
     numseq: () => S.tile(3, 35, 29) + S.text(17.5, 49.5, '2', 20) + S.tile(35.5, 35, 29) + S.text(50, 49.5, '4', 20) + S.qtile(68, 35, 29),
     fruit: () => S.emoji(24, 50, '🍎', 32) + S.text(50, 50, '+', 26, { fill: '#566889' }) + S.emoji(76, 50, '🍌', 32),
     code: () => S.figAt(F('triangle', 'red'), 0, 27, 46) + S.text(53, 50, '=', 26, { fill: '#566889' }) + S.text(78, 50, '7', 42),
@@ -152,18 +156,20 @@
     const n = Store.data.settings.len;
     begin({ mode: 'practice', cat: id, level: level, items: makeItems(Array.from({ length: n }, () => ({ type: id, level: level }))) });
   }
-  function startDaily() {
-    begin({ mode: 'daily', items: makeItems(rng.shuffle(Store.dailyPlan(rng, 10))) });
+  function startDaily(level) {
+    const plan = rng.shuffle(Store.dailyPlan(rng, 10));
+    if (level) plan.forEach((sp) => { sp.level = level; });
+    begin({ mode: 'daily', fixed: level || 0, items: makeItems(plan) });
   }
-  function startExam(i) {
+  function startExam(i, level) {
     const ex = EXAMS[i], specs = [];
     let pool = [];
     for (let k = 0; k < ex.n; k++) {
       if (!pool.length) pool = rng.shuffle(B.CATS.map((c) => c.id));
       const f = k / ex.n;
-      specs.push({ type: pool.pop(), level: f < 0.25 ? 1 : f < 0.5 ? 2 : f < 0.8 ? 3 : 4 });   // kolaydan zora
+      specs.push({ type: pool.pop(), level: level || (f < 0.25 ? 1 : f < 0.5 ? 2 : f < 0.8 ? 3 : 4) });   // seçilmediyse kolaydan zora
     }
-    begin({ mode: 'exam', exam: i, left: ex.min * 60, items: makeItems(specs) });
+    begin({ mode: 'exam', exam: i, fixed: level || 0, left: ex.min * 60, items: makeItems(specs) });
   }
   function stopTimers() { clearInterval(clock); clearTimeout(memoT); clock = null; memoT = null; }
 
@@ -298,7 +304,8 @@
       '<span class="hero-go">Başla</span></button></section>' +
       B.AREAS.map((a) => '<section class="area" style="--area: var(--a-' + a.id + ')"><h2>' + a.name + '</h2><div class="cat-grid">' +
         B.CATS.filter((c) => c.area === a.id).map(catCard).join('') + '</div></section>').join('') +
-      '<p class="foot">Her gün kısa bir çalışma, arada bir uzun çalışmadan daha çok işe yarar.</p></div>';
+      '<p class="foot">Her gün kısa bir çalışma, arada bir uzun çalışmadan daha çok işe yarar.' +
+      (app.dataset.surum ? '<span class="surum">Sürüm ' + app.dataset.surum + '</span>' : '') + '</p></div>';
   }
 
   /* ---------- soru ekranı ---------- */
@@ -509,9 +516,9 @@
     if (ses.mode === 'practice') {
       sub = B.catById(ses.cat).name + ' · ' + B.LEVEL_NAMES[ses.level] + (r.stars ? ' · ' + r.stars + ' yıldız kazandın' : ' · Yıldız için soruların en az yarısını doğru yapmalısın');
     } else if (ses.mode === 'daily') {
-      sub = 'Günün görevi tamamlandı. ' + Store.streak() + ' gündür üst üste çalışıyorsun.';
+      sub = 'Günün görevi' + (ses.fixed ? ' (' + B.LEVEL_NAMES[ses.fixed] + ')' : '') + ' tamamlandı. ' + Store.streak() + ' gündür üst üste çalışıyorsun.';
     } else {
-      sub = EXAMS[ses.exam].name + ' · ' + r.blank + ' boş · süre ' + fmtTime(r.sec);
+      sub = EXAMS[ses.exam].name + ' · ' + (ses.fixed ? B.LEVEL_NAMES[ses.fixed] : 'karışık kademe') + ' · ' + r.blank + ' boş · süre ' + fmtTime(r.sec);
     }
     let html = '<div class="page result">' + robot(p >= 0.5 ? 'happy' : 'idle', 'badge') + '<h1>' + title + '</h1>';
     if (!exam) html += '<div class="big-stars">' + [0, 1, 2].map((i) => star(i < r.stars)).join('') + '</div>';
@@ -611,8 +618,16 @@
         B.LEVELS.map((lv) => '<button type="button" class="level' + (lv === rec ? ' rec' : '') + '" data-act="start" data-id="' + c.id + '" data-level="' + lv + '"><span>' +
           B.LEVEL_NAMES[lv] + (lv === rec ? '<small>Sana uygun seviye</small>' : '') + '</span>' + starsRow(st.stars[lv - 1]) + '</button>').join('') +
         '</div><p class="note">' + Store.data.settings.len + ' soruluk alıştırma. Soruların çoğunu doğru yaparsan yıldız kazanırsın.</p>';
+    } else if (sheet.kind === 'daily') {
+      body = '<div class="sheet-head"><span class="cat-ico">' + robot('happy') + '</span><div><h2>Günün Görevi</h2><p>Her konudan karışık 10 soru. Hangi kademede olsun?</p></div>' + closeBtn + '</div><div class="levels">' +
+        '<button type="button" class="level rec" data-act="daily-go" data-level="0"><span>Bana uygun<small>Her konuda kendi kademen</small></span></button>' +
+        B.LEVELS.map((lv) => '<button type="button" class="level" data-act="daily-go" data-level="' + lv + '"><span>' + B.LEVEL_NAMES[lv] + '</span></button>').join('') + '</div>';
     } else if (sheet.kind === 'exam') {
-      body = '<div class="sheet-head"><div><h2>Deneme Sınavı</h2><p>Bütün konulardan, kolaydan zora sıralı sorular.</p></div>' + closeBtn + '</div><div class="levels">' +
+      const lv = sheet.level || 0;
+      body = '<div class="sheet-head"><div><h2>Deneme Sınavı</h2><p>Bütün konulardan sorular. Önce kademeyi, sonra uzunluğu seç.</p></div>' + closeBtn + '</div>' +
+        '<div class="set-row"><span>Kademe</span><span class="seg">' + [0].concat(B.LEVELS).map((l) =>
+          '<button type="button" class="' + (l === lv ? 'on' : '') + '" data-act="exam-level" data-level="' + l + '" aria-pressed="' + (l === lv) + '">' + (l ? B.LEVEL_NAMES[l] : 'Karışık') + '</button>').join('') + '</span></div>' +
+        '<p class="tip">' + (lv ? 'Bütün sorular <b>' + B.LEVEL_NAMES[lv] + '</b> kademesinden gelir.' : '<b>Karışık:</b> sorular kolaydan en zora doğru sıralanır.') + '</p><div class="levels">' +
         EXAMS.map((e, i) => '<button type="button" class="level" data-act="exam" data-i="' + i + '"><span>' + e.name + '<small>' + e.n + ' soru · ' + e.min + ' dakika</small></span></button>').join('') +
         '</div><p class="note">Sınav sırasında doğru cevap gösterilmez. İstediğin soruya geri dönüp cevabını değiştirebilirsin.</p>';
     } else if (sheet.kind === 'span') {
@@ -683,17 +698,19 @@
     'span-del': spanDel,
     'span-ok': spanOk,
     'span-next': spanNext,
-    'span-again'() { spanStart(span.g.mode, span.g.level); },
+    'span-again'() { sheet = { kind: 'span' }; render(); },
     parent() {
       sheet = { kind: 'pin', wrong: false }; render();
       const inp = app.querySelector('#pin'); if (inp) inp.focus();
     },
     cat(el) { sheet = { kind: 'cat', id: el.dataset.id }; render(); },
-    'exam-pick'() { sheet = { kind: 'exam' }; render(); },
+    'exam-pick'() { sheet = { kind: 'exam', level: 0 }; render(); },
+    'exam-level'(el) { sheet.level = Number(el.dataset.level); render(); },
+    'daily-go'(el) { startDaily(Number(el.dataset.level)); },
     close() { sheet = null; render(); },
     start(el) { startPractice(el.dataset.id, Number(el.dataset.level)); },
-    daily() { startDaily(); },
-    exam(el) { startExam(Number(el.dataset.i)); },
+    daily() { if (Store.dailyDone()) { sheet = { kind: 'daily' }; render(); } else startDaily(0); },   // ilk oyun tek dokunuş; tekrarında kademe sorulur
+    exam(el) { startExam(Number(el.dataset.i), sheet.level || 0); },
     pick(el) { pick(Number(el.dataset.i)); },
     next: next,
     prev: prev,
@@ -703,9 +720,8 @@
     finish() { finish(); },
     review(el) { sheet = { kind: 'review', i: Number(el.dataset.i) }; render(); },
     again() {
-      if (ses.mode === 'practice') startPractice(ses.cat, ses.level);
-      else if (ses.mode === 'daily') startDaily();
-      else { sheet = { kind: 'exam' }; render(); }
+      sheet = ses.mode === 'practice' ? { kind: 'cat', id: ses.cat } : ses.mode === 'daily' ? { kind: 'daily' } : { kind: 'exam', level: ses.fixed || 0 };
+      render();
     },
     'level-up'() { startPractice(ses.cat, ses.level + 1); },
     speak() { const q = cur().q; speak(q.speech || q.prompt); },

@@ -22,6 +22,7 @@ node bilsem/tools/tek-dosya.js enes-bilsem.html
 |---|---|
 | Günün Görevi | Farklı konulardan 10 soru. Az çalışılan ve zorlanılan konular daha sık gelir. |
 | Konu alıştırması | Seçilen konu ve kademede 5, 10 ya da 15 soru. Her cevaptan sonra açıklama gösterilir. |
+| Tekrar oyna | Her çalışmanın sonunda "Tekrar oyna" önce kademeyi sorar. Günün Görevi ve Deneme Sınavı tek bir kademeyle ya da karışık oynanabilir. |
 | Deneme Sınavı | 20, 40 ya da 60 soru; süreli; cevaplar sınav bitince gösterilir. |
 | Sayı Hafızası | Sayı bir süre görünür ve kapanır; süre bitmeden klavyeyle düzden ve tersten yazılır. 3 basamaktan 7 basamağa kadar uzar, üç yanlışta oyun biter. Süre (hem görünme hem her yazım için): Kolay basamak sayısının iki katı, Orta basamak sayısı, Zor basamak sayısının üçte ikisi kadar saniye. Yazma süresi isteğe bağlıdır (veli panelinden): "Süresiz" seçilirse sayı yine süreyle görünür ama yazarken süre yoktur. |
 | Veli paneli | Şifreyle açılır (321321). Konu konu doğru oranı, ortalama süre, son 7 gün, öneriler, ayarlar. |
@@ -34,7 +35,7 @@ uzunluğu bu yüzden seçilebilir bırakıldı.
 | Alan | Türler |
 |---|---|
 | Şekil Bulmacaları | Şekil Örüntüsü, Şekil Tablosu, Şekil Benzetmesi, Farklı Olan |
-| Döndür ve Hayal Et | Döndürme, Ayna Görüntüsü, Küp Sayma, Üst Üste Şekiller |
+| Döndür ve Hayal Et | Döndürme, Ayna Görüntüsü, Küp Sayma, Üst Üste Çizgiler |
 | Sayı Bulmacaları | Sayı Örüntüsü, Meyve İşlemleri, Şifre Çözme, Sayı Makinesi |
 | Dikkat ve Hafıza | Aynısını Bul, Şekil Sayma, Görsel Hafıza, Gölge Bulma |
 | Mantık Yürütme | Sıralama, Ok Yolu, Terazi, Kim Hangisi? |
@@ -47,7 +48,8 @@ Her soru türünün dört kademesi var: 1 Kolay, 2 Orta, 3 Zor, 4 En Zor. Örnek
 |---|---|---|---|---|
 | Şekil Örüntüsü | yinelenen birim, dönen şekil, artan sayı | iki özellik birlikte değişir | dönüş + renk + boyut; halkada dolaşan kare | iki kare farklı hızlarda dolaşır |
 | Şekil Tablosu | satır bir özelliği, sütun başka bir özelliği belirler | her satır ve sütunda her şekil ve renk | üç özellik; sayıların toplamı; üst üste koyma | ortak kareler silinir; dört özellik |
-| Döndürme | 3×3 kareli şekil | 4×4 şekil | 5×5 şekil, tek karesi kaymış çeldiriciler | iki adım: dönüş ve yansıma |
+| Döndürme | 3×3 şekil; sağa ya da sola bir ya da iki kez çeyrek tur | 4×4 şekil; bir, iki ya da üç kez çeyrek tur | 5×5 şekil, tek karesi kaymış çeldiriciler | iki adım: dönüş ve yansıma |
+| Üst Üste Çizgiler | kesişen 4 düz çizgi; en üstteki, en alttaki | 5 düz çizgi; alttan ya da üstten ikinci | 5 dalgalı, zikzak ya da kavisli çizgi; herhangi bir sıra | 6 karışık çizgi; "hemen üstündeki", "altından kaç çizgi geçiyor" |
 | Küp Sayma | 6–10 küp | 3×3 taban, 10–17 küp | 4×4 taban, 16–26 küp | büyük küpe tamamlama; 26–40 küp |
 | Sayı Örüntüsü | sabit artış ve azalış, iki adımın sırayla yinelenmesi | büyüyen artış, 2 katı, iç içe iki dizi | önceki iki sayının toplamı, 2 katı + k | önceki üç sayının toplamı, ×2 ve +k sırayla |
 | Sayı Makinesi | ekleme, çıkarma, 2 katı | 2 katı ± 1, 3 katı | 3 katı ± 1, kendisiyle çarpma, yarısı | iki sayı girer, bir sayı çıkar |
@@ -67,6 +69,17 @@ ve altına yeni Kolay kademe eklenir; hiç çözülmemiş konular Kolay'dan baş
 ```
 node --test
 ```
+
+Bir CSS ya da JS dosyası değişince, yayına göndermeden önce sürüm damgalarını yenile:
+
+```
+node bilsem/tools/surum.js
+```
+
+Bu, `index.html` içindeki dosya adreslerine içerik damgası ekler (`js/app.js?v=…`). Dosya
+değişince adresi de değişir; tarayıcı eski kopyayı kullanamaz ve sayfayı yenilemek yeter.
+Damgalar eskiyse testler hata verir. Ana sayfanın altındaki "Sürüm" kodu, açık olan
+sürümün hangisi olduğunu gösterir.
 
 Testler her soru türünü her seviyede yüzlerce kez üretip şunları denetler:
 şıklar birbirinden farklı mı, tek doğru cevap var mı, açıklama dolu mu, doğru

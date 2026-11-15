@@ -321,3 +321,46 @@ test('öncüllü sorularda soru cümlesi öncüllerin altında gösterilir', () 
     assert.ok(!gen('pattern', lv, seed).promptBelow);
   }
 });
+
+test('üst üste çizgiler: her iki çizgi kesişir, sıra tek biçimde belirlenir ve cevap sırayla tutar', () => {
+  const cross = (a, b) => {
+    const d = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+    const A = [a.x0, a.y0], B2 = [a.x1, a.y1], C = [b.x0, b.y0], D = [b.x1, b.y1];
+    return d(A, B2, C) * d(A, B2, D) < 0 && d(C, D, A) * d(C, D, B2) < 0;
+  };
+  forEach('stack', (q, lv) => {
+    const m = q.meta, n = m.n, L = m.lines;
+    assert.strictEqual(n, [0, 4, 5, 5, 6][lv]);
+    assert.strictEqual(new Set(m.order).size, n, 'her çizgi ayrı renkte');
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) assert.ok(cross(L[i], L[j]), 'kesişmeyen çizgi çifti');
+    const styles = new Set(L.map((l) => l.style));
+    if (lv < 3) assert.deepStrictEqual(Array.from(styles), ['straight']);
+    if (lv === 3) { assert.strictEqual(styles.size, 1); assert.ok(!styles.has('straight')); }
+    if (m.ask === 'rank' || m.ask === 'above' || m.ask === 'below') {
+      assert.strictEqual(q.options[q.answer].key, 'l' + m.answer);
+      if (m.ask === 'above') assert.strictEqual(m.order.indexOf(m.answer), m.ref + 1);
+      if (m.ask === 'below') assert.strictEqual(m.order.indexOf(m.answer), m.ref - 1);
+    } else {
+      assert.strictEqual(value(q), m.answer);
+      assert.strictEqual(m.answer, m.ask === 'countAbove' ? n - 1 - m.ref : m.ref);
+      for (const o of q.options) assert.ok(o.value <= n - 1);
+    }
+    assert.strictEqual(m.ask === 'rank', lv < 4);
+  });
+});
+
+test('döndürme: sağa ya da sola sayılı çeyrek turların sonucu bağımsız hesapla aynı', () => {
+  const cw = (m) => m.map((_, r) => m.map((__, c) => m[m.length - 1 - c][r]));
+  const seen = new Set();
+  for (const lv of [1, 2, 3]) for (let seed = 1; seed <= RUNS; seed++) {
+    const q = gen('rotate', lv, seed), m = q.meta;
+    let g = m.m;
+    for (let i = 0; i < (m.right ? m.k : 4 - m.k); i++) g = cw(g);      // sola k kez = sağa 4 - k kez
+    assert.deepStrictEqual(m.result, g);
+    assert.ok(q.options[q.answer].key.indexOf(g.map((r) => r.join('')).join('/')) === 1);
+    assert.ok(m.k >= 1 && m.k <= (lv === 1 ? 2 : 3));
+    if (!/yarım tur/.test(q.prompt)) assert.ok(q.prompt.indexOf((m.right ? 'sağa' : 'sola') + ' doğru ' + ['', 'bir', 'iki', 'üç'][m.k] + ' kez') > 0, q.prompt);
+    seen.add((m.right ? 'sağa' : 'sola') + m.k);
+  }
+  assert.strictEqual(seen.size, 6, 'iki yön ve bir, iki, üç kez dönüşlerin hepsi çıkıyor');
+});

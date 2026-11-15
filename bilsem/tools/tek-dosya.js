@@ -13,12 +13,13 @@ if (!out) { console.error('Kullanım: node tek-dosya.js <çıktı.html> [--govde
 
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'css/style.css'), 'utf8');
-const scripts = Array.from(html.matchAll(/<script src="([^"]+)"><\/script>/g)).map((m) => m[1]);
+const scripts = Array.from(html.matchAll(/<script src="([^"?]+)(?:\?[^"]*)?"><\/script>/g)).map((m) => m[1]);   // ?v= damgası atılır
+const appDiv = (html.match(/<div id="app"[^>]*>/) || ['<div id="app">'])[0] + '</div>';
 const js = scripts.map((s) => fs.readFileSync(path.join(root, s), 'utf8').replace(/<\/script/g, '<\\/script')).join('\n');
 const fonts = (html.match(/<link rel="stylesheet" href="https:\/\/fonts[^>]+>/) || [''])[0];
 const title = (html.match(/<title>[^<]*<\/title>/) || ['<title>BİLSEM Hazırlık</title>'])[0];
 
-const core = fonts + '\n<style>\n' + css + '</style>\n<div id="app"></div>\n<script>\n' + js + '</script>\n';
+const core = fonts + '\n<style>\n' + css + '</style>\n' + appDiv + '\n<script>\n' + js + '</script>\n';
 const page = bodyOnly
   ? title + '\n<meta name="claude:viewport-fit-sides" content="cover">\n' + core
   : '<!DOCTYPE html>\n<html lang="tr">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n' +
