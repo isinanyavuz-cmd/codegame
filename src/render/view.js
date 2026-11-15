@@ -7,7 +7,7 @@ import { rng } from '../engine/rng.js';
 const C = 1.62;                 // bir karenin kenarı
 const SHIP_Y = 0.42, SHIP_SCALE = 0.8;
 const CAM_DIR = new THREE.Vector3(0, 21.5, 15.5).normalize();
-const MOVE_MS = 430, TRAIL_MAX = 1024;
+const MOVE_MS = 430;
 const RED = 0xff4d6a, GREEN = 0x37e39a, YELLOW = 0xffd53d;
 const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 const bright = (hex, k) => new THREE.Color(hex).multiplyScalar(k);
@@ -37,27 +37,6 @@ function makeMark(color, fill) {
   return g;
 }
 
-/** Yere serili şerit: geminin geçtiği yolu çizen iz için. */
-function makeRibbon(mat) {
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TRAIL_MAX * 6), 3));
-  const idx = [];
-  for (let i = 0; i < TRAIL_MAX - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
-  geo.setIndex(idx); geo.setDrawRange(0, 0);
-  const m = new THREE.Mesh(geo, mat); m.frustumCulled = false;
-  return m;
-}
-function updateRibbon(mesh, pts, width, y) {
-  const p = mesh.geometry.attributes.position, n = pts.length;
-  for (let i = 0; i < n; i++) {
-    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
-    let dx = b.x - a.x, dz = b.z - a.z; const len = Math.hypot(dx, dz) || 1;
-    const nx = (-dz / len) * width / 2, nz = (dx / len) * width / 2;
-    p.setXYZ(i * 2, pts[i].x + nx, y, pts[i].z + nz); p.setXYZ(i * 2 + 1, pts[i].x - nx, y, pts[i].z - nz);
-  }
-  p.needsUpdate = true; mesh.geometry.setDrawRange(0, Math.max(0, (n - 1) * 6));
-}
-
 export class View {
   constructor(container) {
     this.container = container;
@@ -85,11 +64,7 @@ export class View {
       beam.rotation.x = -Math.PI / 2; beam.visible = false; this.scene.add(beam); this.beams.push(beam);
     }
     this.targetMark = makeMark(YELLOW, 0.07); this.scene.add(this.targetMark);
-    // Geminin geçtiği yolun izi: parlak çekirdek + yumuşak hale + varılan karelerde nokta.
-    this.trailCore = makeRibbon(glow(bright(0x9ff4ff, 1.7), 0.95)); this.trailGlow = makeRibbon(glow(0x35c8ff, 0.3));
-    this.trailDots = new THREE.Group(); this.dotGeo = new THREE.CircleGeometry(0.13, 24); this.dotMat = glow(bright(0x9ff4ff, 1.6), 0.95);
-    this.scene.add(this.trailGlow, this.trailCore, this.trailDots);
-    this.trailPts = []; this.trailOn = false; this.gen = 0; this.carry = 0;
+    this.gen = 0; this.carry = 0;
 
     this.glowTex = glowTexture(); this.streakTex = streakTexture();
     this.mats = { line: glow(0x4fd2ff, 0.34), edge: glow(0x7fe2ff, 0.7), floor: glow(0x2a6bff, 0.07), exit: glow(bright(GREEN, 2.2), 1) };
@@ -183,7 +158,6 @@ export class View {
     this.meteors.clear(); this.crystals.clear();
     this.field = field;
     this.ship.visible = !!field;
-    this.clearTrail();
     if (!field) { this.fit(); return; }
     const g = this.level, { lanes, rows } = field, m = this.mats;
     const X0 = this.gx(-0.5), X1 = this.gx(lanes - 0.5), Z0 = this.gz(-0.5), Z1 = this.gz(rows - 0.5);
@@ -245,35 +219,6 @@ export class View {
     this.ship.rotation.set(0, 0, 0);
     for (const c of this.crystals.values()) { c.visible = true; c.scale.setScalar(1); }
     for (const m of this.meteors.values()) m.material.emissiveIntensity = 0;
-    this.clearTrail();
-  }
-
-  // ---------- iz ----------
-  clearTrail() {
-    this.trailOn = false; this.trailPts.length = 0;
-    this.trailCore.geometry.setDrawRange(0, 0); this.trailGlow.geometry.setDrawRange(0, 0);
-    this.trailDots.clear();
-  }
-  /** İz, geminin o an durduğu yerden başlar ve gemiyle birlikte uzar. */
-  startTrail() {
-    if (!this.trailPts.length) {
-      const p = this.ship.position;
-      this.trailPts.push({ x: p.x, z: p.z }, { x: p.x, z: p.z });
-      this.dotAt(p);
-    }
-    this.trailOn = true;
-  }
-  dotAt(pos) {
-    const d = new THREE.Mesh(this.dotGeo, this.dotMat);
-    d.rotation.x = -Math.PI / 2; d.position.set(pos.x, 0.036, pos.z); this.trailDots.add(d);
-  }
-  growTrail() {
-    const pts = this.trailPts, n = pts.length, p = this.ship.position;
-    if (n < 2) return;
-    const tip = pts[n - 1], prev = pts[n - 2];
-    tip.x = p.x; tip.z = p.z;
-    if (Math.hypot(tip.x - prev.x, tip.z - prev.z) > 0.07 && n < TRAIL_MAX) pts.push({ x: p.x, z: p.z });
-    updateRibbon(this.trailCore, pts, 0.085, 0.034); updateRibbon(this.trailGlow, pts, 0.36, 0.03);
   }
 
   /** Gemi alttan süzülerek başlangıç karesine girer. */
@@ -314,7 +259,6 @@ export class View {
       tw.fn(k);
       if (k >= 1 && this.tweens.delete(tw)) { if (tw.scaled) this.carry = Math.min(tw.t - tw.dur, 60); tw.resolve(); }
     }
-    if (this.trailOn) this.growTrail();
     const t = this.time;
     if (this.field) {
       for (const m of this.meteors.values()) { const s = m.userData.spin; m.rotation.x += s.x * dt; m.rotation.y += s.y * dt; m.rotation.z += s.z * dt; }
@@ -379,6 +323,7 @@ export class View {
     for (const b of this.beams) b.visible = false;
     for (const m of this.meteors.values()) m.material.emissiveIntensity = 0;
   }
+  /** Sarı silüet: geminin şimdi gitmekte olduğu (ya da sıradaki adımda gideceği) kare. */
   showTarget(cell) {
     this.targetMark.position.copy(this.cellPos(cell, 0)); this.targetMark.visible = true;
     this.ghost.position.copy(this.cellPos(cell)); this.ghost.visible = true;
@@ -392,8 +337,6 @@ export class View {
    */
   async move(ev) {
     const a = this.cellPos(ev.from), b = this.cellPos(ev.to), dl = ev.to.lane - ev.from.lane, gen = this.gen;
-    this.startTrail();
-    if (!ev.exit && dl) this.showTarget(ev.to);
     await this.tween(MOVE_MS, (k) => {
       if (gen !== this.gen) return;
       this.ship.position.set(a.x + (b.x - a.x) * ease(k), SHIP_Y, a.z + (b.z - a.z) * k);
@@ -402,8 +345,6 @@ export class View {
       this.thrust = 1.25 + s * 0.3;
     });
     if (gen !== this.gen) return;
-    this.hideTarget();
-    if (!ev.exit) this.dotAt(b);
     if (ev.collect) this.collect(ev.to);
   }
 
@@ -416,7 +357,6 @@ export class View {
 
   async crash(ev) {
     const a = this.cellPos(ev.from), b = this.cellPos(ev.to), dl = ev.to.lane - ev.from.lane, gen = this.gen;
-    this.startTrail();
     const stopAt = ev.reason === 'wall' ? 0.5 : 0.66;
     await this.tween(MOVE_MS * stopAt, (k) => {
       if (gen !== this.gen) return;
@@ -424,7 +364,6 @@ export class View {
       this.ship.rotation.z = -dl * 0.5 * k; this.thrust = 1.25 + k * 0.4;
     });
     if (gen !== this.gen) return;
-    this.trailOn = false;
     const p = this.ship.position.clone();
     this.ship.visible = false;
     this.burst(p, { color: 0xff7a2f, n: 70, speed: 6.5, life: 0.9, size: 0.5 });
@@ -439,7 +378,7 @@ export class View {
   /** Gemi çıkış çizgisini geçtikten sonra hızlanıp uzaklaşır. */
   async win() {
     const a = this.ship.position.clone(), b = a.clone(), gen = this.gen; b.z -= 7;
-    this.trailOn = false;
+    this.hideTarget();
     this.burst(new THREE.Vector3(a.x, 0.3, this.gz(this.field.rows - 0.5)), { color: GREEN, n: 44, speed: 5, life: 0.8, size: 0.4, up: 0.3 });
     await this.tween(560, (k) => {
       if (gen !== this.gen) return;

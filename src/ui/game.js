@@ -213,7 +213,8 @@ export class Game {
       this.current = this.play(tick, alive);
       const done = await this.current;
       if (!alive() || done) return;
-      if (this.stepMode && tick.ev.t === 'move') { this.setStatus('paused'); return; }
+      // Adım modunda her hareketten sonra dur; çıkıştan geçiş hareketinde durma, görev bitsin.
+      if (this.stepMode && tick.ev.t === 'move' && !tick.ev.exit) { this.setStatus('paused'); return; }
     }
   }
 
@@ -230,12 +231,16 @@ export class Game {
     if (senses.length) { this.showCalls(senses); sfx.sense(senses[senses.length - 1].result); } else this.hideCall();
     if (ev.t === 'move') {
       if (ev.kind === 'fwd') sfx.move(); else sfx.dodge();
+      this.showTarget(ev);
       await view.move(ev);
-      if (alive() && ev.collect) sfx.collect();
+      if (!alive()) return true;
+      if (ev.collect) sfx.collect();
+      // Gemi silüetin olduğu kareye vardı: silüet sıradaki hedefe geçer.
+      this.showTarget(this.events.slice(this.i).find((e) => e.t === 'move' || e.t === 'crash'));
       return false;
     }
     if (ev.t === 'crash') {
-      sfx.dodge();
+      sfx.dodge(); this.showTarget(ev);
       setTimeout(() => { if (alive()) sfx.crash(); }, 250 / this.speed);
       await view.crash(ev);
       if (alive()) this.fail(ev.reason);
@@ -342,6 +347,11 @@ export class Game {
     }
   }
   hideCall() { $('calls').replaceChildren(); this.view.hideSense(); }
+
+  /** Sarı silüeti verilen hareketin hedef karesine koyar; hedef yoksa ya da çıkışın ötesindeyse gizler. */
+  showTarget(ev) {
+    if (ev && !ev.exit) this.view.showTarget(ev.to); else this.view.hideTarget();
+  }
 
   showToast(kind, text, sub = '', hint = '') {
     const el = $('toast');
