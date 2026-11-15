@@ -7,7 +7,7 @@ import { rng } from '../engine/rng.js';
 const C = 1.62;                 // bir karenin kenarı
 const SHIP_Y = 0.42, SHIP_SCALE = 0.8;
 const CAM_DIR = new THREE.Vector3(0, 21.5, 15.5).normalize();
-const MOVE_MS = 430, SENSE_MS = 520;
+const MOVE_MS = 430, TRAIL_MAX = 1024;
 const RED = 0xff4d6a, GREEN = 0x37e39a, YELLOW = 0xffd53d;
 const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 const bright = (hex, k) => new THREE.Color(hex).multiplyScalar(k);
@@ -37,6 +37,27 @@ function makeMark(color, fill) {
   return g;
 }
 
+/** Yere serili şerit: geminin geçtiği yolu çizen iz için. */
+function makeRibbon(mat) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TRAIL_MAX * 6), 3));
+  const idx = [];
+  for (let i = 0; i < TRAIL_MAX - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+  geo.setIndex(idx); geo.setDrawRange(0, 0);
+  const m = new THREE.Mesh(geo, mat); m.frustumCulled = false;
+  return m;
+}
+function updateRibbon(mesh, pts, width, y) {
+  const p = mesh.geometry.attributes.position, n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
+    let dx = b.x - a.x, dz = b.z - a.z; const len = Math.hypot(dx, dz) || 1;
+    const nx = (-dz / len) * width / 2, nz = (dx / len) * width / 2;
+    p.setXYZ(i * 2, pts[i].x + nx, y, pts[i].z + nz); p.setXYZ(i * 2 + 1, pts[i].x - nx, y, pts[i].z - nz);
+  }
+  p.needsUpdate = true; mesh.geometry.setDrawRange(0, Math.max(0, (n - 1) * 6));
+}
+
 export class View {
   constructor(container) {
     this.container = container;
@@ -55,10 +76,20 @@ export class View {
     this.level = new THREE.Group(); this.scene.add(this.level);
     this.ship = buildShip(); this.ship.scale.setScalar(SHIP_SCALE); this.ship.visible = false; this.scene.add(this.ship);
     this.ghost = buildShip(glow(bright(0xffd84a, 1.5), 0.3)); this.ghost.scale.setScalar(SHIP_SCALE); this.ghost.visible = false; this.scene.add(this.ghost);
-    this.senseMark = makeMark(RED, 0.16); this.scene.add(this.senseMark);
+    // Bir adımda birden çok sensöre bakılabilir (iç içe "eğer"); her biri için ayrı işaret.
+    const beamTex = beamTexture();
+    this.senseMarks = []; this.beams = [];
+    for (let i = 0; i < 3; i++) {
+      const mk = makeMark(RED, 0.16); this.scene.add(mk); this.senseMarks.push(mk);
+      const beam = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      beam.rotation.x = -Math.PI / 2; beam.visible = false; this.scene.add(beam); this.beams.push(beam);
+    }
     this.targetMark = makeMark(YELLOW, 0.07); this.scene.add(this.targetMark);
-    this.beam = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: beamTexture(), transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-    this.beam.rotation.x = -Math.PI / 2; this.beam.visible = false; this.scene.add(this.beam);
+    // Geminin geçtiği yolun izi: parlak çekirdek + yumuşak hale + varılan karelerde nokta.
+    this.trailCore = makeRibbon(glow(bright(0x9ff4ff, 1.7), 0.95)); this.trailGlow = makeRibbon(glow(0x35c8ff, 0.3));
+    this.trailDots = new THREE.Group(); this.dotGeo = new THREE.CircleGeometry(0.13, 24); this.dotMat = glow(bright(0x9ff4ff, 1.6), 0.95);
+    this.scene.add(this.trailGlow, this.trailCore, this.trailDots);
+    this.trailPts = []; this.trailOn = false; this.gen = 0; this.carry = 0;
 
     this.glowTex = glowTexture(); this.streakTex = streakTexture();
     this.mats = { line: glow(0x4fd2ff, 0.34), edge: glow(0x7fe2ff, 0.7), floor: glow(0x2a6bff, 0.07), exit: glow(bright(GREEN, 2.2), 1) };
@@ -152,6 +183,7 @@ export class View {
     this.meteors.clear(); this.crystals.clear();
     this.field = field;
     this.ship.visible = !!field;
+    this.clearTrail();
     if (!field) { this.fit(); return; }
     const g = this.level, { lanes, rows } = field, m = this.mats;
     const X0 = this.gx(-0.5), X1 = this.gx(lanes - 0.5), Z0 = this.gz(-0.5), Z1 = this.gz(rows - 0.5);
@@ -213,6 +245,35 @@ export class View {
     this.ship.rotation.set(0, 0, 0);
     for (const c of this.crystals.values()) { c.visible = true; c.scale.setScalar(1); }
     for (const m of this.meteors.values()) m.material.emissiveIntensity = 0;
+    this.clearTrail();
+  }
+
+  // ---------- iz ----------
+  clearTrail() {
+    this.trailOn = false; this.trailPts.length = 0;
+    this.trailCore.geometry.setDrawRange(0, 0); this.trailGlow.geometry.setDrawRange(0, 0);
+    this.trailDots.clear();
+  }
+  /** İz, geminin o an durduğu yerden başlar ve gemiyle birlikte uzar. */
+  startTrail() {
+    if (!this.trailPts.length) {
+      const p = this.ship.position;
+      this.trailPts.push({ x: p.x, z: p.z }, { x: p.x, z: p.z });
+      this.dotAt(p);
+    }
+    this.trailOn = true;
+  }
+  dotAt(pos) {
+    const d = new THREE.Mesh(this.dotGeo, this.dotMat);
+    d.rotation.x = -Math.PI / 2; d.position.set(pos.x, 0.036, pos.z); this.trailDots.add(d);
+  }
+  growTrail() {
+    const pts = this.trailPts, n = pts.length, p = this.ship.position;
+    if (n < 2) return;
+    const tip = pts[n - 1], prev = pts[n - 2];
+    tip.x = p.x; tip.z = p.z;
+    if (Math.hypot(tip.x - prev.x, tip.z - prev.z) > 0.07 && n < TRAIL_MAX) pts.push({ x: p.x, z: p.z });
+    updateRibbon(this.trailCore, pts, 0.085, 0.034); updateRibbon(this.trailGlow, pts, 0.36, 0.03);
   }
 
   /** Gemi alttan süzülerek başlangıç karesine girer. */
@@ -220,15 +281,19 @@ export class View {
     if (!this.field) return Promise.resolve();
     const to = this.cellPos({ lane: this.field.start, y: 0 }), from = to.clone(); from.z += 3.2;
     this.ship.position.copy(from);
-    return this.tween(520, (k) => { this.ship.position.lerpVectors(from, to, 1 - Math.pow(1 - k, 3)); this.thrust = 1 + (1 - k) * 0.9; }, false);
+    const gen = this.gen;
+    return this.tween(520, (k) => { if (gen !== this.gen) return; this.ship.position.lerpVectors(from, to, 1 - Math.pow(1 - k, 3)); this.thrust = 1 + (1 - k) * 0.9; }, false);
   }
 
   // ---------- zaman ----------
   tween(dur, fn, scaled = true) {
-    return new Promise((resolve) => { this.tweens.add({ t: 0, dur, fn, scaled, resolve }); });
+    // Biten animasyondan artan süre sıradakine eklenir; böylece art arda hareketler takılmadan akar.
+    const t = scaled ? this.carry : 0; this.carry = 0;
+    return new Promise((resolve) => { this.tweens.add({ t, dur, fn, scaled, resolve }); });
   }
   wait(ms) { return this.tween(ms, () => {}); }
   cancel() {
+    this.gen++; this.carry = 0;
     for (const tw of [...this.tweens]) { this.tweens.delete(tw); tw.resolve(); }
     for (const b of this.bursts) { this.scene.remove(b.pts); b.pts.geometry.dispose(); b.pts.material.dispose(); }
     this.bursts.length = 0; this.shake = 0; this.thrust = 1;
@@ -242,12 +307,14 @@ export class View {
       this.ema += (raw - this.ema) * 0.08;
       if (++this.samples > 40 && this.ema > 42) { this.quality--; this.samples = 0; this.ema = 16; this.resize(); }
     }
+    this.carry = 0;
     for (const tw of [...this.tweens]) {
       tw.t += dt * 1000 * (tw.scaled ? this.speed : 1);
       const k = Math.min(1, tw.t / tw.dur);
       tw.fn(k);
-      if (k >= 1 && this.tweens.delete(tw)) tw.resolve();
+      if (k >= 1 && this.tweens.delete(tw)) { if (tw.scaled) this.carry = Math.min(tw.t - tw.dur, 60); tw.resolve(); }
     }
+    if (this.trailOn) this.growTrail();
     const t = this.time;
     if (this.field) {
       for (const m of this.meteors.values()) { const s = m.userData.spin; m.rotation.x += s.x * dt; m.rotation.y += s.y * dt; m.rotation.z += s.z * dt; }
@@ -255,7 +322,7 @@ export class View {
       for (const f of this.ship.userData.flames) f.scale.set(1, 1, this.thrust * (0.9 + Math.sin(t * 40 + f.position.x * 9) * 0.1));
       if (!this.tweens.size) this.ship.position.y = SHIP_Y + Math.sin(t * 2.2) * 0.025;
       const pulse = 0.75 + Math.sin(t * 9) * 0.25;
-      if (this.senseMark.visible) this.senseMark.userData.plane.opacity = this.senseMark.userData.fill * (0.7 + pulse * 0.6);
+      for (const mk of this.senseMarks) if (mk.visible) mk.userData.plane.opacity = mk.userData.fill * (0.7 + pulse * 0.6);
     }
     for (let i = this.bursts.length - 1; i >= 0; i--) {
       const b = this.bursts[i]; b.age += dt;
@@ -286,24 +353,30 @@ export class View {
   }
 
   // ---------- işaretler ----------
-  /** Sensörün baktığı kareyi ve tarama ışınını gösterir. `danger`: kırmızı, değilse yeşil. */
-  showSense(from, cell, danger) {
-    const color = danger ? RED : GREEN, mk = this.senseMark;
-    mk.userData.line.color.copy(bright(color, 1.6)); mk.userData.plane.color.set(color);
-    mk.position.copy(this.cellPos(cell, 0)); mk.visible = true;
-    const a = this.cellPos(from, 0.04), b = this.cellPos(cell, 0.04);
-    a.z -= 0.55;
-    const len = Math.max(0.3, a.distanceTo(b) - 0.2);
-    this.beam.material.color.set(color);
-    this.beam.scale.set(C - 0.5, len, 1);
-    this.beam.position.copy(a).lerp(b, 0.5);
-    this.beam.rotation.z = Math.atan2(a.x - b.x, a.z - b.z);
-    this.beam.visible = true;
-    const meteor = this.meteors.get(`${cell.lane},${cell.y}`);
-    if (meteor && danger) { meteor.material.emissive.set(0xff2b4f); meteor.material.emissiveIntensity = 0.3; }
+  /**
+   * Bu adımda bakılan sensörleri gösterir: her biri için kare işareti ve tarama ışını.
+   * @param list [{ from, cell, danger }]; danger kırmızı, değilse yeşil çizilir
+   */
+  showSenses(list) {
+    this.hideSense();
+    list.slice(0, this.senseMarks.length).forEach((s, i) => {
+      const color = s.danger ? RED : GREEN, mk = this.senseMarks[i], beam = this.beams[i];
+      mk.userData.line.color.copy(bright(color, 1.6)); mk.userData.plane.color.set(color);
+      mk.position.copy(this.cellPos(s.cell, 0)); mk.visible = true;
+      const a = this.cellPos(s.from, 0.04), b = this.cellPos(s.cell, 0.04);
+      a.z -= 0.55;
+      beam.material.color.set(color);
+      beam.scale.set(C - 0.5, Math.max(0.3, a.distanceTo(b) - 0.2), 1);
+      beam.position.copy(a).lerp(b, 0.5);
+      beam.rotation.z = Math.atan2(a.x - b.x, a.z - b.z);
+      beam.visible = true;
+      const meteor = this.meteors.get(`${s.cell.lane},${s.cell.y}`);
+      if (meteor && s.danger) { meteor.material.emissive.set(0xff2b4f); meteor.material.emissiveIntensity = 0.3; }
+    });
   }
   hideSense() {
-    this.senseMark.visible = false; this.beam.visible = false;
+    for (const mk of this.senseMarks) mk.visible = false;
+    for (const b of this.beams) b.visible = false;
     for (const m of this.meteors.values()) m.material.emissiveIntensity = 0;
   }
   showTarget(cell) {
@@ -313,23 +386,24 @@ export class View {
   hideTarget() { this.targetMark.visible = false; this.ghost.visible = false; }
 
   // ---------- olay animasyonları ----------
-  sense(ev) {
-    const danger = ev.cond === 'ahead' ? ev.result : !ev.result;
-    this.showSense({ lane: ev.lane, y: ev.y }, ev.cell, danger);
-    return this.wait(SENSE_MS);
-  }
-
+  /**
+   * Gemi bir sonraki kareye uçar. İleri hız sabittir, yana kayma yumuşaktır;
+   * art arda gelen hareketler durmadan birbirine bağlanır.
+   */
   async move(ev) {
-    const a = this.cellPos(ev.from), b = this.cellPos(ev.to), dl = ev.to.lane - ev.from.lane;
-    this.hideSense();
+    const a = this.cellPos(ev.from), b = this.cellPos(ev.to), dl = ev.to.lane - ev.from.lane, gen = this.gen;
+    this.startTrail();
     if (!ev.exit && dl) this.showTarget(ev.to);
     await this.tween(MOVE_MS, (k) => {
-      this.ship.position.lerpVectors(a, b, ease(k));
+      if (gen !== this.gen) return;
+      this.ship.position.set(a.x + (b.x - a.x) * ease(k), SHIP_Y, a.z + (b.z - a.z) * k);
       const s = Math.sin(Math.PI * k);
       this.ship.rotation.z = -dl * 0.55 * s; this.ship.rotation.y = -dl * 0.18 * s;
-      this.thrust = 1 + s * 0.55;
+      this.thrust = 1.25 + s * 0.3;
     });
+    if (gen !== this.gen) return;
     this.hideTarget();
+    if (!ev.exit) this.dotAt(b);
     if (ev.collect) this.collect(ev.to);
   }
 
@@ -341,13 +415,16 @@ export class View {
   }
 
   async crash(ev) {
-    const a = this.cellPos(ev.from), b = this.cellPos(ev.to), dl = ev.to.lane - ev.from.lane;
-    this.hideSense();
+    const a = this.cellPos(ev.from), b = this.cellPos(ev.to), dl = ev.to.lane - ev.from.lane, gen = this.gen;
+    this.startTrail();
     const stopAt = ev.reason === 'wall' ? 0.5 : 0.66;
-    await this.tween(MOVE_MS * 0.62, (k) => {
-      this.ship.position.lerpVectors(a, b, ease(k) * stopAt);
-      this.ship.rotation.z = -dl * 0.5 * k; this.thrust = 1 + k * 0.5;
+    await this.tween(MOVE_MS * stopAt, (k) => {
+      if (gen !== this.gen) return;
+      this.ship.position.lerpVectors(a, b, k * stopAt);
+      this.ship.rotation.z = -dl * 0.5 * k; this.thrust = 1.25 + k * 0.4;
     });
+    if (gen !== this.gen) return;
+    this.trailOn = false;
     const p = this.ship.position.clone();
     this.ship.visible = false;
     this.burst(p, { color: 0xff7a2f, n: 70, speed: 6.5, life: 0.9, size: 0.5 });
@@ -355,18 +432,21 @@ export class View {
     this.burst(p, { color: 0x49c8ff, n: 22, speed: 8, life: 0.7, size: 0.26 });
     const meteor = this.meteors.get(`${ev.to.lane},${ev.to.y}`);
     if (meteor) { meteor.material.emissive.set(0xff2b4f); meteor.material.emissiveIntensity = 0.6; }
-    await this.tween(560, (k) => { this.shake = (1 - k) * 16; }, false);
-    this.shake = 0.001;
+    await this.tween(560, (k) => { if (gen === this.gen) this.shake = (1 - k) * 16; }, false);
+    if (gen === this.gen) this.shake = 0.001;
   }
 
   /** Gemi çıkış çizgisini geçtikten sonra hızlanıp uzaklaşır. */
   async win() {
-    const a = this.ship.position.clone(), b = a.clone(); b.z -= 7;
+    const a = this.ship.position.clone(), b = a.clone(), gen = this.gen; b.z -= 7;
+    this.trailOn = false;
     this.burst(new THREE.Vector3(a.x, 0.3, this.gz(this.field.rows - 0.5)), { color: GREEN, n: 44, speed: 5, life: 0.8, size: 0.4, up: 0.3 });
     await this.tween(560, (k) => {
-      this.ship.position.lerpVectors(a, b, k * k);
-      this.thrust = 1 + k * 2.4; this.ship.scale.setScalar(SHIP_SCALE * (1 - k * 0.55));
+      if (gen !== this.gen) return;
+      this.ship.position.lerpVectors(a, b, k * (0.45 + 0.55 * k));
+      this.thrust = 1.25 + k * 2.2; this.ship.scale.setScalar(SHIP_SCALE * (1 - k * 0.55));
     }, false);
+    if (gen !== this.gen) return;
     this.ship.visible = false; this.thrust = 1;
   }
 }
