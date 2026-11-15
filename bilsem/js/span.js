@@ -1,13 +1,20 @@
-/* Sayı Hafızası: sayı gösterilir, kapanır; düzden ve tersten yazılır. 3 basamaktan 10 basamağa kadar ilerler. */
+/* Sayı Hafızası: sayı gösterilir, kapanır; süre bitmeden düzden ve tersten yazılır. 3 basamaktan 7 basamağa kadar ilerler. */
 (function (root) {
   'use strict';
   const Bilsem = root.Bilsem = root.Bilsem || {};
-  const MIN = 3, MAX = 10, LIVES = 3;
+  const MIN = 3, MAX = 7, LIVES = 3;
   const MODES = [
     { id: 'both', name: 'Düzden ve tersten yaz', short: 'düzden ve tersten' },
     { id: 'fwd', name: 'Yalnız düzden yaz', short: 'yalnız düzden' },
     { id: 'bwd', name: 'Yalnız tersten yaz', short: 'yalnız tersten' },
   ];
+  /* Düzey süreyi belirler: hem sayının göründüğü süre hem de her yazım için verilen süre = basamak sayısı × factor saniye */
+  const LEVELS = [
+    { id: 1, name: 'Kolay', factor: 2, text: 'Süre, basamak sayısının iki katı kadar saniyedir.' },
+    { id: 2, name: 'Orta', factor: 1, text: 'Süre, basamak sayısı kadar saniyedir.' },
+    { id: 3, name: 'Zor', factor: 2 / 3, text: 'Süre, basamak sayısının üçte ikisi kadar saniyedir.' },
+  ];
+  const levelOf = (id) => LEVELS.find((l) => l.id === id) || LEVELS[0];
 
   const reverse = (s) => s.split('').reverse().join('');
 
@@ -31,10 +38,11 @@
   /* Bir oyunda sırayla istenen yazımlar: ['fwd'], ['bwd'] ya da ['fwd', 'bwd'] */
   const asks = (mode) => (mode === 'both' ? ['fwd', 'bwd'] : [mode]);
   const expected = (number, ask) => (ask === 'bwd' ? reverse(number) : number);
-  const seconds = (n) => n;                 // basamak sayısı kadar saniye
+  /* n basamaklı sayı için saniye; onda bire yuvarlanır (Zor düzeyde 4 basamak 2,7 saniye) */
+  const seconds = (n, level) => Math.round(n * levelOf(level).factor * 10) / 10;
 
-  function newGame(mode, start) {
-    return { mode: mode, len: Math.max(MIN, Math.min(MAX, start || MIN)), lives: LIVES, best: 0, trials: 0, hits: 0, over: false, won: false };
+  function newGame(mode, start, level) {
+    return { mode: mode, level: levelOf(level).id, len: Math.max(MIN, Math.min(MAX, start || MIN)), lives: LIVES, best: 0, trials: 0, hits: 0, over: false, won: false };
   }
   /* Bir sayı denemesi bitti. Doğruysa bir basamak uzar; yanlışsa bir can gider ve aynı uzunluk yeni sayıyla yinelenir. */
   function advance(g, success) {
@@ -50,7 +58,10 @@
     return g;
   }
 
-  Bilsem.Span = { MIN: MIN, MAX: MAX, LIVES: LIVES, MODES: MODES, reverse: reverse, makeNumber: makeNumber, asks: asks, expected: expected, seconds: seconds, newGame: newGame, advance: advance };
+  Bilsem.Span = {
+    MIN: MIN, MAX: MAX, LIVES: LIVES, MODES: MODES, LEVELS: LEVELS, levelOf: levelOf,
+    reverse: reverse, makeNumber: makeNumber, asks: asks, expected: expected, seconds: seconds, newGame: newGame, advance: advance,
+  };
 
   if (typeof module !== 'undefined') module.exports = Bilsem;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -267,9 +267,11 @@
       '<span class="cat-ico">' + icon(c.id) + '</span><span class="cat-name">' + c.name + '</span><span class="cat-desc">' + c.desc + '</span>' +
       '<span class="cat-stars">' + star(total > 0) + total + '<i>/ 9</i></span></button>';
   }
+  const fmtSec = (v) => String(v).replace('.', ',');
   function spanRecords() {
-    const r = Store.data.span, list = Span.MODES.filter((m) => r[m.id]);
-    return list.length ? 'Rekor: ' + list.map((m) => m.short + ' ' + r[m.id] + ' basamak').join(' · ') : 'Henüz rekor yok.';
+    const best = Store.data.span.best;
+    const list = Span.LEVELS.map((l) => ({ name: l.name, v: Math.max(best[l.id].both, best[l.id].fwd, best[l.id].bwd) })).filter((x) => x.v);
+    return list.length ? 'Rekor: ' + list.map((x) => x.name + ' ' + x.v + ' basamak').join(' · ') : 'Henüz rekor yok.';
   }
   function homeView() {
     const done = Store.dailyDone();
@@ -289,7 +291,7 @@
       '<span class="hero-go">Sınav seç</span></span></button></section>' +
       '<section class="area" style="--area: var(--a-hafiza)"><h2>Sayı Hafızası</h2>' +
       '<button type="button" class="span-card" data-act="span-pick">' + I.span +
-      '<span class="hc"><span class="hc-title">Sayıyı aklında tut</span><span class="hc-text">Sayıya bak; kapanınca klavyeyle düzden ve tersten yaz. ' +
+      '<span class="hc"><span class="hc-title">Sayıyı aklında tut</span><span class="hc-text">Sayıya bak; kapanınca süre bitmeden klavyeyle düzden ve tersten yaz. ' +
       Span.MIN + ' basamakla başlar, ' + Span.MAX + ' basamağa kadar uzar.</span><span class="span-recs">' + spanRecords() + '</span></span>' +
       '<span class="hero-go">Başla</span></button></section>' +
       B.AREAS.map((a) => '<section class="area" style="--area: var(--a-' + a.id + ')"><h2>' + a.name + '</h2><div class="cat-grid">' +
@@ -351,18 +353,25 @@
   }
 
   /* ---------- sayı hafızası ---------- */
-  function spanStart(mode) {
+  function spanStart(mode, level) {
     stopTimers();
     ses = null; sheet = null;
     view = 'span';
-    span = { g: Span.newGame(mode, Store.data.settings.spanStart), phase: 'show', number: '', askIdx: 0, typed: '', entries: [], ok: false, record: false };
+    const set = Store.data.settings;
+    span = { g: Span.newGame(mode, set.spanStart, level || set.spanLevel), phase: 'show', number: '', askIdx: 0, typed: '', entries: [], late: [], ok: false, record: false, total: 0, t0: 0 };
     spanShow();
+  }
+  /* süre sayacı: gösterme ve her yazım için aynı süre (düzeye göre) */
+  function spanTimer(fn) {
+    clearTimeout(memoT);
+    span.total = Span.seconds(span.g.len, span.g.level);
+    span.t0 = performance.now();
+    memoT = setTimeout(fn, span.total * 1000);
   }
   function spanShow() {
     span.number = Span.makeNumber(rng, span.g.len);
-    span.phase = 'show'; span.askIdx = 0; span.typed = ''; span.entries = [];
-    clearTimeout(memoT);
-    memoT = setTimeout(spanHide, Span.seconds(span.g.len) * 1000);
+    span.phase = 'show'; span.askIdx = 0; span.typed = ''; span.entries = []; span.late = [];
+    spanTimer(spanHide);
     render();
     window.scrollTo(0, 0);
   }
@@ -370,6 +379,7 @@
     clearTimeout(memoT);
     if (!span || view !== 'span' || span.phase !== 'show') return;
     span.phase = 'type';
+    spanTimer(spanTimeout);
     render();
   }
   function spanKey(d) {
@@ -382,17 +392,23 @@
     span.typed = span.typed.slice(0, -1);
     render();
   }
-  function spanOk() {
-    if (!span || view !== 'span' || sheet || span.phase !== 'type' || span.typed.length !== span.g.len) return;
+  function spanOk() { if (!sheet) spanSubmit(false); }
+  function spanTimeout() { spanSubmit(true); }
+  /* Yazılanı gönderir. Süre bittiyse o ana kadar yazılan neyse o sayılır (eksikse yanlış). */
+  function spanSubmit(timeout) {
+    if (!span || view !== 'span' || span.phase !== 'type') return;
     const list = Span.asks(span.g.mode), len = span.g.len;
+    if (!timeout && span.typed.length !== len) return;
+    clearTimeout(memoT);
     span.entries.push(span.typed);
+    span.late.push(span.typed.length < len);
     span.typed = '';
-    if (span.askIdx < list.length - 1) { span.askIdx++; render(); return; }
+    if (span.askIdx < list.length - 1) { span.askIdx++; spanTimer(spanTimeout); render(); return; }
     span.ok = list.every((a, i) => span.entries[i] === Span.expected(span.number, a));
     span.shownLen = len;
     Span.advance(span.g, span.ok);
     Store.spanTrial(span.ok);
-    if (span.ok && Store.spanBest(span.g.mode, span.g.best)) span.record = true;
+    if (span.ok && Store.spanBest(span.g.level, span.g.mode, span.g.best)) span.record = true;
     if (span.g.over) Store.spanPlayed();
     Store.save();
     span.phase = 'result';
@@ -404,17 +420,23 @@
     if (span.g.over) { span.phase = 'over'; render(); window.scrollTo(0, 0); beep(span.g.best ? SND.win : SND.done); }
     else spanShow();
   }
+  /* azalan süre çubuğu; ekran yeniden çizilse de kaldığı yerden devam eder */
+  function timeBar() {
+    const gone = Math.min(span.total, (performance.now() - span.t0) / 1000);
+    return '<div class="memo-bar"><i style="animation-duration:' + span.total + 's;animation-delay:-' + gone.toFixed(2) + 's"></i></div>';
+  }
   /* rakam kutuları; marks verilirse her kutu doğru/yanlış boyanır */
   function digitsHtml(str, n, marks) {
     let out = '<div class="digits" style="--n:' + n + '">';
     for (let i = 0; i < n; i++) {
       const ch = str[i];
-      out += '<span class="digit' + (ch == null ? (i === str.length ? ' cur' : ' empty') : marks ? (marks[i] ? ' ok' : ' no') : '') + '">' + (ch == null ? '' : ch) + '</span>';
+      out += '<span class="digit' + (ch == null ? (marks ? ' no' : i === str.length ? ' cur' : ' empty') : marks ? (marks[i] ? ' ok' : ' no') : '') + '">' + (ch == null ? '' : ch) + '</span>';
     }
     return out + '</div>';
   }
   function spanView() {
-    const g = span.g, list = Span.asks(g.mode), mode = Span.MODES.find((m) => m.id === g.mode);
+    const g = span.g, list = Span.asks(g.mode), mode = Span.MODES.find((m) => m.id === g.mode), lvl = Span.levelOf(g.level);
+    const tag = '<span class="q-tag">Sayı Hafızası · ' + lvl.name + ' · ' + mode.name + '</span>';
     const n = span.phase === 'result' ? span.shownLen : g.len;
     let steps = '';
     for (let k = Span.MIN; k <= Span.MAX; k++) steps += '<i class="' + (k <= g.best ? 'done' : '') + (k === n && span.phase !== 'over' ? ' cur' : '') + '">' + k + '</i>';
@@ -423,26 +445,25 @@
     const open = '<div class="page quiz span" style="--area: var(--a-hafiza)">' + top;
 
     if (span.phase === 'over') {
-      const rec = Store.data.span[g.mode];
+      const rec = Store.data.span.best[g.level][g.mode];
       return '<div class="page result" style="--area: var(--a-hafiza)">' + robot(g.best ? 'happy' : 'idle', 'badge') +
-        '<h1>' + (g.won ? '10 basamağı da bildin!' : g.best ? 'Güzel hafıza!' : 'Bu sefer olmadı') + '</h1>' +
+        '<h1>' + (g.won ? Span.MAX + ' basamağı da bildin!' : g.best ? 'Güzel hafıza!' : 'Bu sefer olmadı') + '</h1>' +
         '<div class="score">' + g.best + '<small> basamak</small></div>' +
-        '<p class="result-sub">' + mode.name + ' · ' + g.hits + ' doğru, ' + (g.trials - g.hits) + ' yanlış · ' + (span.record ? 'Yeni rekor!' : rec ? 'Rekorun ' + rec + ' basamak' : 'Henüz rekor yok') + '</p>' +
+        '<p class="result-sub">' + lvl.name + ' · ' + mode.name + ' · ' + g.hits + ' doğru, ' + (g.trials - g.hits) + ' yanlış · ' + (span.record ? 'Yeni rekor!' : rec ? 'Rekorun ' + rec + ' basamak' : 'Henüz rekor yok') + '</p>' +
         '<div class="result-actions"><button type="button" class="btn btn-sun" data-act="span-again">Tekrar oyna</button><button type="button" class="btn btn-ghost" data-act="home">Ana sayfa</button></div></div>';
     }
     if (span.phase === 'show') {
-      return open + '<div class="span-head"><span class="q-tag">Sayı Hafızası · ' + mode.name + '</span><h1>Sayıya iyi bak!</h1><p>' + n + ' basamak, ' + Span.seconds(n) + ' saniye</p></div>' +
-        '<div class="paper stem">' + digitsHtml(span.number, n) + '</div>' +
-        '<div class="memo-bar"><i style="animation-duration:' + Span.seconds(n) + 's"></i></div></div>';
+      return open + '<div class="span-head">' + tag + '<h1>Sayıya iyi bak!</h1><p>' + n + ' basamak, ' + fmtSec(span.total) + ' saniye</p></div>' +
+        '<div class="paper stem">' + digitsHtml(span.number, n) + '</div>' + timeBar() + '</div>';
     }
     if (span.phase === 'type') {
       const ask = list[span.askIdx], full = span.typed.length === n;
       let keys = '';
       for (let d = 1; d <= 9; d++) keys += '<button type="button" class="key" data-act="span-key" data-d="' + d + '">' + d + '</button>';
-      return open + '<div class="span-head"><span class="q-tag">Sayı Hafızası · ' + mode.name + '</span>' +
-        '<h1>' + (ask === 'fwd' ? 'Sayıyı yaz' : 'Sayıyı tersten yaz') + '</h1><p>' + (list.length > 1 ? (span.askIdx + 1) + '. adım: ' : '') +
+      return open + '<div class="span-head">' + tag +
+        '<h1>' + (ask === 'fwd' ? 'Sayıyı yaz' : 'Sayıyı tersten yaz') + '</h1><p>' + fmtSec(span.total) + ' saniyen var. ' + (list.length > 1 ? (span.askIdx + 1) + '. adım: ' : '') +
         (ask === 'fwd' ? 'gördüğün sırayla, soldan sağa' : 'son rakamdan başla, geriye doğru git') + '</p></div>' +
-        '<div class="paper stem">' + digitsHtml(span.typed, n) + '</div>' +
+        '<div class="paper stem">' + digitsHtml(span.typed, n) + '</div>' + timeBar() +
         '<div class="numpad">' + keys + '<button type="button" class="key key-del" data-act="span-del" aria-label="Sil"' + (span.typed ? '' : ' disabled') + '>' + I.del + '</button>' +
         '<button type="button" class="key" data-act="span-key" data-d="0">0</button>' +
         '<button type="button" class="key key-ok" data-act="span-ok"' + (full ? '' : ' disabled') + '>Tamam</button></div></div>';
@@ -451,7 +472,8 @@
     let rows = '<div class="span-row"><span>Sayı</span>' + digitsHtml(span.number, n) + '</div>';
     list.forEach((a, i) => {
       const want = Span.expected(span.number, a), got = span.entries[i], good = got === want;
-      rows += '<div class="span-row"><span>' + (a === 'fwd' ? 'Düzden yazdığın' : 'Tersten yazdığın') + '</span>' + digitsHtml(got, n, got.split('').map((ch, k) => ch === want[k])) + '</div>';
+      rows += '<div class="span-row"><span>' + (a === 'fwd' ? 'Düzden yazdığın' : 'Tersten yazdığın') + (span.late[i] ? ' (süre bitti)' : '') + '</span>' +
+        digitsHtml(got, n, got.split('').map((ch, k) => ch === want[k])) + '</div>';
       if (!good) rows += '<div class="span-row"><span>' + (a === 'fwd' ? 'Doğrusu' : 'Tersten doğrusu') + '</span>' + digitsHtml(want, n) + '</div>';
     });
     const nextInfo = g.over ? (g.won ? 'En uzun sayıyı da bildin.' : 'Canların bitti.')
@@ -554,7 +576,9 @@
           '</tbody></table></div>'
         : '<p class="note">Henüz deneme sınavı çözülmedi.</p>') + '</div>' +
       '<div class="card"><h2>Sayı Hafızası</h2>' +
-      Span.MODES.map((m) => '<div class="set-row"><span>' + m.name + '</span><b>' + (Store.data.span[m.id] ? 'rekor ' + Store.data.span[m.id] + ' basamak' : '—') + '</b></div>').join('') +
+      '<div class="table-wrap"><table><thead><tr><th>Düzey</th>' + Span.MODES.map((m) => '<th class="num">' + m.short + '</th>').join('') + '</tr></thead><tbody>' +
+      Span.LEVELS.map((l) => '<tr><td>' + l.name + '</td>' + Span.MODES.map((m) => { const v = Store.data.span.best[l.id][m.id]; return '<td class="num">' + (v ? v + ' basamak' : '—') + '</td>'; }).join('') + '</tr>').join('') +
+      '</tbody></table></div><p class="note">En uzun doğru yazılan sayı. Süre: Kolay basamak sayısının iki katı, Orta basamak sayısı, Zor basamak sayısının üçte ikisi kadar saniye.</p>' +
       '<div class="set-row"><span>Oynanan oyun</span><b>' + Store.data.span.plays + '</b></div></div>' +
       '<div class="card"><h2>Ayarlar</h2>' +
       '<div class="set-row"><span>Ses efektleri</span>' + seg('sound', [[true, 'Açık'], [false, 'Kapalı']], set.sound) + '</div>' +
@@ -582,14 +606,17 @@
         EXAMS.map((e, i) => '<button type="button" class="level" data-act="exam" data-i="' + i + '"><span>' + e.name + '<small>' + e.n + ' soru · ' + e.min + ' dakika</small></span></button>').join('') +
         '</div><p class="note">Sınav sırasında doğru cevap gösterilmez. İstediğin soruya geri dönüp cevabını değiştirebilirsin.</p>';
     } else if (sheet.kind === 'span') {
-      const st = Store.data.settings.spanStart, rec = Store.data.span;
-      body = '<div class="sheet-head"><span class="cat-ico">' + I.span + '</span><div><h2>Sayı Hafızası</h2><p>Sayı, basamak sayısı kadar saniye görünür ve kapanır. Sonra klavyeyle yazarsın.</p></div>' + closeBtn + '</div><div class="levels">' +
-        Span.MODES.map((m) => '<button type="button" class="level' + (m.id === 'both' ? ' rec' : '') + '" data-act="span-go" data-mode="' + m.id + '"><span>' + m.name +
-          '<small>' + (rec[m.id] ? 'Rekor: ' + rec[m.id] + ' basamak' : 'Henüz oynanmadı') + '</small></span></button>').join('') + '</div>' +
+      const set = Store.data.settings, st = set.spanStart, lv = Span.levelOf(set.spanLevel), rec = Store.data.span.best[lv.id], sec = fmtSec(Span.seconds(st, lv.id));
+      body = '<div class="sheet-head"><span class="cat-ico">' + I.span + '</span><div><h2>Sayı Hafızası</h2><p>Sayı bir süre görünür ve kapanır. Sonra süre bitmeden klavyeyle yazarsın.</p></div>' + closeBtn + '</div>' +
+        '<div class="set-row"><span>Düzey</span><span class="seg">' + Span.LEVELS.map((l) =>
+          '<button type="button" class="' + (l.id === lv.id ? 'on' : '') + '" data-act="span-level" data-level="' + l.id + '" aria-pressed="' + (l.id === lv.id) + '">' + l.name + '</button>').join('') + '</span></div>' +
         '<div class="set-row"><span>İlk sayı kaç basamaklı olsun?</span><span class="stepper">' +
         '<button type="button" class="icon-btn" data-act="span-len" data-d="-1" aria-label="Azalt"' + (st <= Span.MIN ? ' disabled' : '') + '>−</button><b>' + st + '</b>' +
         '<button type="button" class="icon-btn" data-act="span-len" data-d="1" aria-label="Artır"' + (st >= Span.MAX ? ' disabled' : '') + '>+</button></span></div>' +
-        '<p class="note">Doğru yazınca sayı bir basamak uzar. Üç yanlışta oyun biter.</p>';
+        '<p class="tip"><b>' + lv.name + ':</b> ' + lv.text + ' ' + st + ' basamaklı sayı ' + sec + ' saniye görünür; her yazım için de ' + sec + ' saniye verilir.</p>' +
+        '<div class="levels">' + Span.MODES.map((m) => '<button type="button" class="level' + (m.id === 'both' ? ' rec' : '') + '" data-act="span-go" data-mode="' + m.id + '"><span>' + m.name +
+          '<small>' + (rec[m.id] ? lv.name + ' rekoru: ' + rec[m.id] + ' basamak' : lv.name + ' düzeyde henüz oynanmadı') + '</small></span></button>').join('') + '</div>' +
+        '<p class="note">Doğru yazınca sayı bir basamak uzar, en çok ' + Span.MAX + ' basamak. Süre bitince o ana kadar yazdığın sayılır. Üç yanlışta oyun biter.</p>';
     } else if (sheet.kind === 'quit') {
       body = '<div class="sheet-head"><div><h2>Çıkmak istiyor musun?</h2><p>' +
         (view === 'span' ? 'Oyundan çıkarsan bu oyun biter. Ulaştığın rekor kaydedildi.' : ses.mode === 'exam' ? 'Sınavdan çıkarsan cevapların kaydedilmez.' : 'Şimdiye kadar çözdüğün sorular kaydedildi. Yıldız kazanmak için alıştırmayı bitirmelisin.') +
@@ -633,11 +660,12 @@
       Store.save();
       render();
     },
+    'span-level'(el) { Store.data.settings.spanLevel = Number(el.dataset.level); Store.save(); render(); },
     'span-key'(el) { spanKey(el.dataset.d); },
     'span-del': spanDel,
     'span-ok': spanOk,
     'span-next': spanNext,
-    'span-again'() { spanStart(span.g.mode); },
+    'span-again'() { spanStart(span.g.mode, span.g.level); },
     parent() { view = 'parent'; render(); window.scrollTo(0, 0); },
     cat(el) { sheet = { kind: 'cat', id: el.dataset.id }; render(); },
     'exam-pick'() { sheet = { kind: 'exam' }; render(); },

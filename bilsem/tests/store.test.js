@@ -83,14 +83,26 @@ test('eski kayıt taşınır: eski Zor yıldızları yeni Kolay düzeye geçer',
   assert.deepStrictEqual(U.migrate({ v: 2, x: 1 }), { v: 2, x: 1 }, 'yeni kayıt değişmez');
 });
 
-test('sayı hafızası kaydı: rekor yalnız yükselir, denemeler güne işlenir', () => {
+test('sayı hafızası kaydı: rekor düzeye göre tutulur ve yalnız yükselir, denemeler güne işlenir', () => {
   const S = B.Store;
   S.data = U.blank();
-  assert.strictEqual(S.spanBest('both', 5), true);
-  assert.strictEqual(S.spanBest('both', 4), false);
-  assert.strictEqual(S.spanBest('fwd', 7), true);
-  assert.deepStrictEqual([S.data.span.both, S.data.span.fwd, S.data.span.bwd], [5, 7, 0]);
+  assert.strictEqual(S.spanBest(1, 'both', 5), true);
+  assert.strictEqual(S.spanBest(1, 'both', 4), false);
+  assert.strictEqual(S.spanBest(3, 'both', 4), true, 'Zor düzeyin rekoru ayrıdır');
+  assert.strictEqual(S.spanBest(2, 'fwd', 7), true);
+  assert.deepStrictEqual([S.data.span.best[1].both, S.data.span.best[3].both, S.data.span.best[2].fwd, S.data.span.best[2].bwd], [5, 4, 7, 0]);
   S.spanTrial(true); S.spanTrial(false); S.spanPlayed();
   assert.deepStrictEqual([S.day().n, S.day().ok, S.data.span.plays], [2, 1, 1]);
   assert.strictEqual(S.streak(), 1);
+});
+
+test('sayı hafızası: düzeylerden önceki rekorlar Kolay düzeye geçer ve 7 basamakla sınırlanır', () => {
+  const n = U.normalizeSpan({ both: 9, fwd: 5, bwd: 0, plays: 4 }, 7);
+  assert.deepStrictEqual(n.best[1], { both: 7, fwd: 5, bwd: 0 });
+  assert.deepStrictEqual(n.best[2], { both: 0, fwd: 0, bwd: 0 });
+  assert.strictEqual(n.plays, 4);
+  const again = U.normalizeSpan(n, 7);
+  assert.deepStrictEqual(again, n, 'yeni biçim değişmeden kalır');
+  assert.deepStrictEqual(U.normalizeSpan(undefined, 7), U.blank().span);
+  assert.deepStrictEqual([U.blank().settings.spanStart, U.blank().settings.spanLevel], [3, 1]);
 });

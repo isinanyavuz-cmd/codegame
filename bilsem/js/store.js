@@ -5,8 +5,21 @@
   const KEY = 'bilsem.v2';
   const OLD_KEY = 'zekakasifi.v1';     // seviyeler kaydırılmadan önceki kayıt
 
+  const spanBlank = () => ({ plays: 0, best: { 1: { both: 0, fwd: 0, bwd: 0 }, 2: { both: 0, fwd: 0, bwd: 0 }, 3: { both: 0, fwd: 0, bwd: 0 } } });
   function blank() {
-    return { v: 2, settings: { sound: true, len: 10, spanStart: 3 }, cats: {}, days: {}, exams: [], span: { both: 0, fwd: 0, bwd: 0, plays: 0 } };
+    return { v: 2, settings: { sound: true, len: 10, spanStart: 3, spanLevel: 1 }, cats: {}, days: {}, exams: [], span: spanBlank() };
+  }
+
+  /* Sayı hafızası kaydını bugünkü biçime getirir: rekorlar düzeye göre tutulur ve en çok MAX basamaktır.
+     Düzeyler gelmeden önceki rekorlar (yazma süresi sınırsızdı) Kolay düzeye yazılır. */
+  function normalizeSpan(sp, max) {
+    const out = spanBlank(), cap = (v) => Math.max(0, Math.min(max, v || 0));
+    if (!sp) return out;
+    out.plays = sp.plays || 0;
+    if (sp.best) {
+      [1, 2, 3].forEach((l) => ['both', 'fwd', 'bwd'].forEach((m) => { out.best[l][m] = cap(sp.best[l] && sp.best[l][m]); }));
+    } else ['both', 'fwd', 'bwd'].forEach((m) => { out.best[1][m] = cap(sp[m]); });
+    return out;
   }
 
   /* v1 -> v2: eski Zor düzey yeni Kolay düzey oldu. Eski Zor yıldızları Kolay'a taşınır, eski Kolay ve Orta yıldızları düşer. */
@@ -62,7 +75,13 @@
         const raw = ls && (ls.getItem(KEY) || ls.getItem(OLD_KEY));
         if (raw) {
           const d = migrate(JSON.parse(raw)), b = blank();
-          if (d && d.v === 2) this.data = Object.assign(b, d, { settings: Object.assign(b.settings, d.settings), span: Object.assign(b.span, d.span) });
+          if (d && d.v === 2) {
+            const Sp = Bilsem.Span;
+            this.data = Object.assign(b, d, { settings: Object.assign(b.settings, d.settings), span: normalizeSpan(d.span, Sp.MAX) });
+            const set = this.data.settings;
+            set.spanStart = Math.max(Sp.MIN, Math.min(Sp.MAX, set.spanStart));
+            set.spanLevel = Sp.levelOf(set.spanLevel).id;
+          }
         }
       } catch (e) { /* kayıt okunamadıysa boş başla */ }
       return this.data;
@@ -129,9 +148,9 @@
       d.n++;
       if (ok) d.ok++;
     },
-    spanBest(mode, best) {
-      const s = this.data.span;
-      if (best > s[mode]) { s[mode] = best; return true; }
+    spanBest(level, mode, best) {
+      const r = this.data.span.best[level];
+      if (best > r[mode]) { r[mode] = best; return true; }
       return false;
     },
     spanPlayed() { this.data.span.plays++; },
@@ -155,7 +174,7 @@
   };
 
   Bilsem.Store = Store;
-  Bilsem.StoreUtil = { dayKey: dayKey, addDays: addDays, starsFor: starsFor, nextSkill: nextSkill, streak: streak, migrate: migrate, blank: blank };
+  Bilsem.StoreUtil = { dayKey: dayKey, addDays: addDays, starsFor: starsFor, nextSkill: nextSkill, streak: streak, migrate: migrate, blank: blank, normalizeSpan: normalizeSpan };
 
   if (typeof module !== 'undefined') module.exports = Bilsem;
 })(typeof window !== 'undefined' ? window : globalThis);
