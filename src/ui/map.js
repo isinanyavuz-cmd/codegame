@@ -5,7 +5,7 @@ const $ = (id) => document.getElementById(id);
 const svg = (id, cls = '') => `<svg viewBox="0 0 32 32" class="${cls}"><use href="#${id}"/></svg>`;
 // Yayındaki sürümü ayırt etmek için: tools/surum.js bu kodu index.html içine yazar.
 const SURUM = document.querySelector('meta[name="surum"]')?.content || '';
-const RANKS = [[0, 'Çaylak Pilot'], [9, 'Pilot'], [24, 'Kıdemli Pilot'], [45, 'Kaptan'], [66, 'As Kaptan']];
+const RANKS = [[0, 'Çaylak Pilot'], [9, 'Pilot'], [24, 'Kıdemli Pilot'], [45, 'Kaptan'], [66, 'As Kaptan'], [120, 'Uzay Kaşifi'], [192, 'Galaksi Ustası']];
 
 export class MapScreen {
   constructor({ store, sfx, onOpen }) {

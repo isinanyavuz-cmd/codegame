@@ -1,7 +1,7 @@
 // Görev ekranı: sahneyi açar, programı çalıştırır, olayları sırayla oynatır,
 // dalgaları ve sonucu yönetir.
 import { parseField, simulate, stars as calcStars, FAIL_TEXT } from '../engine/world.js';
-import { count, clone, toPython, CONDS } from '../engine/blocks.js';
+import { count, clone, toPython, CONDS, EVENTS, FUNCTIONS } from '../engine/blocks.js';
 import { LEVELS, SECTORS, KINDS, levelsOf } from '../content/levels.js';
 import { Editor, renderBlock, hatBlock } from './editor.js';
 
@@ -51,6 +51,7 @@ export class Game {
     this.editor.load(level, program);
     this.setTab('blocks'); this.hideToast(); this.hideCall(); this.setStatus('idle');
     this.refreshMeta(); this.renderWaves();
+    this.resetTelemetry();
     this.layout();
     this.view.setField(this.fields[0]);
     this.view.enter();
@@ -72,7 +73,10 @@ export class Game {
     const W = window.innerWidth, H = window.innerHeight, p = $('panel').getBoundingClientRect();
     const stacked = p.width > W * 0.8;
     const top = $('track').offsetParent ? 100 : 76;
-    this.rect = stacked ? { x: 0, y: 66, w: W, h: Math.max(120, p.top - 70) } : { x: 0, y: top, w: p.left - 6, h: H - top - 6 };
+    const telemetry = $('telemetry').hidden ? null : $('telemetry').getBoundingClientRect();
+    const stageTop = stacked && telemetry ? telemetry.bottom + 8 : stacked ? 66 : top;
+    const stageBottom = stacked ? p.top - 4 : telemetry ? telemetry.top - 8 : H - 6;
+    this.rect = { x: 0, y: stageTop, w: stacked ? W : p.left - 6, h: Math.max(120, stageBottom - stageTop) };
     this.view.setRect(this.rect);
     $('toast').style.left = `${this.rect.x + this.rect.w / 2}px`;
   }
@@ -115,8 +119,8 @@ export class Game {
     if (tab === 'python') this.renderPython();
   }
   renderPython() {
-    const code = toPython(this.editor.program)
-      .replace(/\b(for|in|while|if|else|pass|True)\b/g, '<span class="k">$1</span>')
+    const code = toPython(this.editor.program).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/\b(for|in|while|if|else|pass|True|not|and|or|def)\b/g, '<span class="k">$1</span>')
       .replace(/\b([a-z_]+)\(/g, '<span class="f">$1</span>(')
       .replace(/\((\d+)\)/g, '(<span class="n">$1</span>)')
       .replace(/^(#.*)$/gm, '<span class="c">$1</span>');
@@ -136,7 +140,7 @@ export class Game {
       this.sfx.bad();
       const c = $('counter'); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake');
       this.showToast('bad', `Blok sınırı doldu: en fazla ${this.level.maxBlocks} blok.`, this.level.sector === 2 ? 'Tekrar eden hareketleri bir "tekrarla" bloğuna topla.' : '');
-    } else if (kind === 'condtip') this.showToast('', 'Sensörler "eğer" bloğunun içinde çalışır; yeni "eğer" blokları sensörüyle birlikte gelir.');
+    } else if (kind === 'condtip') this.showToast('', 'Sensörü "eğer" veya "olana kadar" bloğuna bırak. Koşulu değiştirmek için de bloğun koşuluna dokunabilirsin.');
   }
 
   // ---------- çalıştırma ----------
@@ -177,6 +181,7 @@ export class Game {
   simulateWave() {
     this.sim = simulate(this.fields[this.wave], this.editor.program);
     this.events = this.sim.events; this.i = 0;
+    this.resetTelemetry();
   }
 
   async resume() {
@@ -193,6 +198,23 @@ export class Game {
     this.hideCall(); this.hideToast(); this.editor.mark(null);
     this.results = [];
     if (this.wave !== 0) { this.wave = 0; this.view.setField(this.fields[0]); } else this.view.resetShip();
+    this.resetTelemetry();
+  }
+
+  resetTelemetry() {
+    const f = this.fields[this.wave];
+    this.flight = { energy: f.energyCells.size ? 0 : null, shielded: false, message: 'Kalkış bekleniyor' };
+    this.renderTelemetry();
+  }
+
+  renderTelemetry() {
+    const el = $('telemetry'), f = this.fields[this.wave], state = this.flight;
+    el.hidden = this.level.sector < 4;
+    const parts = [];
+    if (f.beacons.size) parts.push('<span class="legend-beacon">◉ Mor halka: işaret</span>');
+    if (f.pirates.size) parts.push('<span class="legend-pirate">◆ Kırmızı gemi: korsan</span>');
+    if (f.energyCells.size) parts.push('<span class="legend-energy">▣ Yeşil istasyon: şarj</span>');
+    el.innerHTML = `<div class="field-key">${parts.join('')}</div><div class="flight-state">${state.energy !== null ? `<b class="${state.energy < 3 ? 'low' : ''}">Enerji: ${state.energy}</b>` : ''}${f.pirates.size ? `<b>Kalkan: ${state.shielded ? 'açık' : 'kapalı'}</b>` : ''}<span>${state.message}</span></div>`;
   }
 
   /** Sıradaki adımı döndürür: o adımda bakılan sensörler ve ardından gelen olay. */
@@ -225,16 +247,29 @@ export class Game {
   async play({ senses, ev }, alive) {
     const { view, sfx, editor } = this;
     const marks = senses.map((s) => ({ id: s.id, cls: 'sensing' }));
-    if (ev.t === 'move') marks.push({ id: ev.id, cls: 'now' });
+    if (['move', 'event', 'variable', 'shield', 'call'].includes(ev.t)) marks.push({ id: ev.id, cls: 'now' });
     else if (ev.t === 'crash' || ev.t === 'fail') marks.push({ id: ev.id, cls: 'err' });
     editor.markAll(marks);
     if (senses.length) { this.showCalls(senses); sfx.sense(senses[senses.length - 1].result); } else this.hideCall();
+    if (['event', 'variable', 'shield', 'call'].includes(ev.t)) {
+      if (ev.t === 'event') this.flight.message = EVENTS[ev.event].label;
+      if (ev.t === 'variable') { this.flight.energy = ev.value; this.flight.message = 'Enerji güncellendi'; }
+      if (ev.t === 'shield') { this.flight.shielded = ev.shielded; this.flight.message = 'Kalkan hazır'; view.setShield(ev.shielded); }
+      if (ev.t === 'call') this.flight.message = `${FUNCTIONS[ev.name].label} çağrılıyor`;
+      this.renderTelemetry();
+      await view.wait(130);
+      return !alive();
+    }
     if (ev.t === 'move') {
       if (ev.kind === 'fwd') sfx.move(); else sfx.dodge();
       this.showTarget(ev);
       await view.move(ev);
       if (!alive()) return true;
       if (ev.collect) sfx.collect();
+      this.flight.energy = ev.energy;
+      if (ev.shielded !== undefined) this.flight.shielded = ev.shielded;
+      if (ev.blocked) this.flight.message = 'Korsan saldırısı engellendi';
+      this.renderTelemetry();
       // Gemi silüetin olduğu kareye vardı: silüet sıradaki hedefe geçer.
       this.showTarget(this.events.slice(this.i).find((e) => e.t === 'move' || e.t === 'crash'));
       return false;
@@ -297,7 +332,7 @@ export class Game {
       <h1>${lastOfSector ? `${this.sector.name} geçildi!` : got === 3 ? 'Kusursuz uçuş!' : 'Görev tamam!'}</h1>
       <div class="bigstars">${[1, 2, 3].map((i) => svg('i-star', i <= got ? 'lit' : '')).join('')}</div>
       <ul class="checks">${checks.map(([t, ok]) => `<li class="${ok ? '' : 'no'}">${svg(ok ? 'i-check' : 'i-cross')}${t}</li>`).join('')}</ul>
-      ${lastOfSector && !next ? '<p>Yeni sektörler yolda. O zamana kadar eksik yıldızları tamamlayabilirsin.</p>' : ''}
+      ${lastOfSector && !next ? `<p>Ana gemiye döndün! ${SECTORS.length} sektör ve ${LEVELS.length} görev tamamlandı. Kendi otopilotunu yazdın; şimdi eksik yıldızları tamamlayabilirsin.</p>` : ''}
       <div class="btns">
         <button class="btn" data-act="again">${svg('i-undo')}Tekrar</button>
         <button class="btn" data-act="map">Rota</button>
@@ -320,7 +355,7 @@ export class Game {
   /** Bu adımda bakılan sensörleri sahnede ve kare yanındaki etiketlerde gösterir. */
   showCalls(senses) {
     const box = $('calls'); box.replaceChildren();
-    const isDanger = (ev) => (ev.cond === 'ahead' ? ev.result : !ev.result);
+    const isDanger = (ev) => (['ahead', 'aheadOrRightBlocked'].includes(ev.cond) ? ev.result : !ev.result);
     this.view.showSenses(senses.map((ev) => ({ from: { lane: ev.lane, y: ev.y }, cell: ev.cell, danger: isDanger(ev) })));
     const side = senses.find((ev) => ev.cond !== 'ahead');
     const taken = new Set();
