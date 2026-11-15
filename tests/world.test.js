@@ -1,125 +1,118 @@
-const test = require('node:test');
-const assert = require('node:assert');
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { parseField, simulate, sense, stars } from '../src/engine/world.js';
+import { F, L, R, rep, forever, ifelse, count, clone, find, remove, toPython } from '../src/engine/blocks.js';
 
-const CodeGame = require('../js/world.js');
-const { World } = CodeGame;
+const field = (lines) => parseField(lines);
+const kinds = (res) => res.events.map((e) => e.t);
 
-const level = {
-  id: 't', title: 'T',
-  map: [
-    '######',
-    '#S.*.#',
-    '#.##G#',
-    '######',
-  ],
-  startDir: 'E',
-};
-
-test('boyutlar, başlangıç ve elmaslar', () => {
-  const w = new World(level);
-  assert.strictEqual(w.width, 6);
-  assert.strictEqual(w.height, 4);
-  assert.deepStrictEqual(w.robot, { x: 1, y: 1, dir: 'E' });
-  assert.ok(w.gems instanceof Set);
-  assert.deepStrictEqual([...w.gems], ['3,1']);
-  assert.strictEqual(w.totalGems, 1);
-  assert.strictEqual(w.collected, 0);
-  assert.strictEqual(w.crashed, false);
+test('alan metinden okunur: ilk satır en uzak sıra', () => {
+  const f = field(['.K.', '.M.', '..S']);
+  assert.equal(f.lanes, 3); assert.equal(f.rows, 3); assert.equal(f.start, 2);
+  assert.ok(f.meteors.has('1,1')); assert.ok(f.crystals.has('1,2'));
 });
 
-test('startDir verilmezse E', () => {
-  const w = new World({ map: ['#SG#'] });
-  assert.strictEqual(w.robot.dir, 'E');
+test('başlangıç karesi yoksa hata verir', () => {
+  assert.throws(() => field(['...', '...']));
 });
 
-test('cellAt: duvar, zemin, hedef, harita dışı', () => {
-  const w = new World(level);
-  assert.strictEqual(w.cellAt(0, 0), '#');
-  assert.strictEqual(w.cellAt(1, 1), '.'); // S zemin
-  assert.strictEqual(w.cellAt(3, 1), '.'); // * zemin
-  assert.strictEqual(w.cellAt(4, 2), 'G');
-  assert.strictEqual(w.cellAt(-1, 0), '#');
-  assert.strictEqual(w.cellAt(0, -1), '#');
-  assert.strictEqual(w.cellAt(6, 1), '#');
-  assert.strictEqual(w.cellAt(1, 4), '#');
+test('her komut gemiyi bir sıra ilerletir; son sırayı geçince kazanır', () => {
+  const res = simulate(field(['...', '...', '.S.']), [F(), F(), F()]);
+  assert.equal(res.outcome, 'win');
+  assert.deepEqual(kinds(res), ['move', 'move', 'move', 'win']);
+  assert.equal(res.ticks, 3);
 });
 
-test('constructor seviye nesnesini değiştirmez', () => {
-  const lv = JSON.parse(JSON.stringify(level));
-  const snapshot = JSON.stringify(lv);
-  const w = new World(lv);
-  w.move(); w.move(); w.pick();
-  assert.strictEqual(JSON.stringify(lv), snapshot);
-  // iki dünya birbirinden bağımsız
-  const w2 = new World(lv);
-  assert.strictEqual(w2.gems.size, 1);
-  assert.deepStrictEqual(w2.robot, { x: 1, y: 1, dir: 'E' });
+test('kaçış blokları çapraz gider', () => {
+  const res = simulate(field(['...', '.S.']), [L(), R()]);
+  assert.deepEqual(res.events[0].to, { lane: 0, y: 1 });
+  assert.equal(res.outcome, 'win');
 });
 
-test("S veya G yoksa hata fırlatır", () => {
-  assert.throws(() => new World({ map: ['#.G#'], startDir: 'E' }));
-  assert.throws(() => new World({ map: ['#S.#'], startDir: 'E' }));
-  assert.throws(() => new World({ map: [] }));
+test('meteora çarpınca durur ve sorumlu bloğu bildirir', () => {
+  const bad = F();
+  const res = simulate(field(['...', '.M.', '.S.']), [bad, F()]);
+  assert.equal(res.outcome, 'crash'); assert.equal(res.reason, 'meteor');
+  assert.equal(res.events.at(-1).id, bad.id);
 });
 
-test('dönüşler ve yönler (N = y-1)', () => {
-  const w = new World(level);
-  w.turnLeft(); assert.strictEqual(w.robot.dir, 'N');
-  w.turnLeft(); assert.strictEqual(w.robot.dir, 'W');
-  w.turnLeft(); assert.strictEqual(w.robot.dir, 'S');
-  w.turnLeft(); assert.strictEqual(w.robot.dir, 'E');
-  w.turnRight(); assert.strictEqual(w.robot.dir, 'S');
-  w.move();
-  assert.deepStrictEqual(w.robot, { x: 1, y: 2, dir: 'S' });
-  w.turnRight(); w.turnRight(); // N
-  w.move();
-  assert.deepStrictEqual(w.robot, { x: 1, y: 1, dir: 'N' });
+test('şeridin dışına çıkmak çarpışmadır', () => {
+  const res = simulate(field(['...', 'S..']), [L()]);
+  assert.equal(res.outcome, 'crash'); assert.equal(res.reason, 'wall');
 });
 
-test('duvara çarpma: crashed ve hata, robot yerinde kalır', () => {
-  const w = new World(level);
-  w.turnLeft(); // N -> duvar
-  assert.throws(() => w.move(), { message: 'Robot duvara çarptı!' });
-  assert.strictEqual(w.crashed, true);
-  assert.deepStrictEqual(w.robot, { x: 1, y: 1, dir: 'N' });
+test('program erken biterse başarısız', () => {
+  const res = simulate(field(['...', '...', '.S.']), [F()]);
+  assert.equal(res.outcome, 'fail'); assert.equal(res.reason, 'ended');
+  assert.equal(simulate(field(['...', '.S.']), []).reason, 'empty');
 });
 
-test('harita kenarında (duvarsız) dışarı çıkmak da çarpmadır', () => {
-  const w = new World({ map: ['SG'], startDir: 'W' });
-  assert.throws(() => w.move(), /duvara çarptı/);
-  assert.strictEqual(w.crashed, true);
+test('kristaller toplanır ve sayılır', () => {
+  const res = simulate(field(['...', 'K..', '.K.', '.S.']), [F(), L(), F(), F()]);
+  assert.equal(res.outcome, 'win'); assert.equal(res.collected, 2); assert.equal(res.total, 2);
+  assert.equal(res.events[0].collect, true);
 });
 
-test('sensörler', () => {
-  const w = new World(level);
-  assert.strictEqual(w.isPathAhead(), true);
-  assert.strictEqual(w.isPathLeft(), false);
-  assert.strictEqual(w.isPathRight(), true);
-  assert.strictEqual(w.atGoal(), false);
-  assert.strictEqual(w.hasGem(), false);
-  w.move(); w.move();
-  assert.strictEqual(w.hasGem(), true);
-  assert.strictEqual(w.isPathRight(), false);
+test('tekrarla gövdeyi sayı kadar çalıştırır', () => {
+  const res = simulate(field(['...', '...', '...', '...', '.S.']), [rep(5, F())]);
+  assert.equal(res.outcome, 'win'); assert.equal(res.ticks, 5);
 });
 
-test('pick: elmas toplar, yoksa hata', () => {
-  const w = new World(level);
-  assert.throws(() => w.pick(), { message: 'Burada toplanacak elmas yok!' });
-  w.move(); w.move();
-  w.pick();
-  assert.strictEqual(w.collected, 1);
-  assert.strictEqual(w.gems.size, 0);
-  assert.strictEqual(w.hasGem(), false);
-  assert.throws(() => w.pick(), /elmas yok/);
+test('sürekli döngü kazanınca durur', () => {
+  const res = simulate(field(['...', '...', '...', '.S.']), [forever(F())]);
+  assert.equal(res.outcome, 'win'); assert.equal(res.ticks, 4);
 });
 
-test('isWon: hedefte ve tüm elmaslar toplanmış', () => {
-  const w = new World(level);
-  w.move(); w.move(); w.move(); w.turnRight(); w.move();
-  assert.strictEqual(w.atGoal(), true);
-  assert.strictEqual(w.isWon(), false); // elmas kaldı
+test('eğer/değilse sensöre göre dal seçer ve sense olayı üretir', () => {
+  const res = simulate(field(['...', '.M.', '...', '.S.']), [forever(ifelse('ahead', [R()], [F()]))]);
+  assert.equal(res.outcome, 'win');
+  const senses = res.events.filter((e) => e.t === 'sense').map((e) => e.result);
+  assert.deepEqual(senses, [false, true, false, false]);
+  assert.deepEqual(res.events.filter((e) => e.t === 'move').map((e) => e.kind), ['fwd', 'right', 'fwd', 'fwd']);
+});
 
-  const w2 = new World(level);
-  w2.move(); w2.move(); w2.pick(); w2.move(); w2.turnRight(); w2.move();
-  assert.strictEqual(w2.isWon(), true);
+test('hiç manevra yapmayan döngü "komut bekliyor" hatası verir', () => {
+  const empty = simulate(field(['...', '.S.']), [forever()]);
+  assert.equal(empty.reason, 'idle');
+  const res = simulate(field(['...', '...', '.S.']), [forever(ifelse('ahead', [R()], []))]);
+  assert.equal(res.outcome, 'fail'); assert.equal(res.reason, 'idle');
+  assert.ok(res.events.length < 20, 'olay listesi şişmemeli');
+});
+
+test('koşulu olmayan eğer bloğu hata verir', () => {
+  assert.equal(simulate(field(['...', '.S.']), [ifelse(null, [F()], [F()])]).reason, 'nocond');
+});
+
+test('yan sensörler duvarı dolu sayar', () => {
+  const f = field(['M..', 'S..']);
+  assert.equal(sense(f, 0, 0, 'leftFree').result, false);
+  assert.equal(sense(f, 0, 0, 'rightFree').result, true);
+  assert.equal(sense(f, 0, 0, 'ahead').result, true);
+  assert.equal(sense(f, 1, 0, 'leftFree').result, false);
+});
+
+test('yıldızlar: geçmek 1, bütün kristaller +1, az blok +1', () => {
+  const win = { outcome: 'win', collected: 2, total: 2 }, missed = { outcome: 'win', collected: 1, total: 2 };
+  assert.equal(stars([win], 3, 3), 3);
+  assert.equal(stars([win], 4, 3), 2);
+  assert.equal(stars([missed], 3, 3), 2);
+  assert.equal(stars([missed], 5, 3), 1);
+  assert.equal(stars([win, { outcome: 'crash' }], 3, 3), 0);
+});
+
+test('blok ağacı işlemleri', () => {
+  const inner = R();
+  const prog = [F(), rep(2, L(), ifelse('ahead', [inner], [F()]))];
+  assert.equal(count(prog), 6);
+  assert.equal(find(prog, inner.id).block, inner);
+  const copy = clone(prog);
+  assert.equal(count(copy), 6); assert.notEqual(copy[0].id, prog[0].id);
+  assert.equal(remove(prog, inner.id), inner); assert.equal(count(prog), 5);
+});
+
+test('Python görünümü', () => {
+  const py = toPython([rep(3, F()), forever(ifelse('ahead', [R()], []))]);
+  assert.equal(py, [
+    'for i in range(3):', '    duz_uc()', 'while True:', '    if onumde_meteor_var():', '        saga_kac()', '    else:', '        pass',
+  ].join('\n'));
 });
