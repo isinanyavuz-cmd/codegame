@@ -3,6 +3,7 @@
 import * as THREE from '../../vendor/three.bundle.min.js';
 import { buildShip, buildMeteor, buildCrystal, glowTexture, streakTexture, beamTexture, paintBackground } from './models.js';
 import { rng } from '../engine/rng.js';
+import { themeOf } from './themes.js';
 
 const C = 1.62;                 // bir karenin kenarı
 const SHIP_Y = 0.42, SHIP_SCALE = 0.8;
@@ -46,15 +47,19 @@ export class View {
 
     this.scene = new THREE.Scene();
     this.cam = new THREE.PerspectiveCamera(27, 1, 0.1, 400);
-    this.scene.add(new THREE.HemisphereLight(0xb9c8ff, 0x241446, 1.3));
+    this.theme = themeOf(0);
+    this.hemi = new THREE.HemisphereLight(0xb9c8ff, 0x241446, 1.3);
     const key = new THREE.DirectionalLight(0xfff3e0, 2.6); key.position.set(-6, 12, 8);
-    const rim = new THREE.DirectionalLight(0x56e0ff, 1.6); rim.position.set(7, 4, -10);
+    this.rim = new THREE.DirectionalLight(0x56e0ff, 1.6); this.rim.position.set(7, 4, -10);
     const mag = new THREE.DirectionalLight(0xff5fd0, 0.6); mag.position.set(-9, 2, -3);
-    this.scene.add(key, rim, mag);
+    this.scene.add(this.hemi, key, this.rim, mag);
 
     this.level = new THREE.Group(); this.scene.add(this.level);
     this.ship = buildShip(); this.ship.scale.setScalar(SHIP_SCALE); this.ship.visible = false; this.scene.add(this.ship);
-    this.shieldBubble = new THREE.Mesh(new THREE.SphereGeometry(1.12, 20, 12), new THREE.MeshBasicMaterial({ color: 0x65dfff, transparent: true, opacity: 0.27, wireframe: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    // Kalkan: yumuşak bir küre ve çevresinde dönen altıgen ağ.
+    this.shieldBubble = new THREE.Group();
+    this.shieldBubble.add(new THREE.Mesh(new THREE.SphereGeometry(1.14, 28, 18), glow(0x4fd2ff, 0.16)));
+    this.shieldBubble.add(new THREE.Mesh(new THREE.IcosahedronGeometry(1.2, 1), new THREE.MeshBasicMaterial({ color: bright(0x8fe9ff, 1.5), transparent: true, opacity: 0.5, wireframe: true, blending: THREE.AdditiveBlending, depthWrite: false })));
     this.shieldBubble.visible = false; this.ship.add(this.shieldBubble);
     this.ghost = buildShip(glow(bright(0xffd84a, 1.5), 0.3)); this.ghost.scale.setScalar(SHIP_SCALE); this.ghost.visible = false; this.scene.add(this.ghost);
     // Bir adımda birden çok sensöre bakılabilir (iç içe "eğer"); her biri için ayrı işaret.
@@ -69,6 +74,14 @@ export class View {
     this.gen = 0; this.carry = 0;
 
     this.glowTex = glowTexture(); this.streakTex = streakTexture();
+    // Uzay tozu: ızgaranın altından akan noktalar; gemi uçarken hızlanıp hız hissi verir.
+    {
+      const N = 170, arr = new Float32Array(N * 3), r = rng(4242);
+      for (let i = 0; i < N; i++) { arr[i * 3] = (r() - 0.5) * 38; arr[i * 3 + 1] = -0.7 - r() * 8; arr[i * 3 + 2] = -22 + r() * 40; }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+      this.dust = new THREE.Points(geo, new THREE.PointsMaterial({ map: this.glowTex, color: 0xcfe6ff, size: 0.2, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
+      this.dust.frustumCulled = false; this.scene.add(this.dust); this.flow = 0.12;
+    }
     this.mats = { line: glow(0x4fd2ff, 0.34), edge: glow(0x7fe2ff, 0.7), floor: glow(0x2a6bff, 0.07), exit: glow(bright(GREEN, 2.2), 1) };
     this.tweens = new Set(); this.bursts = []; this.meteors = new Map(); this.crystals = new Map();
     this.pirates = new Map(); this.landmarks = new Map();
@@ -89,8 +102,7 @@ export class View {
     const dpr = this.quality === 2 ? Math.min(2, window.devicePixelRatio || 1) : 1;
     this.renderer.setPixelRatio(dpr); this.renderer.setSize(W, H);
     this.cam.aspect = W / H;
-    if (this.scene.background) this.scene.background.dispose();
-    this.scene.background = paintBackground(W, H, rng(77123));
+    this.paint();
     try {
       if (this.composer) this.composer.dispose();
       this.composer = null;
@@ -103,6 +115,21 @@ export class View {
       this.composer.addPass(new THREE.OutputPass());
     } catch (e) { this.composer = null; }
     this.fit();
+  }
+
+  paint() {
+    if (this.scene.background) this.scene.background.dispose();
+    this.scene.background = paintBackground(this.W, this.H, rng(77123), this.theme);
+  }
+
+  /** Sektörün görünümünü uygular: gökyüzü, ızgara rengi ve ışıklar. 0 rota ekranıdır. */
+  setTheme(sector) {
+    const t = themeOf(sector);
+    if (t === this.theme) return;
+    this.theme = t;
+    this.mats.line.color.set(t.grid[0]); this.mats.edge.color.set(t.grid[1]); this.mats.floor.color.set(t.grid[2]);
+    this.hemi.color.set(t.light[0]); this.hemi.groundColor.set(t.light[1]); this.rim.color.set(t.light[2]);
+    this.paint();
   }
 
   /** Alanın sığdırılacağı ekran bölgesi (CSS pikseli). */
@@ -181,7 +208,7 @@ export class View {
     const rand = rng(lanes * 131 + rows * 17 + field.meteors.size * 7 + [...field.meteors].join('').length);
     for (const k of field.meteors) {
       const [lane, y] = k.split(',').map(Number);
-      const mesh = buildMeteor(0.4 + rand() * 0.13, rand);
+      const mesh = buildMeteor(0.4 + rand() * 0.13, rand, this.theme.rocks);
       mesh.userData.own = true;
       mesh.position.set(this.gx(lane) + (rand() - 0.5) * 0.18, 0.45, this.gz(y) + (rand() - 0.5) * 0.18);
       g.add(mesh); this.meteors.set(k, mesh);
@@ -248,6 +275,26 @@ export class View {
 
   setShield(visible) { this.shieldBubble.visible = !!visible; }
 
+  /** Kısa bir parlama: çarpışma ve sıçrama anlarını vurgular. */
+  flash(strength = 1.8, ms = 420) {
+    const el = this.renderer.domElement;
+    if (el.animate) el.animate([{ filter: `brightness(${strength})` }, { filter: 'brightness(1)' }], { duration: ms, easing: 'ease-out' });
+  }
+
+  /** İki nokta arasında kısa ömürlü ışın (korsan atışı). */
+  zap(from, to, color = 0xff3b5c) {
+    const mat = glow(bright(color, 2.4), 1);
+    const beam = strip(this.scene, from.x, from.z, to.x, to.z, 0.11, mat, 0.5);
+    this.tween(260, (k) => { mat.opacity = 1 - k; if (k >= 1) { this.scene.remove(beam); beam.geometry.dispose(); mat.dispose(); } }, false);
+  }
+
+  /** Kalkış: motorlar bir an güçlenir, arkadan kıvılcım saçılır. */
+  launch() {
+    if (!this.field) return;
+    const p = this.ship.position.clone(); p.z += 0.75;
+    this.burst(p, { color: 0x6fdcff, n: 26, speed: 3.2, life: 0.5, size: 0.3, up: 0.2 });
+  }
+
   /** Gemi alttan süzülerek başlangıç karesine girer. */
   enter() {
     if (!this.field) return Promise.resolve();
@@ -293,9 +340,19 @@ export class View {
       for (const m of this.landmarks.values()) { m.userData.core.rotation.y = t; m.userData.core.position.y = 0.44 + Math.sin(t * 2 + m.userData.phase) * 0.08; }
       for (const p of this.pirates.values()) p.position.y = 0.48 + Math.sin(t * 2 + p.position.z) * 0.04;
       for (const f of this.ship.userData.flames) f.scale.set(1, 1, this.thrust * (0.9 + Math.sin(t * 40 + f.position.x * 9) * 0.1));
+      if (this.shieldBubble.visible) { const w = this.shieldBubble.children[1]; w.rotation.y = t * 0.9; w.rotation.x = t * 0.5; this.shieldBubble.scale.setScalar(1 + Math.sin(t * 5) * 0.03); }
       if (!this.tweens.size) this.ship.position.y = SHIP_Y + Math.sin(t * 2.2) * 0.025;
       const pulse = 0.75 + Math.sin(t * 9) * 0.25;
       for (const mk of this.senseMarks) if (mk.visible) mk.userData.plane.opacity = mk.userData.fill * (0.7 + pulse * 0.6);
+    }
+    {
+      // toz akışı: uçuş sırasında hızlı, beklerken ağır
+      const target = this.field && this.thrust > 1.15 ? 1 : 0.1;
+      this.flow += (target - this.flow) * Math.min(1, dt * 2.5);
+      const p = this.dust.geometry.attributes.position, v = (0.9 + 15 * this.flow) * dt;
+      for (let i = 0; i < p.count; i++) { let z = p.getZ(i) + v; if (z > 18) z -= 40; p.setZ(i, z); }
+      p.needsUpdate = true;
+      this.dust.material.opacity = 0.45 + this.flow * 0.4;
     }
     for (let i = this.bursts.length - 1; i >= 0; i--) {
       const b = this.bursts[i]; b.age += dt;
@@ -376,10 +433,15 @@ export class View {
     if (gen !== this.gen) return;
     if (ev.collect) this.collect(ev.to);
     if (ev.blocked) {
+      // Korsan ateş eder, kalkan atışı emer; korsan dağılır.
       const pirate = this.pirates.get(`${ev.to.lane},${ev.to.y}`);
       if (pirate) pirate.visible = false;
-      this.burst(this.cellPos(ev.to), { color: 0x65dfff, n: 34, speed: 3, life: 0.6 });
+      this.burst(this.cellPos(ev.to), { color: 0x65dfff, n: 40, speed: 3.4, life: 0.65 });
+      this.burst(this.cellPos(ev.to), { color: 0xff4d6a, n: 22, speed: 5, life: 0.5, size: 0.3 });
+      this.flash(1.35, 260);
     }
+    const mark = this.landmarks.get(`${ev.to.lane},${ev.to.y}`);
+    if (mark) this.burst(this.cellPos(ev.to, 0.3), { color: mark.userData.core.material.color.getHex(), n: 22, speed: 2.6, life: 0.55, size: 0.3, up: 0.9 });
     this.setShield(ev.shielded);
   }
 
@@ -401,6 +463,8 @@ export class View {
     if (gen !== this.gen) return;
     const p = this.ship.position.clone();
     this.ship.visible = false;
+    if (ev.reason === 'pirate') this.zap(b, p);
+    this.flash(2.1, 380);
     this.burst(p, { color: 0xff7a2f, n: 70, speed: 6.5, life: 0.9, size: 0.5 });
     this.burst(p, { color: 0xffffff, n: 26, speed: 3, life: 0.45, size: 0.7 });
     this.burst(p, { color: 0x49c8ff, n: 22, speed: 8, life: 0.7, size: 0.26 });
@@ -414,12 +478,22 @@ export class View {
   async win() {
     const a = this.ship.position.clone(), b = a.clone(), gen = this.gen; b.z -= 7;
     this.hideTarget();
-    this.burst(new THREE.Vector3(a.x, 0.3, this.gz(this.field.rows - 0.5)), { color: GREEN, n: 44, speed: 5, life: 0.8, size: 0.4, up: 0.3 });
-    await this.tween(560, (k) => {
+    // Sıçrama: çıkış çizgisi boyunca kıvılcımlar, ileri fırlayan ışık çizgileri ve kısa bir parlama.
+    const zExit = this.gz(this.field.rows - 0.5), half = (this.field.lanes * C) / 2;
+    for (let l = 0; l < this.field.lanes; l++) this.burst(new THREE.Vector3(this.gx(l), 0.3, zExit), { color: l % 2 ? this.theme.grid[1] : GREEN, n: 20, speed: 4.5, life: 0.85, size: 0.36, up: 0.5 });
+    const lines = [];
+    for (let i = 0; i < 14; i++) {
+      const x = (Math.random() * 2 - 1) * (half + 2.5), len = 2.5 + Math.random() * 4, mat = glow(bright(0xbfefff, 1.8), 0.9);
+      lines.push({ m: strip(this.scene, x, zExit + 1.5 + Math.random() * 4, x, zExit + 1.5 - len, 0.045, mat, 0.2 + Math.random() * 0.8), mat, v: 16 + Math.random() * 16 });
+    }
+    this.flash(1.7, 520);
+    await this.tween(600, (k) => {
       if (gen !== this.gen) return;
       this.ship.position.lerpVectors(a, b, k * (0.45 + 0.55 * k));
-      this.thrust = 1.25 + k * 2.2; this.ship.scale.setScalar(SHIP_SCALE * (1 - k * 0.55));
+      this.thrust = 1.25 + k * 2.6; this.ship.scale.setScalar(SHIP_SCALE * (1 - k * 0.55));
+      for (const s of lines) { s.m.position.z -= s.v * 0.016 * (0.4 + k * 1.6); s.mat.opacity = 0.9 * (1 - k); }
     }, false);
+    for (const s of lines) { this.scene.remove(s.m); s.m.geometry.dispose(); s.mat.dispose(); }
     if (gen !== this.gen) return;
     this.ship.visible = false; this.thrust = 1;
   }

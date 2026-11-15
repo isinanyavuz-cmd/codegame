@@ -30,7 +30,7 @@ svg { display: block; }
 .back, .iconbtn { width: 50px; height: 50px; border-radius: 16px; display: grid; place-items: center; background: rgba(24, 33, 72, .85); border: 1px solid var(--line); color: #cfd9ff; }
 .back svg, .iconbtn svg { width: 22px; height: 22px; }
 .back:active, .iconbtn:active { transform: scale(.94); }
-.ttl small { display: block; font-size: 12.5px; font-weight: 700; letter-spacing: .16em; color: #7fd8ff; }
+.ttl small { display: block; font-size: 12.5px; font-weight: 700; letter-spacing: .16em; color: var(--sector, #7fd8ff); }
 .ttl b { display: block; font-size: 25px; font-weight: 800; line-height: 1.05; margin-top: 2px; white-space: nowrap; }
 
 .track { position: absolute; left: 356px; top: 24px; display: flex; align-items: center; }
@@ -55,7 +55,7 @@ button.node:not(.locked):active { transform: scale(.92); }
 /* ───────── kod paneli ───────── */
 .code { position: absolute; right: 20px; top: 18px; bottom: 18px; width: var(--panel); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .brief .row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
-.brief .lab { font-size: 12px; font-weight: 800; letter-spacing: .14em; color: #7fd8ff; white-space: nowrap; }
+.brief .lab { font-size: 12px; font-weight: 800; letter-spacing: .14em; color: var(--sector, #7fd8ff); white-space: nowrap; }
 .chip { font-size: 12px; font-weight: 700; padding: 4px 9px; border-radius: 9px; background: rgba(255, 138, 31, .18); color: #ffb26b; border: 1px solid rgba(255, 138, 31, .45); white-space: nowrap; }
 .waves { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--soft); }
 .waves i { width: 11px; height: 11px; border-radius: 50%; border: 2px solid rgba(150, 170, 230, .5); }
@@ -132,7 +132,10 @@ button.node:not(.locked):active { transform: scale(.92); }
 .err::after { content: 'burada'; position: absolute; left: calc(100% + 17px); top: 50%; transform: translateY(-50%); background: var(--bad); color: #fff; font-size: 12px; font-weight: 800; padding: 4px 9px; border-radius: 9px; }
 
 .pal { border-radius: 16px; background: rgba(255, 255, 255, .045); padding: 10px 12px 12px; }
-.pal { max-height: 180px; overflow: auto; flex-shrink: 0; }
+.pal { max-height: 210px; overflow: auto; flex-shrink: 0; }
+.palrow.dense { gap: 6px; }
+.palrow.dense .blk { height: 32px; font-size: 13.5px; padding: 0 10px; }
+.palrow.dense .cond { height: 30px; font-size: 13px; padding: 0 14px; }
 .pal .pl { font-size: 11.5px; font-weight: 800; letter-spacing: .13em; color: var(--soft); margin-bottom: 9px; }
 .palrow { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
 .palrow .blk { height: 36px; font-size: 14.5px; padding: 0 12px; border-radius: 10px; }
@@ -179,11 +182,23 @@ button.node:not(.locked):active { transform: scale(.92); }
 .pop.conds button { display: flex; }
 .pop.choices button { padding: 10px 14px; border-radius: 9px; background: rgba(255, 255, 255, .1); text-align: left; }
 .pop.choices button.on { background: #fff; color: #27344f; }
-.telemetry { position: absolute; left: 20px; bottom: 18px; max-width: calc(100% - var(--panel) - 60px); padding: 10px 14px; pointer-events: none; z-index: 3; }
-.field-key, .flight-state { display: flex; gap: 8px 14px; flex-wrap: wrap; font-size: 12px; line-height: 1.5; }
+.telemetry { position: absolute; left: 20px; bottom: 18px; max-width: calc(100% - var(--panel) - 60px); padding: 10px 14px; pointer-events: none; z-index: 3; display: flex; flex-direction: column; gap: 7px; border-radius: 18px; }
+.gauges { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.gauge { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 800; }
+.gauge svg { width: 18px; height: 18px; flex: none; }
+.gauge.energy { color: #8bf0b6; } .gauge.energy b { min-width: 12px; font-size: 16px; }
+.gauge .cells { display: flex; gap: 3px; }
+.gauge .cells i { width: 9px; height: 18px; border-radius: 3px; background: rgba(150, 170, 230, .2); }
+.gauge .cells i.on { background: #4cffa4; box-shadow: 0 0 8px rgba(76, 255, 164, .7); }
+.gauge.energy.low { color: var(--now); } .gauge.energy.low .cells i.on { background: var(--now); box-shadow: 0 0 8px rgba(255, 213, 61, .7); }
+.gauge.shield { color: var(--soft); }
+.gauge.shield.on { color: #7fe9ff; text-shadow: 0 0 12px rgba(94, 242, 255, .7); }
+.field-key { display: flex; gap: 4px 14px; flex-wrap: wrap; font-size: 12px; font-weight: 600; line-height: 1.5; }
 .field-key:empty { display: none; }
+.field-key span { display: flex; align-items: center; gap: 6px; }
+.field-key i { width: 9px; height: 9px; border-radius: 50%; background: currentColor; box-shadow: 0 0 7px currentColor; }
 .legend-beacon { color: #d3b1ff; } .legend-pirate { color: #ff8d9f; } .legend-energy { color: #8bf0b6; }
-.flight-state { color: #d7e0ff; } .flight-state .low { color: #ffd53d; }
+.flight-state { font-size: 12.5px; font-weight: 600; color: #d7e0ff; }
 
 /* ───────── kartlar: giriş, sonuç ───────── */
 .overlay { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(4, 7, 22, .62); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); padding: 20px; animation: fade .2s; }

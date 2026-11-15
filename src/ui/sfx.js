@@ -53,6 +53,9 @@ export const sfx = {
     [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.24, { type: 'triangle', vol: 0.09, delay: 0.1 + i * 0.085 }));
   },
   star: (i) => { tone(784 + i * 196, 0.22, { type: 'triangle', vol: 0.1 }); tone((784 + i * 196) * 2, 0.3, { vol: 0.035, delay: 0.03 }); },
+  /** Kalkış: motorların yükselen sesi. */
+  launch: () => { noise(0.45, 0.09, { from: 220, to: 2400, type: 'bandpass', q: 1.1, swell: true }); tone(120, 0.4, { type: 'sawtooth', vol: 0.04, slide: 260 }); },
+  shield: () => { tone(520, 0.22, { type: 'sine', vol: 0.06, slide: 420 }); tone(1040, 0.3, { vol: 0.03, delay: 0.05 }); },
   /** Rota ekranında gemi yol boyunca uçarken. */
   travel: (dur = 1) => { noise(dur, 0.07, { from: 300, to: 1800, type: 'bandpass', q: 1.5, swell: true }); tone(180, dur, { type: 'triangle', vol: 0.035, slide: 240 }); },
 };

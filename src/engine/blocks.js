@@ -17,7 +17,7 @@ export const CONDS = {
   atBeacon: { label: 'işarete vardım mı?', py: 'isarette_miyim()' },
   aheadAndRightFree: { label: 'meteor var VE sağım boş mu?', py: 'onumde_meteor_var() and sagim_bos()' },
   aheadOrRightBlocked: { label: 'meteor var VEYA sağım dolu mu?', py: 'onumde_meteor_var() or not sagim_bos()' },
-  atEnergy: { label: 'şarj istasyonunda mıyım?', py: 'sarjda_miyim()' },
+  atEnergy: { label: 'şarjda mıyım?', py: 'sarjda_miyim()' },
   energyLow: { label: 'enerji 3’ten az mı?', py: 'enerji < 3' },
 };
 

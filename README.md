@@ -100,10 +100,12 @@ npm test
 | `src/content/levels.js` | Sektörler ve sahneler |
 | `src/content/advanced.js` | Sektör 4–8 için 40 görev ve yeni sektör girişleri |
 | `src/content/gen.js` | Sektör 3 için tohumlu rastgele dalga üreteci |
-| `src/render/view.js`, `models.js` | 3B sahne ve animasyonlar (three.js) |
+| `src/render/view.js`, `models.js` | 3B sahne, efektler ve animasyonlar (three.js) |
+| `src/render/themes.js` | Sektör görünümleri: gökyüzü, gezegen, ızgara rengi, ışık |
 | `src/ui/editor.js` | Blok düzenleyici: sürükle-bırak, seçim, geri alma |
 | `src/ui/game.js` | Görev ekranı: çalıştırma, dalgalar, sonuç |
-| `src/ui/map.js` | Rota ekranı |
+| `src/ui/map.js` | Rota ekranı: yıldız haritası |
+| `src/ui/sfx.js` | Ses efektleri ve arka plan müziği (Web Audio) |
 | `src/storage.js` | İlerleme kaydı (tarayıcıda) |
 | `tests/` | Motor ve sahne testleri |
 

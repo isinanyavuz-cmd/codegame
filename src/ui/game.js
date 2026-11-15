@@ -53,6 +53,8 @@ export class Game {
     this.refreshMeta(); this.renderWaves();
     this.resetTelemetry();
     this.layout();
+    this.view.setTheme(sector.id);
+    document.documentElement.style.setProperty('--sector', this.view.theme.accent);
     this.view.setField(this.fields[0]);
     this.view.enter();
     history.replaceState(null, '', `#${level.id}`);
@@ -60,7 +62,7 @@ export class Game {
   }
 
   close() {
-    this.loopId++; this.view.setField(null);
+    this.loopId++; this.view.setField(null); this.view.setTheme(0);
     this.hideCall(); this.hideToast(); this.hideOverlay(); this.editor.closePop();
     $('game').hidden = true;
     history.replaceState(null, '', location.pathname + location.search);
@@ -175,6 +177,7 @@ export class Game {
     this.stepMode = step; this.results = []; this.wave = 0;
     this.simulateWave();
     this.setStatus('running');
+    this.view.launch(); this.sfx.launch();
     this.loop(++this.loopId);
   }
 
@@ -207,14 +210,21 @@ export class Game {
     this.renderTelemetry();
   }
 
+  /** Uçuş göstergesi: enerji hücreleri, kalkan durumu ve alandaki özel karelerin anlamı. */
   renderTelemetry() {
     const el = $('telemetry'), f = this.fields[this.wave], state = this.flight;
-    el.hidden = this.level.sector < 4;
-    const parts = [];
-    if (f.beacons.size) parts.push('<span class="legend-beacon">◉ Mor halka: işaret</span>');
-    if (f.pirates.size) parts.push('<span class="legend-pirate">◆ Kırmızı gemi: korsan</span>');
-    if (f.energyCells.size) parts.push('<span class="legend-energy">▣ Yeşil istasyon: şarj</span>');
-    el.innerHTML = `<div class="field-key">${parts.join('')}</div><div class="flight-state">${state.energy !== null ? `<b class="${state.energy < 3 ? 'low' : ''}">Enerji: ${state.energy}</b>` : ''}${f.pirates.size ? `<b>Kalkan: ${state.shielded ? 'açık' : 'kapalı'}</b>` : ''}<span>${state.message}</span></div>`;
+    const hasEnergy = state.energy !== null, hasShield = f.pirates.size > 0;
+    el.hidden = !(hasEnergy || hasShield || f.beacons.size || f.energyCells.size);
+    const gauges = [], key = [];
+    if (hasEnergy) {
+      const cells = Array.from({ length: 9 }, (_, i) => `<i class="${i < state.energy ? 'on' : ''}"></i>`).join('');
+      gauges.push(`<div class="gauge energy ${state.energy < 3 ? 'low' : ''}">${svg('i-bolt')}<div class="cells">${cells}</div><b>${state.energy}</b></div>`);
+    }
+    if (hasShield) gauges.push(`<div class="gauge shield ${state.shielded ? 'on' : ''}">${svg('i-shield')}<b>Kalkan ${state.shielded ? 'açık' : 'kapalı'}</b></div>`);
+    if (f.beacons.size) key.push('<span class="legend-beacon"><i></i>mor halka: işaret</span>');
+    if (f.pirates.size) key.push('<span class="legend-pirate"><i></i>kırmızı gemi: korsan</span>');
+    if (f.energyCells.size) key.push('<span class="legend-energy"><i></i>yeşil istasyon: şarj</span>');
+    el.innerHTML = `${gauges.length ? `<div class="gauges">${gauges.join('')}</div>` : ''}<div class="field-key">${key.join('')}</div>${this.status !== 'idle' && state.message ? `<div class="flight-state">${state.message}</div>` : ''}`;
   }
 
   /** Sıradaki adımı döndürür: o adımda bakılan sensörler ve ardından gelen olay. */
@@ -254,7 +264,7 @@ export class Game {
     if (['event', 'variable', 'shield', 'call'].includes(ev.t)) {
       if (ev.t === 'event') this.flight.message = EVENTS[ev.event].label;
       if (ev.t === 'variable') { this.flight.energy = ev.value; this.flight.message = 'Enerji güncellendi'; }
-      if (ev.t === 'shield') { this.flight.shielded = ev.shielded; this.flight.message = 'Kalkan hazır'; view.setShield(ev.shielded); }
+      if (ev.t === 'shield') { this.flight.shielded = ev.shielded; this.flight.message = 'Kalkan hazır'; view.setShield(ev.shielded); sfx.shield(); }
       if (ev.t === 'call') this.flight.message = `${FUNCTIONS[ev.name].label} çağrılıyor`;
       this.renderTelemetry();
       await view.wait(130);

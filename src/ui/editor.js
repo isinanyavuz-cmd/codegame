@@ -96,6 +96,8 @@ export class Editor {
     }
     // Tek sensör varsa palette gösterilir; birden çoksa "eğer" bloğundaki koşula dokunarak seçilir.
     if (this.level.conds.length === 1) { const e = h('span', 'cond', CONDS[this.level.conds[0]].label); e.dataset.condtool = this.level.conds[0]; this.pal.append(e); }
+    // Blok sayısı çoksa palet sıkışık çizilir; hepsi kaydırmadan görünsün.
+    this.pal.classList.toggle('dense', this.pal.children.length > 6);
   }
 
   // ---------- vurgular ----------

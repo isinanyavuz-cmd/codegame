@@ -65,8 +65,8 @@ export function buildShip(ghostMat = null) {
 }
 
 const ROCKS = [0x9a857a, 0x857268, 0xa58e7c, 0x7d6c68];
-/** Yontulmuş görünümlü meteor. `rand` 0–1 arası sayı üreten fonksiyondur. */
-export function buildMeteor(radius, rand) {
+/** Yontulmuş görünümlü meteor. `rand` 0–1 arası sayı üreten fonksiyondur; `rocks` renk seçenekleridir. */
+export function buildMeteor(radius, rand, rocks = ROCKS) {
   const geo = new THREE.IcosahedronGeometry(radius, 2);
   const p = geo.attributes.position, v = new THREE.Vector3();
   const a = rand() * 9, b = rand() * 9, c = rand() * 9, d = rand() * 9;
@@ -78,7 +78,7 @@ export function buildMeteor(radius, rand) {
     v.multiplyScalar(k); p.setXYZ(i, v.x, v.y, v.z);
   }
   geo.computeVertexNormals();
-  const mat = new THREE.MeshStandardMaterial({ color: ROCKS[Math.floor(rand() * ROCKS.length)], roughness: 0.95, metalness: 0.05, flatShading: true });
+  const mat = new THREE.MeshStandardMaterial({ color: rocks[Math.floor(rand() * rocks.length)], roughness: 0.95, metalness: 0.05, flatShading: true });
   const m = new THREE.Mesh(geo, mat);
   m.rotation.set(rand() * 6, rand() * 6, rand() * 6);
   m.scale.set(1, 0.85 + rand() * 0.2, 0.9 + rand() * 0.25);
@@ -128,22 +128,25 @@ export function beamTexture() {
   return new THREE.CanvasTexture(cv);
 }
 
-/** Uzay arka planı: bulutsu, yıldızlar ve soldan görünen hedef gezegen. */
-export function paintBackground(W, H, rand) {
+/**
+ * Uzay arka planı: gökyüzü, bulutsu, yıldızlar ve sektöre özgü öğeler.
+ * Görünüm `theme` ile belirlenir (bkz. themes.js).
+ */
+export function paintBackground(W, H, rand, theme) {
   const S = Math.min(2, window.devicePixelRatio || 1), cv = document.createElement('canvas');
   cv.width = Math.max(2, Math.round(W * S)); cv.height = Math.max(2, Math.round(H * S));
   const c = cv.getContext('2d'); c.scale(S, S);
   const g = c.createLinearGradient(0, 0, W * 0.7, H);
-  g.addColorStop(0, '#0a1238'); g.addColorStop(0.5, '#080d2b'); g.addColorStop(1, '#130b33');
+  g.addColorStop(0, theme.sky[0]); g.addColorStop(0.5, theme.sky[1]); g.addColorStop(1, theme.sky[2]);
   c.fillStyle = g; c.fillRect(0, 0, W, H);
   const blob = (x, y, r, rgb, a) => {
     const q = c.createRadialGradient(x, y, 0, x, y, r);
     q.addColorStop(0, `rgba(${rgb},${a})`); q.addColorStop(1, `rgba(${rgb},0)`);
     c.fillStyle = q; c.fillRect(x - r, y - r, r * 2, r * 2);
   };
-  const u = Math.max(W, H) / 1440;
-  blob(W * 0.39, H * 0.42, 560 * u, '70,70,210', 0.3); blob(W * 0.6, H * 0.85, 380 * u, '190,60,170', 0.16);
-  blob(W * 0.12, H * 0.22, 380 * u, '20,130,210', 0.16); blob(W * 0.36, H * 0.07, 300 * u, '120,80,230', 0.14);
+  const u = Math.max(W, H) / 1440, n4 = theme.nebula;
+  blob(W * 0.39, H * 0.42, 560 * u, n4[0], 0.3); blob(W * 0.6, H * 0.85, 380 * u, n4[1], 0.17);
+  blob(W * 0.12, H * 0.22, 380 * u, n4[2], 0.17); blob(W * 0.36, H * 0.07, 300 * u, n4[3], 0.15);
   const n = Math.round(620 * (W * H) / (1440 * 900));
   for (let i = 0; i < n; i++) {
     const x = rand() * W, y = rand() * H, r = 0.35 + Math.pow(rand(), 3.2) * 1.7, a = 0.25 + rand() * 0.75, t = rand();
@@ -157,14 +160,32 @@ export function paintBackground(W, H, rand) {
     c.beginPath(); c.moveTo(x - 13 * s, y); c.lineTo(x + 13 * s, y); c.moveTo(x, y - 13 * s); c.lineTo(x, y + 13 * s); c.stroke();
     c.fillStyle = '#fff'; c.beginPath(); c.arc(x, y, 2.2 * s, 0, 6.283); c.fill();
   }
-  // hedef gezegen
-  const R = H * 0.24, px = -R * 0.33, py = H * 0.58;
-  blob(px, py, R + 70, '90,220,255', 0.3);
+  if (EXTRAS[theme.extra]) EXTRAS[theme.extra](c, W, H, rand, u, blob);
+  if (theme.planet) paintPlanet(c, H, theme.planet, blob);
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** Sol kenardan görünen gezegen. */
+function paintPlanet(c, H, { hue, ring }, blob) {
+  const R = H * 0.24, px = -R * 0.33, py = H * 0.58, hsl = (dh, s, l, a = 1) => `hsla(${hue + dh},${s}%,${l}%,${a})`;
+  const halo = c.createRadialGradient(px, py, R * 0.8, px, py, R + 80);
+  halo.addColorStop(0, hsl(0, 90, 65, 0.34)); halo.addColorStop(1, hsl(0, 90, 65, 0));
+  c.fillStyle = halo; c.fillRect(px - R - 90, py - R - 90, (R + 90) * 2, (R + 90) * 2);
+  const arc = (front) => {
+    c.save(); c.translate(px, py); c.rotate(-0.3); c.scale(1, 0.26);
+    c.strokeStyle = hsl(10, 85, 80, front ? 0.6 : 0.28); c.lineWidth = R * 0.11;
+    c.beginPath(); c.arc(0, 0, R * 1.55, front ? 0 : Math.PI, front ? Math.PI : Math.PI * 2); c.stroke();
+    c.strokeStyle = hsl(-10, 80, 70, front ? 0.4 : 0.18); c.lineWidth = R * 0.05;
+    c.beginPath(); c.arc(0, 0, R * 1.82, front ? 0 : Math.PI, front ? Math.PI : Math.PI * 2); c.stroke();
+    c.restore();
+  };
+  if (ring) arc(false);
   c.save(); c.beginPath(); c.arc(px, py, R, 0, 6.283); c.clip();
   const pg = c.createRadialGradient(px + R * 0.55, py - R * 0.5, R * 0.05, px + R * 0.1, py, R * 1.25);
-  pg.addColorStop(0, '#a8fff0'); pg.addColorStop(0.3, '#34c3d6'); pg.addColorStop(0.62, '#1b62ad'); pg.addColorStop(1, '#0a1848');
+  pg.addColorStop(0, hsl(-8, 95, 84)); pg.addColorStop(0.3, hsl(0, 78, 54)); pg.addColorStop(0.62, hsl(18, 72, 36)); pg.addColorStop(1, hsl(40, 70, 14));
   c.fillStyle = pg; c.fillRect(px - R, py - R, R * 2, R * 2);
-  c.globalAlpha = 0.16; c.strokeStyle = '#eaffff';
+  c.globalAlpha = 0.16; c.strokeStyle = '#fff';
   for (const [dy, w] of [[-0.56, 16], [-0.29, 30], [0.02, 12], [0.27, 26], [0.55, 14]]) {
     c.lineWidth = w * R / 215; c.beginPath(); c.ellipse(px, py + dy * R, R * 1.15, R * 0.12, -0.16, 0, 6.283); c.stroke();
   }
@@ -173,7 +194,101 @@ export function paintBackground(W, H, rand) {
   sh.addColorStop(0, 'rgba(4,8,30,0)'); sh.addColorStop(1, 'rgba(4,8,30,0.82)');
   c.fillStyle = sh; c.fillRect(px - R, py - R, R * 2, R * 2);
   c.restore();
-  c.strokeStyle = 'rgba(160,240,255,0.55)'; c.lineWidth = 2; c.beginPath(); c.arc(px, py, R, -1.25, 0.55); c.stroke();
-  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  c.strokeStyle = hsl(0, 90, 82, 0.55); c.lineWidth = 2; c.beginPath(); c.arc(px, py, R, -1.25, 0.55); c.stroke();
+  if (ring) arc(true);
 }
+
+/** Sektöre özgü arka plan öğeleri. Hepsi geri planda, soluk çizilir; oyun alanını bastırmaz. */
+const EXTRAS = {
+  // Asteroit kuşağı: ekranı çaprazlama geçen kaya şeridi
+  belt(c, W, H, rand, u) {
+    for (let i = 0; i < 150; i++) {
+      const t = rand(), off = (rand() - 0.5) * 2, x = t * W * 1.1 - W * 0.05, y = H * (0.92 - t * 0.78) + off * off * Math.sign(off) * H * 0.13;
+      const r = (1.5 + Math.pow(rand(), 2.4) * 11) * u, a = 0.3 + rand() * 0.45;
+      c.save(); c.translate(x, y); c.rotate(rand() * 3); c.scale(1, 0.62 + rand() * 0.3);
+      c.fillStyle = `rgba(${95 + rand() * 50},${66 + rand() * 30},${48 + rand() * 20},${a})`;
+      c.beginPath(); c.arc(0, 0, r, 0, 6.283); c.fill();
+      c.fillStyle = `rgba(255,205,150,${a * 0.38})`; c.beginPath(); c.arc(-r * 0.25, -r * 0.3, r * 0.52, 0, 6.283); c.fill();
+      c.restore();
+    }
+  },
+  // Meteor yağmuru: gökten süzülen ışık çizgileri
+  streaks(c, W, H, rand, u) {
+    c.lineCap = 'round';
+    for (let i = 0; i < 46; i++) {
+      const x = rand() * W * 1.2, y = rand() * H, len = (50 + rand() * 190) * u, a = 0.12 + rand() * 0.34;
+      const q = c.createLinearGradient(x, y, x - len * 0.55, y + len);
+      q.addColorStop(0, 'rgba(255,190,170,0)'); q.addColorStop(1, `rgba(255,${150 + rand() * 80},${130 + rand() * 60},${a})`);
+      c.strokeStyle = q; c.lineWidth = (0.8 + rand() * 2.2) * u;
+      c.beginPath(); c.moveTo(x, y); c.lineTo(x - len * 0.55, y + len); c.stroke();
+      c.fillStyle = `rgba(255,235,215,${a + 0.2})`; c.beginPath(); c.arc(x - len * 0.55, y + len, (1 + rand() * 1.6) * u, 0, 6.283); c.fill();
+    }
+  },
+  // Karanlık bulutsu: yıldızları örten koyu bulutlar
+  clouds(c, W, H, rand, u, blob) {
+    for (let i = 0; i < 16; i++) blob(rand() * W, rand() * H, (150 + rand() * 260) * u, '4,3,16', 0.5 + rand() * 0.34);
+    for (let i = 0; i < 5; i++) blob(rand() * W, rand() * H, (90 + rand() * 150) * u, '120,80,255', 0.09);
+  },
+  // Korsan bölgesi: savrulan kor parçaları ve enkaz
+  embers(c, W, H, rand, u, blob) {
+    for (let i = 0; i < 70; i++) {
+      const x = rand() * W, y = rand() * H, r = (0.8 + Math.pow(rand(), 2) * 2.6) * u;
+      blob(x, y, r * 7, '255,90,50', 0.2); c.fillStyle = `rgba(255,${150 + rand() * 80},90,${0.5 + rand() * 0.4})`;
+      c.beginPath(); c.arc(x, y, r, 0, 6.283); c.fill();
+    }
+    for (let i = 0; i < 16; i++) {
+      c.save(); c.translate(rand() * W, rand() * H); c.rotate(rand() * 6.283);
+      const s = (7 + rand() * 20) * u; c.fillStyle = `rgba(42,22,28,${0.6 + rand() * 0.3})`; c.strokeStyle = 'rgba(255,120,90,0.3)'; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(-s, -s * 0.3); c.lineTo(s * 0.6, -s * 0.5); c.lineTo(s, s * 0.2); c.lineTo(-s * 0.2, s * 0.5); c.closePath(); c.fill(); c.stroke();
+      c.restore();
+    }
+  },
+  // Enerji krizi: kutup ışığına benzeyen enerji şeritleri
+  aurora(c, W, H, rand, u) {
+    c.lineCap = 'round';
+    for (let k = 0; k < 4; k++) {
+      const y0 = H * (0.12 + k * 0.22 + rand() * 0.08), amp = H * (0.04 + rand() * 0.06), ph = rand() * 6, w = (26 + rand() * 46) * u;
+      const q = c.createLinearGradient(0, y0 - amp, W, y0 + amp);
+      q.addColorStop(0, 'rgba(60,255,170,0)'); q.addColorStop(0.3 + rand() * 0.2, `rgba(${60 + rand() * 60},255,${170 + rand() * 60},0.2)`); q.addColorStop(1, 'rgba(40,200,255,0)');
+      c.strokeStyle = q; c.lineWidth = w; c.beginPath();
+      for (let x = -20; x <= W + 20; x += 24) { const y = y0 + Math.sin(x / W * 5.2 + ph) * amp + Math.sin(x / W * 13 + ph * 2) * amp * 0.3; if (x < 0) c.moveTo(x, y); else c.lineTo(x, y); }
+      c.stroke();
+    }
+  },
+  // Manevra okulu: uzakta dizili eğitim halkaları
+  rings(c, W, H, rand, u) {
+    for (let i = 0; i < 9; i++) {
+      const x = W * (0.08 + rand() * 0.84), y = H * (0.06 + rand() * 0.88), r = (16 + rand() * 54) * u, a = 0.12 + rand() * 0.2;
+      c.save(); c.translate(x, y); c.rotate(rand() * 1.2 - 0.6); c.scale(1, 0.34 + rand() * 0.4);
+      c.strokeStyle = `rgba(255,${200 + rand() * 40},110,${a})`; c.lineWidth = (2 + rand() * 3) * u; c.beginPath(); c.arc(0, 0, r, 0, 6.283); c.stroke();
+      c.strokeStyle = `rgba(255,240,190,${a * 0.6})`; c.lineWidth = 1; c.beginPath(); c.arc(0, 0, r * 1.25, 0, 6.283); c.stroke();
+      c.restore();
+    }
+  },
+  // Ana gemi: sol kenarda dev bir geminin gövdesi
+  station(c, W, H, rand, u, blob) {
+    const x = H * 0.02, y = H * 0.56, s = H * 0.3;
+    blob(x, y, s * 1.5, '210,90,255', 0.24);
+    c.save(); c.translate(x, y); c.rotate(-0.24);
+    const body = c.createLinearGradient(-s * 0.5, 0, s * 0.62, 0);
+    body.addColorStop(0, '#0d0a1e'); body.addColorStop(0.65, '#2b2350'); body.addColorStop(0.9, '#6a5aa8'); body.addColorStop(1, '#cdb8ff');
+    c.fillStyle = body;
+    c.beginPath(); c.moveTo(-s * 0.5, -s * 1.5); c.lineTo(s * 0.3, -s * 1.28); c.lineTo(s * 0.62, -s * 0.4); c.lineTo(s * 0.62, s * 0.5); c.lineTo(s * 0.28, s * 1.32); c.lineTo(-s * 0.5, s * 1.55); c.closePath(); c.fill();
+    c.fillStyle = '#1a1536';
+    c.beginPath(); c.moveTo(s * 0.62, -s * 0.16); c.lineTo(s * 1.02, -s * 0.07); c.lineTo(s * 1.02, s * 0.2); c.lineTo(s * 0.62, s * 0.3); c.closePath(); c.fill();
+    blob(s * 1.05, s * 0.06, s * 0.3, '120,230,255', 0.55);
+    c.fillStyle = 'rgba(160,240,255,0.95)'; c.fillRect(s * 1.0, -s * 0.04, s * 0.03, s * 0.2);
+    for (let r = 0; r < 15; r++) for (let k = 0; k < 6; k++) {
+      if (rand() < 0.36) continue;
+      const wx = -s * 0.36 + k * s * 0.15, wy = -s * 1.12 + r * s * 0.16;
+      c.fillStyle = rand() < 0.2 ? 'rgba(120,235,255,0.9)' : `rgba(255,${205 + rand() * 40},150,${0.45 + rand() * 0.5})`;
+      c.fillRect(wx, wy, s * 0.07, s * 0.035);
+    }
+    c.strokeStyle = 'rgba(210,180,255,0.5)'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(s * 0.3, -s * 1.28); c.lineTo(s * 0.62, -s * 0.4); c.lineTo(s * 0.62, s * 0.5); c.lineTo(s * 0.28, s * 1.32); c.stroke();
+    c.restore();
+    c.save(); c.translate(x + s * 0.2, y); c.rotate(-0.24); c.scale(1, 0.2);
+    c.strokeStyle = 'rgba(240,170,255,0.5)'; c.lineWidth = s * 0.07; c.beginPath(); c.arc(0, 0, s * 1.5, -0.2, Math.PI + 0.2); c.stroke();
+    c.restore();
+  },
+};

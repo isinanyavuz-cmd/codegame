@@ -89,7 +89,8 @@ export class MapScreen {
       const pos = narrow ? (left ? 'left:4px' : 'right:4px') : `left:${x}px`;
       html.push(`<div class="slabel ${narrow ? (left ? 'l' : 'r') : ''} ${open ? '' : 'dim'}" style="${pos};top:${y + R + 14}px"><small>SEKTÖR ${s.id}</small><b>${s.name}</b><span class="chip">${s.concept}</span>${info}</div>`);
       levels.forEach((l, k) => {
-        const at = g.start + g.len * ((k + 1) / (levels.length + 1));
+        // Son sektörün yolu büyük hedef gezegende biter; son düğüm ona değmesin diye pay bırakılır.
+        const at = g.start + g.len * ((k + 1) / (levels.length + (i === sectors.length - 1 ? 1.8 : 1)));
         lenOf.set(l.id, at);
         const p = this.pointAt(at), st = store.stars(l.id), locked = !store.isUnlocked(l, LEVELS), isCur = cur && l.id === cur.id;
         const cls = ['node', l.n === 8 ? 'boss' : '', isCur ? 'cur' : st ? 'done' : '', locked ? 'locked' : ''].join(' ');
