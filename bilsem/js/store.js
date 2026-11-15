@@ -1,0 +1,134 @@
+/* Zekâ Kâşifi — ilerleme kaydı: yıldızlar, günlük seri, kategori istatistikleri */
+(function (root) {
+  'use strict';
+  const Bilsem = root.Bilsem = root.Bilsem || {};
+  const KEY = 'zekakasifi.v1';
+
+  function blank() {
+    return { v: 1, settings: { sound: true, len: 10 }, cats: {}, days: {}, exams: [] };
+  }
+
+  function dayKey(d) {
+    d = d || new Date();
+    const p = (n) => (n < 10 ? '0' : '') + n;
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+  function addDays(key, n) {
+    const p = key.split('-').map(Number);
+    return dayKey(new Date(p[0], p[1] - 1, p[2] + n));
+  }
+
+  /* 10 soruda 9+ doğru: 3 yıldız, 7+: 2 yıldız, 5+: 1 yıldız */
+  function starsFor(correct, total) {
+    if (!total) return 0;
+    const r = correct / total;
+    return r >= 0.9 ? 3 : r >= 0.7 ? 2 : r >= 0.5 ? 1 : 0;
+  }
+
+  /* Beceri puanı 1 ile 3.9 arasında gezer; tam kısmı önerilen seviyedir. */
+  function nextSkill(skill, level, ok) {
+    const cur = Math.floor(skill);
+    const d = ok ? (level >= cur ? 0.15 : 0.05) : (level <= cur ? -0.2 : -0.05);
+    return Math.max(1, Math.min(3.9, Math.round((skill + d) * 100) / 100));
+  }
+
+  /* Bugün (ya da bugün henüz oynanmadıysa dün) biten kesintisiz gün sayısı */
+  function streak(days, today) {
+    let k = today;
+    if (!(days[k] && days[k].n > 0)) k = addDays(k, -1);
+    let n = 0;
+    while (days[k] && days[k].n > 0) { n++; k = addDays(k, -1); }
+    return n;
+  }
+
+  const Store = {
+    data: blank(),
+    load() {
+      try {
+        const raw = root.localStorage && root.localStorage.getItem(KEY);
+        if (raw) {
+          const d = JSON.parse(raw);
+          if (d && d.v === 1) this.data = Object.assign(blank(), d, { settings: Object.assign(blank().settings, d.settings) });
+        }
+      } catch (e) { /* kayıt okunamadıysa boş başla */ }
+      return this.data;
+    },
+    save() {
+      try { root.localStorage && root.localStorage.setItem(KEY, JSON.stringify(this.data)); } catch (e) { /* kayıt kapalı olabilir */ }
+    },
+    reset() {
+      const s = this.data.settings;
+      this.data = blank();
+      this.data.settings = s;
+      this.save();
+    },
+    cat(id) {
+      const c = this.data.cats;
+      if (!c[id]) c[id] = { stars: [0, 0, 0], seen: 0, ok: 0, ms: 0, recent: [], skill: 1 };
+      return c[id];
+    },
+    day(key) {
+      const d = this.data.days;
+      key = key || dayKey();
+      if (!d[key]) d[key] = { n: 0, ok: 0, daily: false };
+      return d[key];
+    },
+    recordAnswer(id, level, ok, ms) {
+      const c = this.cat(id);
+      c.seen++;
+      if (ok) c.ok++;
+      c.ms += Math.max(0, Math.min(ms || 0, 120000));
+      c.recent.push(ok ? 1 : 0);
+      if (c.recent.length > 20) c.recent.shift();
+      c.skill = nextSkill(c.skill, level, ok);
+      const d = this.day();
+      d.n++;
+      if (ok) d.ok++;
+    },
+    setStars(id, level, stars) {
+      const c = this.cat(id);
+      if (stars > c.stars[level - 1]) c.stars[level - 1] = stars;
+    },
+    workLevel(id) { return Math.max(1, Math.min(3, Math.floor(this.cat(id).skill))); },
+    /* Toplam yıldız: kategori yıldızları + her günün görevinden kazanılan en iyi yıldız */
+    totalStars() {
+      let n = 0;
+      Object.keys(this.data.cats).forEach((k) => { this.data.cats[k].stars.forEach((s) => { n += s; }); });
+      Object.keys(this.data.days).forEach((k) => { n += this.data.days[k].stars || 0; });
+      return n;
+    },
+    finishDaily(stars) {
+      const d = this.day();
+      d.daily = true;
+      d.stars = Math.max(d.stars || 0, stars);
+    },
+    streak() { return streak(this.data.days, dayKey()); },
+    dailyDone() { const d = this.data.days[dayKey()]; return !!(d && d.daily); },
+    addExam(sum) {
+      this.data.exams.push(sum);
+      if (this.data.exams.length > 30) this.data.exams.shift();
+    },
+    /* Günün görevi: az çalışılan ve zorlanılan kategoriler daha sık gelir. */
+    dailyPlan(rng, n) {
+      const pool = Bilsem.CATS.map((c) => {
+        const s = this.cat(c.id);
+        const recent = s.recent.slice(-10);
+        const acc = recent.length ? recent.reduce((a, b) => a + b, 0) / recent.length : 0.5;
+        return { id: c.id, w: 1 + (1 - acc) * 2 + (s.seen < 5 ? 1 : 0) };
+      });
+      const plan = [];
+      while (plan.length < n && pool.length) {
+        let r = rng.next() * pool.reduce((a, p) => a + p.w, 0), i = 0;
+        while (i < pool.length - 1 && r >= pool[i].w) { r -= pool[i].w; i++; }
+        const p = pool.splice(i, 1)[0];
+        plan.push({ type: p.id, level: this.workLevel(p.id) });
+      }
+      return plan;
+    },
+  };
+
+  Bilsem.Store = Store;
+  Bilsem.StoreUtil = { dayKey: dayKey, addDays: addDays, starsFor: starsFor, nextSkill: nextSkill, streak: streak };
+
+  if (typeof module !== 'undefined') module.exports = Bilsem;
+})(typeof window !== 'undefined' ? window : globalThis);

@@ -20,6 +20,12 @@ Kurulum yok: `index.html` dosyasını tarayıcıda aç. Fare ve dokunmatik ekran
 - Blokları sürükleyerek sırasını değiştirebilir, tekrar bloğunun içine koyabilirsin.
 - Her bölümde konabilecek blok sayısı sınırlıdır; döngüsüz çözüm sığmaz. En az blokla bitirene 3 yıldız.
 
+## Bu depodaki diğer uygulama
+
+[`bilsem/`](bilsem/README.md) klasöründe **Zekâ Kâşifi** var: 2. sınıf öğrencileri için
+BİLSEM hazırlık alıştırmaları (20 soru türü, günün görevi, deneme sınavı, veli paneli).
+Açmak için `bilsem/index.html`.
+
 ## Geliştirme
 
 ```

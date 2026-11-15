@@ -1,0 +1,71 @@
+const test = require('node:test');
+const assert = require('node:assert');
+const B = require('./load.js');
+const U = B.StoreUtil;
+
+test('yıldızlar: 9+ doğru 3, 7+ doğru 2, 5+ doğru 1', () => {
+  assert.strictEqual(U.starsFor(10, 10), 3);
+  assert.strictEqual(U.starsFor(9, 10), 3);
+  assert.strictEqual(U.starsFor(8, 10), 2);
+  assert.strictEqual(U.starsFor(7, 10), 2);
+  assert.strictEqual(U.starsFor(5, 10), 1);
+  assert.strictEqual(U.starsFor(4, 10), 0);
+  assert.strictEqual(U.starsFor(0, 0), 0);
+});
+
+test('beceri puanı doğruyla artar, yanlışla düşer, 1-3.9 arasında kalır', () => {
+  assert.ok(U.nextSkill(1, 1, true) > 1);
+  assert.strictEqual(U.nextSkill(1, 1, false), 1);
+  assert.ok(U.nextSkill(2.5, 2, false) < 2.5);
+  assert.strictEqual(U.nextSkill(3.9, 3, true), 3.9);
+  let s = 1;
+  for (let i = 0; i < 7; i++) s = U.nextSkill(s, 1, true);
+  assert.ok(s >= 2, '7 doğru cevap bir üst seviyeye taşır: ' + s);
+});
+
+test('gün anahtarı ve seri', () => {
+  assert.strictEqual(U.dayKey(new Date(2026, 10, 5)), '2026-11-05');
+  assert.strictEqual(U.addDays('2026-11-01', -1), '2026-10-31');
+  const days = { '2026-11-13': { n: 4 }, '2026-11-14': { n: 10 }, '2026-11-15': { n: 2 } };
+  assert.strictEqual(U.streak(days, '2026-11-15'), 3);
+  assert.strictEqual(U.streak(days, '2026-11-16'), 3, 'bugün henüz oynanmadıysa seri bozulmaz');
+  assert.strictEqual(U.streak(days, '2026-11-17'), 0);
+  assert.strictEqual(U.streak({}, '2026-11-15'), 0);
+});
+
+test('kayıt: cevaplar kategori ve gün istatistiklerine işlenir', () => {
+  const S = B.Store;
+  S.data = { v: 1, settings: { sound: true, len: 10 }, cats: {}, days: {}, exams: [] };
+  S.recordAnswer('pattern', 1, true, 4000);
+  S.recordAnswer('pattern', 1, false, 6000);
+  const c = S.cat('pattern');
+  assert.strictEqual(c.seen, 2);
+  assert.strictEqual(c.ok, 1);
+  assert.deepStrictEqual(c.recent, [1, 0]);
+  assert.strictEqual(S.day().n, 2);
+  S.setStars('pattern', 1, 2);
+  S.setStars('pattern', 1, 1);
+  assert.strictEqual(S.cat('pattern').stars[0], 2, 'en iyi yıldız korunur');
+  assert.strictEqual(S.totalStars(), 2);
+  assert.strictEqual(S.streak(), 1);
+});
+
+test('günün görevi: tekrarsız, geçerli kategorilerden oluşur', () => {
+  const S = B.Store;
+  S.data = { v: 1, settings: { sound: true, len: 10 }, cats: {}, days: {}, exams: [] };
+  const plan = S.dailyPlan(new B.RNG(7), 10);
+  assert.strictEqual(plan.length, 10);
+  assert.strictEqual(new Set(plan.map((p) => p.type)).size, 10);
+  for (const p of plan) { assert.ok(B.catById(p.type)); assert.ok(p.level >= 1 && p.level <= 3); }
+});
+
+test('günün görevi yıldızı toplama eklenir, aynı gün tekrar oynamak yıldızı katlamaz', () => {
+  const S = B.Store;
+  S.data = { v: 1, settings: { sound: true, len: 10 }, cats: {}, days: {}, exams: [] };
+  S.finishDaily(2);
+  assert.strictEqual(S.dailyDone(), true);
+  assert.strictEqual(S.totalStars(), 2);
+  S.finishDaily(3);
+  S.finishDaily(1);
+  assert.strictEqual(S.totalStars(), 3);
+});
