@@ -1,0 +1,25 @@
+// Kod Pilotu — giriş noktası: sahneyi kurar, rota ve görev ekranları arasında geçiş yapar.
+import { View } from './render/view.js';
+import { Game } from './ui/game.js';
+import { MapScreen } from './ui/map.js';
+import { sfx } from './ui/sfx.js';
+import { store } from './storage.js';
+import { LEVELS, levelById } from './content/levels.js';
+
+async function boot() {
+  try { await Promise.all(['500', '700', '800'].map((w) => document.fonts.load(`${w} 20px "Exo 2"`, 'ÇIKIŞ ğşı'))); } catch (e) { /* yedek yazı tipiyle devam */ }
+  sfx.enabled = store.sound;
+
+  const view = new View(document.getElementById('stage'));
+  const map = new MapScreen({ store, sfx, onOpen: (level) => { map.hide(); game.open(level); } });
+  const game = new Game({ view, store, sfx, onExit: (level) => map.show(level) });
+
+  let timer = 0;
+  window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(() => { view.resize(); game.layout(); }, 120); });
+
+  const fromHash = levelById(location.hash.slice(1));
+  if (fromHash && store.isUnlocked(fromHash, LEVELS)) game.open(fromHash); else map.show();
+  window.__kp = { view, game, map, store };
+}
+
+boot();

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#070b22">
+<title>Kod Pilotu</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="stage"></div>
+
+<!-- Rota ekranı -->
+<section id="map" class="screen" hidden>
+  <header class="maphead">
+    <div class="logo"><small>UZAY KODLAMA MACERASI</small><b>KOD PİLOTU</b></div>
+    <div class="mapstats">
+      <div class="rank glass"><small>RÜTBE</small><b id="rank">Çaylak Pilot</b></div>
+      <div class="total glass"><svg viewBox="0 0 32 32"><use href="#i-star"/></svg><b id="totalStars">0</b><span id="maxStars">/ 72</span></div>
+      <button class="iconbtn" id="soundBtn" aria-label="Ses"><svg viewBox="0 0 32 32"><use href="#i-sound"/></svg></button>
+    </div>
+  </header>
+  <div class="route" id="route"></div>
+</section>
+
+<!-- Görev ekranı -->
+<section id="game" class="screen" hidden>
+  <div class="top">
+    <button class="back" id="backBtn" aria-label="Rotaya dön"><svg viewBox="0 0 32 32"><path d="M20 6L10 16l10 10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div class="ttl"><small id="sectorNo">SEKTÖR 1</small><b id="sectorName">Kalkış</b></div>
+  </div>
+  <div class="track" id="track"></div>
+
+  <aside class="code glass" id="panel">
+    <div class="brief">
+      <div class="row"><span class="lab" id="missionNo">GÖREV 1 / 8</span><span class="chip" id="conceptChip">Sıralama</span><span class="waves" id="waves"></span></div>
+      <h2 id="missionTitle"></h2>
+      <p id="missionText"></p>
+    </div>
+    <div class="tabrow">
+      <div class="tabs" id="tabs"><button class="on" data-tab="blocks">Blok</button><button data-tab="python">Python</button></div>
+      <div class="meta">
+        <button class="mini" id="undoBtn" aria-label="Geri al" disabled><svg viewBox="0 0 32 32"><use href="#i-undo"/></svg></button>
+        <span class="counter" id="counter"></span>
+      </div>
+    </div>
+    <div class="ws" id="ws"></div>
+    <pre class="py" id="py" hidden></pre>
+    <div class="pal"><div class="pl">BU GÖREVİN BLOKLARI</div><div class="palrow" id="pal"></div></div>
+    <div class="ctrl">
+      <button class="big" id="runBtn"></button>
+      <button class="sq" id="stepBtn"><svg viewBox="0 0 32 32"><path d="M7 6l13 10L7 26z" fill="currentColor"/><rect x="21" y="6" width="5" height="20" rx="2" fill="currentColor"/></svg>adım</button>
+      <button class="sq" id="resetBtn"><svg viewBox="0 0 32 32"><use href="#i-undo"/></svg>baştan</button>
+      <button class="sq" id="speedBtn"><b id="speedLab">1×</b>hız</button>
+    </div>
+  </aside>
+
+  <div id="call" class="call" hidden></div>
+  <div id="toast" class="toast glass" hidden></div>
+</section>
+
+<div id="overlay" class="overlay" hidden></div>
+<div id="pop" class="pop glass" hidden></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-star" viewBox="0 0 32 32"><path d="M16 3l4 9 10 1-7.5 6.5L25 29l-9-5-9 5 2.5-9.5L2 13l10-1z" fill="currentColor"/></symbol>
+  <symbol id="i-check" viewBox="0 0 32 32"><path d="M6 17l7 7L27 9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-cross" viewBox="0 0 32 32"><path d="M8 8l16 16M24 8L8 24" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 32 32"><rect x="6" y="14" width="20" height="14" rx="4" fill="currentColor"/><path d="M10.5 14v-3.500a5.500 5.500 0 0 1 11 0V14" fill="none" stroke="currentColor" stroke-width="3.500"/></symbol>
+  <symbol id="i-play" viewBox="0 0 32 32"><path d="M9 5l18 11L9 27z" fill="currentColor"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 32 32"><rect x="7" y="5" width="7" height="22" rx="2" fill="currentColor"/><rect x="18" y="5" width="7" height="22" rx="2" fill="currentColor"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 32 32"><path d="M9 11a9 9 0 1 1-2 9" fill="none" stroke="currentColor" stroke-width="3.500" stroke-linecap="round"/><path d="M4 6l5 6 6-4" fill="none" stroke="currentColor" stroke-width="3.500" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-sound" viewBox="0 0 32 32"><path d="M5 12h5l7-6v20l-7-6H5z" fill="currentColor"/><path class="waves-on" d="M21 11a7 7 0 0 1 0 10M24.500 7.500a12 12 0 0 1 0 17" fill="none" stroke="currentColor" stroke-width="2.800" stroke-linecap="round"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 32 32"><path d="M7 9h18M13 9V6h6v3M9.500 9l1 17h11l1-17" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
