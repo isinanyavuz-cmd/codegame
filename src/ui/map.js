@@ -33,6 +33,7 @@ export class MapScreen {
   }
 
   show() {
+    this.renderToggles();
     $('map').hidden = false;
     this.render(true);
   }

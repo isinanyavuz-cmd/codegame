@@ -14,8 +14,8 @@ const IN_FLIGHT = ['meteor', 'wall', 'pirate', 'shield', 'energy', 'overflow', '
 const TONE = { bad: 'var(--bad)', ok: 'var(--ok)', info: '#8fa6e8' };
 
 export class Game {
-  constructor({ view, store, sfx, onExit }) {
-    Object.assign(this, { view, store, sfx, onExit });
+  constructor({ view, store, sfx, music, onExit }) {
+    Object.assign(this, { view, store, sfx, music, onExit });
     this.status = 'idle'; this.loopId = 0; this.current = Promise.resolve(); this.level = null; this.tab = 'blocks';
     this.editor = new Editor({
       ws: $('ws'), pal: $('pal'), pop: $('pop'),
@@ -26,6 +26,8 @@ export class Game {
     $('runBtn').addEventListener('click', () => this.onRun());
     $('stepBtn').addEventListener('click', () => this.onStep());
     $('resetBtn').addEventListener('click', () => { sfx.click(); this.stop(); });
+    $('gameSoundBtn').addEventListener('click', () => this.toggleSound());
+    this.renderSound();
     $('speedBtn').addEventListener('click', () => this.cycleSpeed());
     $('undoBtn').addEventListener('click', () => { sfx.click(); if (this.status !== 'idle') this.stop(); this.editor.undo(); });
     $('backBtn').addEventListener('click', () => { sfx.click(); this.close(); });
@@ -164,6 +166,21 @@ export class Game {
     } else if (kind === 'condtip') this.showToast('', 'Sensörü "eğer" veya "olana kadar" bloğuna bırak. Koşulu değiştirmek için de bloğun koşuluna dokunabilirsin.');
   }
 
+  /** Sesi ve müziği birlikte açar/kapatır. Harita ekranındaki iki düğmeyle aynı ayarları kullanır. */
+  toggleSound() {
+    const on = !(this.store.sound && this.store.music);
+    this.store.sound = on; this.store.music = on;
+    this.sfx.enabled = on; this.music.enabled = on;
+    this.renderSound();
+    if (on) this.sfx.click();
+  }
+  renderSound() {
+    const silent = !this.store.sound && !this.store.music;
+    const b = $('gameSoundBtn');
+    b.classList.toggle('off', silent);
+    b.setAttribute('aria-pressed', String(!silent));
+  }
+
   // ---------- çalıştırma ----------
   setStatus(s) {
     this.status = s;
@@ -180,13 +197,15 @@ export class Game {
 
   onRun() {
     this.sfx.click();
-    if (this.status === 'idle' || this.status === 'failed') this.start(false);
+    if (this.status === 'failed') this.stop();
+    else if (this.status === 'idle') this.start(false);
     else if (this.status === 'running') this.setStatus('paused');
     else if (this.status === 'paused') { this.stepMode = false; this.resume(); }
   }
   onStep() {
     this.sfx.click();
-    if (this.status === 'idle' || this.status === 'failed') this.start(true);
+    if (this.status === 'failed') this.stop();
+    else if (this.status === 'idle') this.start(true);
     else if (this.status === 'paused') { this.stepMode = true; this.resume(); }
     else if (this.status === 'running') this.stepMode = true;
   }
