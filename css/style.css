@@ -57,11 +57,16 @@ button.node:not(.locked):active { transform: scale(.92); }
 .brief .row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
 .brief .lab { font-size: 12px; font-weight: 800; letter-spacing: .14em; color: var(--sector, #7fd8ff); white-space: nowrap; }
 .chip { font-size: 12px; font-weight: 700; padding: 4px 9px; border-radius: 9px; background: rgba(255, 138, 31, .18); color: #ffb26b; border: 1px solid rgba(255, 138, 31, .45); white-space: nowrap; }
-.waves { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--soft); }
-.waves i { width: 11px; height: 11px; border-radius: 50%; border: 2px solid rgba(150, 170, 230, .5); }
-.waves i.ok { background: var(--ok); border-color: var(--ok); }
-.waves i.on { background: var(--now); border-color: var(--now); box-shadow: 0 0 10px rgba(255, 213, 61, .8); }
-.waves i.bad { background: var(--bad); border-color: var(--bad); }
+/* Çok dalgalı görevlerde: dalga düğmeleri ve "aynı program hepsini geçmeli" notu */
+.wavebar { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 6px 10px; border-radius: 12px; background: rgba(255, 213, 61, .08); border: 1px solid rgba(255, 213, 61, .32); }
+.wavebar .note { font-size: 12.5px; line-height: 1.25; font-weight: 600; color: #ffe9a3; }
+.waves { flex: none; display: flex; align-items: center; gap: 5px; }
+.waves button { width: 24px; height: 24px; border-radius: 50%; border: 2px solid rgba(150, 170, 230, .5); display: grid; place-items: center; font-size: 12px; font-weight: 800; line-height: 1; color: var(--soft); }
+.waves button:active { transform: scale(.9); }
+.waves button.view { border-color: #fff; color: #fff; }
+.waves button.ok { background: var(--ok); border-color: var(--ok); color: #06301d; }
+.waves button.on { background: var(--now); border-color: var(--now); color: #3a2c00; box-shadow: 0 0 10px rgba(255, 213, 61, .8); }
+.waves button.bad { background: var(--bad); border-color: var(--bad); color: #fff; }
 .brief h2 { margin: 0 0 4px; font-size: 21px; font-weight: 800; line-height: 1.1; }
 .brief p { margin: 0; font-size: 16px; line-height: 1.34; font-weight: 500; color: #d7e0ff; }
 .brief p b { color: #fff; font-weight: 700; }
@@ -304,14 +309,22 @@ button.node:not(.locked):active { transform: scale(.92); }
 
 /* ───────── küçük ekranlar ───────── */
 @media (min-height: 1000px) { :root { --bz: 1.12; } }
-@media (max-height: 860px) { :root { --bz: .9; } .brief p { font-size: 15px; } .brief h2 { font-size: 19px; } .big, .sq { height: 52px; } .sq { width: 52px; } .code { gap: 9px; padding: 13px; } }
+@media (max-height: 860px) {
+  :root { --bz: .9; } .brief p { font-size: 15px; } .brief h2 { font-size: 19px; } .big, .sq { height: 52px; } .sq { width: 52px; } .code { gap: 9px; padding: 13px; }
+  /* Alçak ekranda dalga notu tek satıra iner; program alanına yer kalsın. */
+  .wavebar { margin-top: 6px; padding: 4px 8px; gap: 8px; } .wavebar .more { display: none; } .waves button { width: 22px; height: 22px; }
+}
 @media (max-height: 790px) { :root { --bz: .86; } .pal .pl { display: none; } .pal { padding-top: 12px; } }
 @media (max-height: 700px) { :root { --bz: .78; } }
 @media (max-width: 1280px) { :root { --panel: 380px; } .track .seg { width: 24px; } .track { left: 330px; } }
-@media (max-width: 1100px) { .track { display: none; } :root { --panel: 350px; } }
+@media (max-width: 1100px) {
+  .track { display: none; } :root { --panel: 350px; }
+  /* Dar panelde iki basamaklı blok sayıları ("0 / 14 blok", "en çok 13") satıra sığsın. */
+  .tabs button { padding: 6px 8px; } .meta { gap: 5px; } .counter { font-size: 12.5px; gap: 4px; } .counter .goal { padding: 4px 6px; }
+}
 @media (max-width: 860px), (max-aspect-ratio: 1/1) {
   .code { left: 10px; right: 10px; top: auto; bottom: 10px; width: auto; height: 52%; padding: 12px; gap: 8px; }
-  .brief p { font-size: 14px; } .brief h2 { display: none; }
+  .brief p { font-size: 14px; } .brief h2 { display: none; } .wavebar { margin-top: 5px; padding: 4px 8px; } .wavebar .note { font-size: 11.5px; }
   .top { left: 12px; top: 12px; } .ttl b { font-size: 20px; }
   .toast { top: 72px; }
   .rank { display: none; }

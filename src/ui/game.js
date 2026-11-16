@@ -1,6 +1,6 @@
 // Görev ekranı: sahneyi açar, programı çalıştırır, olayları sırayla oynatır,
 // dalgaları ve sonucu yönetir.
-import { parseField, simulate, stars as calcStars, FAIL_TEXT } from '../engine/world.js';
+import { parseField, simulate, sense, stars as calcStars, FAIL_TEXT } from '../engine/world.js';
 import { count, clone, toPython, CONDS, EVENTS, FUNCTIONS } from '../engine/blocks.js';
 import { LEVELS, SECTORS, KINDS, levelsOf } from '../content/levels.js';
 import { Editor, renderBlock, hatBlock } from './editor.js';
@@ -9,6 +9,9 @@ const $ = (id) => document.getElementById(id);
 const svg = (id, cls = '') => `<svg viewBox="0 0 32 32" class="${cls}"><use href="#${id}"/></svg>`;
 const rich = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 const SPEEDS = [1, 2, 0.5];
+// Uçuş sırasında ortaya çıkan başarısızlıklar; çok dalgalı görevde hangi dalgada olduğu da söylenir.
+const IN_FLIGHT = ['meteor', 'wall', 'pirate', 'shield', 'energy', 'overflow', 'station', 'ended', 'idle', 'limit'];
+const TONE = { bad: 'var(--bad)', ok: 'var(--ok)', info: '#8fa6e8' };
 
 export class Game {
   constructor({ view, store, sfx, onExit }) {
@@ -27,6 +30,10 @@ export class Game {
     $('undoBtn').addEventListener('click', () => { sfx.click(); if (this.status !== 'idle') this.stop(); this.editor.undo(); });
     $('backBtn').addEventListener('click', () => { sfx.click(); this.close(); });
     $('tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) { sfx.click(); this.setTab(b.dataset.tab); } });
+    $('waves').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-wave]');
+      if (b) { sfx.click(); this.showWave(Number(b.dataset.wave)); }
+    });
     $('track').addEventListener('click', (e) => {
       const b = e.target.closest('[data-level]');
       if (b && !b.classList.contains('locked') && b.dataset.level !== this.level.id) { sfx.click(); this.open(LEVELS.find((l) => l.id === b.dataset.level)); }
@@ -46,7 +53,8 @@ export class Game {
     $('missionNo').textContent = `GÖREV ${level.n} / 8`; $('conceptChip').textContent = sector.concept;
     $('missionTitle').textContent = level.title; $('missionText').innerHTML = rich(level.brief);
     this.renderTrack();
-    const saved = this.store.program(level.id);
+    $('waveNote').innerHTML = `Aynı program ${this.fields.length} dalgayı da geçmeli.<span class="more"> Görmek için sayıya dokun.</span>`;
+    const saved = this.store.program(level.saveKey);
     const program = saved && saved.length ? clone(saved) : level.initial ? level.initial() : [];
     this.editor.load(level, program);
     this.setTab('blocks'); this.hideToast(); this.hideCall(); this.setStatus('idle');
@@ -95,14 +103,25 @@ export class Game {
     $('track').innerHTML = parts.join('');
   }
 
+  /** Dalga düğmeleri: geçilen yeşil, uçulan sarı, takılınan kırmızı; uçuş yokken ekrandaki dalga beyaz çerçeveli. */
   renderWaves() {
-    const el = $('waves');
-    if (this.fields.length < 2) { el.innerHTML = ''; return; }
+    const el = $('waves'), many = this.fields.length > 1;
+    $('waveBar').hidden = !many;
+    if (!many) { el.innerHTML = ''; return; }
+    const flying = this.status === 'running' || this.status === 'paused';
     const pips = this.fields.map((_, i) => {
-      const cls = i < this.results.length ? 'ok' : i === this.wave ? (this.status === 'failed' ? 'bad' : this.status === 'idle' ? '' : 'on') : '';
-      return `<i class="${cls}"></i>`;
+      const cls = i < this.results.length ? 'ok' : i !== this.wave ? '' : this.status === 'failed' ? 'bad' : flying ? 'on' : 'view';
+      return `<button class="${cls}" data-wave="${i}" aria-label="Dalga ${i + 1}">${i + 1}</button>`;
     });
-    el.innerHTML = `dalga ${pips.join('')}`;
+    el.innerHTML = pips.join('');
+  }
+
+  /** Uçuşu durdurur ve seçilen dalganın alanını gösterir: çocuk programı yazarken bütün dalgalara bakabilsin. */
+  showWave(i) {
+    this.loopId++; this.hideCall(); this.hideToast(); this.editor.mark(null);
+    this.results = []; this.wave = i;
+    this.view.setField(this.fields[i]);
+    this.resetTelemetry(); this.setStatus('idle');
   }
 
   refreshMeta() {
@@ -131,7 +150,7 @@ export class Game {
 
   programChanged() {
     if (this.status !== 'idle') this.stop();
-    this.store.setProgram(this.level.id, this.editor.program);
+    this.store.setProgram(this.level.saveKey, this.editor.program);
     this.refreshMeta();
   }
 
@@ -174,7 +193,9 @@ export class Game {
 
   start(step) {
     this.reset();
-    this.stepMode = step; this.results = []; this.wave = 0;
+    // Uçuş hep ilk dalgadan başlar; ekranda başka bir dalga duruyorsa önce ilkine dönülür.
+    if (this.wave !== 0) { this.wave = 0; this.view.setField(this.fields[0]); }
+    this.stepMode = step; this.results = [];
     this.simulateWave();
     this.setStatus('running');
     this.view.launch(); this.sfx.launch();
@@ -194,19 +215,22 @@ export class Game {
     if (id === this.loopId) this.loop(id);
   }
 
-  /** Uçuşu durdurur ve sahneyi başa alır. */
+  /**
+   * Uçuşu durdurur ve gemiyi başa alır. Ekrandaki dalga değişmez: program sonraki bir
+   * dalgada takıldıysa çocuk onu düzeltirken o dalgayı görmeye devam eder.
+   */
   stop() { this.loopId++; this.reset(); this.setStatus('idle'); }
 
   reset() {
     this.hideCall(); this.hideToast(); this.editor.mark(null);
     this.results = [];
-    if (this.wave !== 0) { this.wave = 0; this.view.setField(this.fields[0]); } else this.view.resetShip();
+    this.view.resetShip();
     this.resetTelemetry();
   }
 
   resetTelemetry() {
     const f = this.fields[this.wave];
-    this.flight = { energy: f.energyCells.size ? 0 : null, shielded: false, message: 'Kalkış bekleniyor' };
+    this.flight = { energy: f.energyCells.size ? 0 : null, shielded: false, message: '' };
     this.renderTelemetry();
   }
 
@@ -318,8 +342,11 @@ export class Game {
 
   fail(reason) {
     this.setStatus('failed');
-    const text = this.fields.length > 1 && (reason === 'meteor' || reason === 'wall') ? `Dalga ${this.wave + 1}: ${FAIL_TEXT[reason]}` : FAIL_TEXT[reason];
-    this.showToast('bad', text, '', this.level.hint);
+    const inFlight = this.fields.length > 1 && IN_FLIGHT.includes(reason);
+    const text = inFlight ? `Dalga ${this.wave + 1}: ${FAIL_TEXT[reason]}` : FAIL_TEXT[reason];
+    // Önceki dalgayı geçen program burada takıldıysa nedeni söylenir; yoksa "çözmüştüm" diye düşünülür.
+    const sub = inFlight && this.wave > 0 ? 'Programın önceki dalgayı geçti ama burada yol farklı. Aynı program bütün dalgaları geçmeli.' : '';
+    this.showToast('bad', text, sub, this.level.hint);
   }
 
   finish() {
@@ -352,7 +379,7 @@ export class Game {
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (!act) return;
       this.sfx.click(); this.hideOverlay();
-      if (act === 'again') this.stop();
+      if (act === 'again') this.showWave(0);
       else if (act === 'map') this.close();
       else this.open(next);
     });
@@ -365,13 +392,40 @@ export class Game {
   /** Bu adımda bakılan sensörleri sahnede ve kare yanındaki etiketlerde gösterir. */
   showCalls(senses) {
     const box = $('calls'); box.replaceChildren();
-    const isDanger = (ev) => (['ahead', 'aheadOrRightBlocked'].includes(ev.cond) ? ev.result : !ev.result);
-    this.view.showSenses(senses.map((ev) => ({ from: { lane: ev.lane, y: ev.y }, cell: ev.cell, danger: isDanger(ev) })));
+    const field = this.fields[this.wave];
+    // Renk cevaba değil duruma bakar: engel kırmızı, açık yol yeşil; işaret ve şarj gibi
+    // tehlike bildirmeyen sensörler "hayır" derken nötrdür.
+    const marks = new Map();
+    const mark = (ev, cell, tone) => {
+      const k = `${cell.lane},${cell.y}`;
+      if (!marks.has(k) || tone === 'bad') marks.set(k, { from: { lane: ev.lane, y: ev.y }, cell, tone });
+    };
+    const tones = senses.map((ev) => {
+      const look = (cond) => sense(field, ev.lane, ev.y, cond);
+      const here = { lane: ev.lane, y: ev.y }, ahead = look('ahead'), blocked = ahead.result ? 'bad' : 'ok';
+      if (ev.cond === 'ahead') { mark(ev, ahead.cell, blocked); return blocked; }
+      if (ev.cond === 'rightFree' || ev.cond === 'leftFree') { const t = ev.result ? 'ok' : 'bad'; mark(ev, ev.cell, t); return t; }
+      if (ev.cond === 'energyLow') return ev.result ? 'bad' : 'ok';   // sayaca bakar, kareye değil
+      if (ev.cond === 'aheadAndRightFree' || ev.cond === 'aheadOrRightBlocked') {
+        // Bileşik sensör iki kareye bakar; ikisi de gösterilir.
+        const right = look('rightFree');
+        mark(ev, ahead.cell, blocked); mark(ev, right.cell, right.result ? 'ok' : 'bad');
+        return ahead.result || !right.result ? 'bad' : 'ok';
+      }
+      if (ev.cond === 'atBeaconOrAhead' || ev.cond === 'atBeaconAndAhead') {
+        const at = look('atBeacon').result;
+        mark(ev, ahead.cell, blocked); mark(ev, here, at ? 'ok' : 'info');
+        return ahead.result ? 'bad' : at ? 'ok' : 'info';
+      }
+      const t = ev.result ? 'ok' : 'info';   // işarete vardım mı, şarjda mıyım
+      mark(ev, here, t); return t;
+    });
+    this.view.showSenses([...marks.values()]);
     const side = senses.find((ev) => ev.cond !== 'ahead');
     const taken = new Set();
-    for (const ev of senses) {
+    for (const [i, ev] of senses.entries()) {
       const el = document.createElement('div'); el.className = 'call';
-      el.style.setProperty('--c', isDanger(ev) ? 'var(--bad)' : 'var(--ok)');
+      el.style.setProperty('--c', TONE[tones[i]]);
       el.innerHTML = `<span class="cond">${CONDS[ev.cond].label}</span><span class="ans ${ev.result ? '' : 'no'}">${svg(ev.result ? 'i-check' : 'i-cross')}${ev.result ? 'EVET' : 'HAYIR'}</span>`;
       box.append(el);
       const cell = this.view.cellBox(ev.cell), w = el.offsetWidth, r = this.rect;

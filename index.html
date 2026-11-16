@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#070b22">
 <title>Kod Pilotu</title>
-<link rel="stylesheet" href="css/style.css?v=a77853a3">
-<meta name="surum" content="8da2535">
+<link rel="stylesheet" href="css/style.css?v=4f4ea5c6">
+<meta name="surum" content="e0518c3">
 <script type="importmap">
 {
  "imports": {
@@ -19,10 +19,10 @@
   "./src/main.js": "./src/main.js?v=5c640935",
   "./src/render/models.js": "./src/render/models.js?v=95aa8aed",
   "./src/render/themes.js": "./src/render/themes.js?v=285d926a",
-  "./src/render/view.js": "./src/render/view.js?v=3a686c8c",
+  "./src/render/view.js": "./src/render/view.js?v=c70c95b9",
   "./src/storage.js": "./src/storage.js?v=85d21e98",
-  "./src/ui/editor.js": "./src/ui/editor.js?v=ea4193d8",
-  "./src/ui/game.js": "./src/ui/game.js?v=7d41af2c",
+  "./src/ui/editor.js": "./src/ui/editor.js?v=770afeb3",
+  "./src/ui/game.js": "./src/ui/game.js?v=fe961c51",
   "./src/ui/map.js": "./src/ui/map.js?v=4cd4150a",
   "./src/ui/sfx.js": "./src/ui/sfx.js?v=2f8031a6",
   "./vendor/three.bundle.min.js": "./vendor/three.bundle.min.js?v=0622f3b8"
@@ -58,9 +58,10 @@
 
   <aside class="code glass" id="panel">
     <div class="brief">
-      <div class="row"><span class="lab" id="missionNo">GÖREV 1 / 8</span><span class="chip" id="conceptChip">Sıralama</span><span class="waves" id="waves"></span></div>
+      <div class="row"><span class="lab" id="missionNo">GÖREV 1 / 8</span><span class="chip" id="conceptChip">Sıralama</span></div>
       <h2 id="missionTitle"></h2>
       <p id="missionText"></p>
+      <div class="wavebar" id="waveBar" hidden><span class="waves" id="waves"></span><span class="note" id="waveNote"></span></div>
     </div>
     <div class="tabrow">
       <div class="tabs" id="tabs"><button class="on" data-tab="blocks">Blok</button><button data-tab="python">Python</button></div>

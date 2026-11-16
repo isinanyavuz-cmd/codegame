@@ -50,18 +50,23 @@ Sonra tarayıcıda `http://localhost:8080` adresini aç. Fare ve dokunmatik ekra
   çıkış çizgisini geçince görev tamamlanır.
 - Yıldızlar: çıkışa ulaşmak 1, bütün kristalleri toplamak +1, hedef blok
   sayısını aşmamak +1.
-- Sektör 3'te meteorların yeri her dalgada değişir; aynı program üç dalgayı da
-  geçmelidir.
+- Bazı görevlerde birden çok **dalga** vardır: alan her dalgada değişir ve aynı
+  program hepsini geçmelidir (yolu ezberleyen değil, sensöre bakan program geçer).
+  Böyle görevlerde görev metninin altında numaralı dalga düğmeleri durur. Uçuş
+  yokken bir numaraya dokunarak o dalganın alanına bakabilirsin; program bir
+  dalgada takılırsa sen onu düzeltirken o dalga ekranda kalır.
 - **Olana kadar** bloğu koşulu her turdan önce denetler. Mor halka bir işarettir;
   işarete varınca döngü biter ve altındaki komutlar devam eder. Koşula dokunarak
   sensör, VE veya VEYA seçebilirsin.
 - **Olay olunca** bloğunu uçuş döngüsünden önce yerleştir. Olay adına dokunarak
   korsan, işaret, kristal veya şarj olayını seç. Kırmızı korsan gemisine karşı
-  **kalkan aç** bir saldırıyı durdurur; meteor için kaçış yapmak gerekir.
+  **kalkan aç** bir saldırıyı durdurur; meteor için kaçış yapmak gerekir. Açık
+  kalkan yeniden açılamaz: kalkanı her adımda değil, bir olay olunca aç.
 - **Enerji** bir değişkendir. Enerji görevlerinde başlangıçta 0'dır; ilk uçuş öncesi
   değerini ayarla. Her hareket, çıkış adımı dahil 1 enerji harcar. **Enerjiye ekle**
-  yalnızca yeşil şarj istasyonunda çalışır ve gemiyi ilerletmez. Üstündeki sayıya
-  dokunarak değeri değiştir; ekrandaki sayaçtan güncel enerjiyi izle.
+  yalnızca yeşil şarj istasyonunda çalışır ve gemiyi ilerletmez. Depo en çok 9
+  enerji alır; fazlası taşar ve uçuş biter. Üstündeki sayıya dokunarak değeri
+  değiştir; ekrandaki sayaçtan güncel enerjiyi izle.
 - **Manevra tanımla** içine bir hareket grubu yaz. **Manevra çağır** aynı adlı
   tanımı çalıştırır; adlara dokunarak eşleştir. Tanımı çağrıdan önce yerleştir.
   Fonksiyonlar koşullar, döngüler ve olayların içinde de kullanılabilir.
@@ -127,12 +132,23 @@ içindedir. Her sektörün sekiz görevlik sırasını koru. Alan metinle
 
 Testler her sahne için şunları doğrular: örnek çözüm bütün dalgaları 3 yıldızla
 geçer, palet çözüme yeter, hazır verilen program işi çocuğa bırakır. Ayrıca
-döngü sahneleri döngüsüz çözülemez ve Sektör 3'te ezberlenmiş bir rota öteki
-dalgalarda işe yaramaz. Yeni sektörlerde B mor işaret, P korsan, E şarj istasyonudur.
+döngü sahneleri döngüsüz çözülemez ve çok dalgalı görevlerde ezberlenmiş bir rota
+öteki dalgalarda işe yaramaz. Yeni sektörlerde B mor işaret, P korsan, E şarj istasyonudur.
 Şarj istasyonu bulunan bir alanda enerji sistemi etkinleşir. Olay adları `events`,
 fonksiyon adları `functions`, seçilebilir sensörler `conds` listesinde tanımlanır.
-Motor testleri enerji tüketimini, olay sırasını, kalkanın tek kullanımını,
+Motor testleri enerji tüketimini, depo sınırını, olay sırasını, kalkanın tek kullanımını,
 fonksiyon çağrılarını ve hareketsiz/özyinelemeli programların durdurulmasını da kapsar.
+
+Bir görevin öğrettiği kavram o görevde gerçekten işe yaramalıdır; testler bunu da
+denetler: iki sensörlü görevlerde tek yöne kaçmak yetmez ama önce sola bakan ayna
+mantık da tam yıldız alır, kalkanı olaya bağlamayan program Sektör 5'i geçemez,
+şarj etmeden ya da enerjiye bakmadan Sektör 6'nın ilgili görevleri bitmez.
+
+`src/content/advanced.js` içindeki `route()` alanı uçuş yolundan üretir: `F` düz,
+`L`/`R` kaçış (öne ve kaçılmayan yana meteor konur), küçük `l`/`r` ise meteorsuz
+dönüştür (sensörlerin göremediği, mor halkanın haber verdiği dönüş). Bir görevi
+baştan tasarlarsan `rev` değerini artır: eski tasarım için kaydedilmiş program
+yeniden açılmaz, kazanılan yıldızlar kalır.
 
 ## Üçüncü taraf
 

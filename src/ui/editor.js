@@ -145,7 +145,11 @@ export class Editor {
     if (count(this.program) + count([block]) <= this.level.maxBlocks) return true;
     this.notify('full'); return false;
   }
-  newBlock(type) { return create(type, { cond: this.level.conds[0] || null, untilCond: this.level.conds.includes('atBeacon') ? 'atBeacon' : this.level.conds[0], event: this.level.events?.[0], name: this.level.functions?.[0] }); }
+  newBlock(type) {
+    const { conds, events, functions } = this.level;
+    // "Olana kadar" çoğunlukla işareti bekler; "eğer" ise yol seçen bir sensörle başlar.
+    return create(type, { cond: conds.find((c) => c !== 'atBeacon') || conds[0] || null, untilCond: conds.includes('atBeacon') ? 'atBeacon' : conds[0], event: events?.[0], name: functions?.[0] });
+  }
   deleteBlock(id) { this.snapshot(); remove(this.program, id); this.notify('remove'); this.changed(); }
 
   // ---------- sürükleme ----------

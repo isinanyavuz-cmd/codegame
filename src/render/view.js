@@ -9,7 +9,7 @@ const C = 1.62;                 // bir karenin kenarı
 const SHIP_Y = 0.42, SHIP_SCALE = 0.8;
 const CAM_DIR = new THREE.Vector3(0, 21.5, 15.5).normalize();
 const MOVE_MS = 430;
-const RED = 0xff4d6a, GREEN = 0x37e39a, YELLOW = 0xffd53d;
+const RED = 0xff4d6a, GREEN = 0x37e39a, YELLOW = 0xffd53d, BLUE = 0x7f9cff;
 const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 const bright = (hex, k) => new THREE.Color(hex).multiplyScalar(k);
 const glow = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
@@ -65,7 +65,7 @@ export class View {
     // Bir adımda birden çok sensöre bakılabilir (iç içe "eğer"); her biri için ayrı işaret.
     const beamTex = beamTexture();
     this.senseMarks = []; this.beams = [];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       const mk = makeMark(RED, 0.16); this.scene.add(mk); this.senseMarks.push(mk);
       const beam = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
       beam.rotation.x = -Math.PI / 2; beam.visible = false; this.scene.add(beam); this.beams.push(beam);
@@ -385,12 +385,12 @@ export class View {
   // ---------- işaretler ----------
   /**
    * Bu adımda bakılan sensörleri gösterir: her biri için kare işareti ve tarama ışını.
-   * @param list [{ from, cell, danger }]; danger kırmızı, değilse yeşil çizilir
+   * @param list [{ from, cell, tone }]; tone: 'bad' kırmızı (engel), 'ok' yeşil, 'info' mavi (tehlike bildirmez)
    */
   showSenses(list) {
     this.hideSense();
     list.slice(0, this.senseMarks.length).forEach((s, i) => {
-      const color = s.danger ? RED : GREEN, mk = this.senseMarks[i], beam = this.beams[i];
+      const color = { bad: RED, ok: GREEN, info: BLUE }[s.tone] ?? GREEN, mk = this.senseMarks[i], beam = this.beams[i];
       mk.userData.line.color.copy(bright(color, 1.6)); mk.userData.plane.color.set(color);
       mk.position.copy(this.cellPos(s.cell, 0)); mk.visible = true;
       const a = this.cellPos(s.from, 0.04), b = this.cellPos(s.cell, 0.04);
@@ -401,7 +401,7 @@ export class View {
       beam.rotation.z = Math.atan2(a.x - b.x, a.z - b.z);
       beam.visible = true;
       const meteor = this.meteors.get(`${s.cell.lane},${s.cell.y}`);
-      if (meteor && s.danger) { meteor.material.emissive.set(0xff2b4f); meteor.material.emissiveIntensity = 0.3; }
+      if (meteor && s.tone === 'bad') { meteor.material.emissive.set(0xff2b4f); meteor.material.emissiveIntensity = 0.3; }
     });
   }
   hideSense() {
