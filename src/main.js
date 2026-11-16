@@ -15,7 +15,7 @@ async function boot() {
 
   const view = new View(document.getElementById('stage'));
   const map = new MapScreen({ store, sfx, music, onOpen: (level) => { map.hide(); music.mood('game'); game.open(level); } });
-  const game = new Game({ view, store, sfx, onExit: () => { music.mood('map'); map.show(); } });
+  const game = new Game({ view, store, sfx, music, onExit: () => { music.mood('map'); map.show(); } });
 
   let timer = 0;
   window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(() => { view.resize(); game.layout(); }, 120); });
