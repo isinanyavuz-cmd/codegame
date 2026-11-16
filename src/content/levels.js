@@ -2,6 +2,7 @@
 // tanış → dene → pekiştir → hata avı → final sırasıyla ilerler.
 import { F, L, R, rep, forever, ifelse } from '../engine/blocks.js';
 import { genWaves } from './gen.js';
+import { ADVANCED_SECTORS, ADVANCED_LEVELS } from './advanced.js';
 
 export const KINDS = { tanis: 'tanış', dene: 'dene', pekistir: 'pekiştir', hata: 'hata avı', final: 'final' };
 
@@ -30,11 +31,7 @@ export const SECTORS = [
       demo: () => [forever(ifelse('ahead', [R()], [F()]))],
     },
   },
-  { id: 4, name: 'Karanlık Bulutsu', concept: '…olana kadar · ve / veya', hue: 265, soon: true },
-  { id: 5, name: 'Korsan Bölgesi', concept: 'Olaylar', hue: 0, soon: true },
-  { id: 6, name: 'Enerji Krizi', concept: 'Değişkenler', hue: 150, soon: true },
-  { id: 7, name: 'Manevra Okulu', concept: 'Fonksiyonlar', hue: 50, soon: true },
-  { id: 8, name: 'Ana Gemi', concept: 'Büyük final', hue: 300, soon: true },
+  ...ADVANCED_SECTORS,
 ];
 
 const MOVES = ['fwd', 'left', 'right'];
@@ -265,7 +262,7 @@ const DEFS = [
   },
 ];
 
-export const LEVELS = DEFS.map((d, i) => {
+export const LEVELS = [...DEFS, ...ADVANCED_LEVELS].map((d, i) => {
   const sector = Math.floor(i / 8) + 1, n = (i % 8) + 1;
   return { conds: [], ...d, id: `${sector}-${n}`, sector, n, index: i };
 });

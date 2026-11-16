@@ -5,24 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#070b22">
 <title>Kod Pilotu</title>
-<link rel="stylesheet" href="css/style.css?v=092d37d5">
-<meta name="surum" content="aded63e">
+<link rel="stylesheet" href="css/style.css?v=a77853a3">
+<meta name="surum" content="06e4f90">
 <script type="importmap">
 {
  "imports": {
+  "./src/content/advanced.js": "./src/content/advanced.js?v=90110f52",
   "./src/content/gen.js": "./src/content/gen.js?v=2ebc0638",
-  "./src/content/levels.js": "./src/content/levels.js?v=d76cfc5a",
-  "./src/engine/blocks.js": "./src/engine/blocks.js?v=8bff87a1",
+  "./src/content/levels.js": "./src/content/levels.js?v=0d30b3d6",
+  "./src/engine/blocks.js": "./src/engine/blocks.js?v=f9b7963f",
   "./src/engine/rng.js": "./src/engine/rng.js?v=09b50631",
-  "./src/engine/world.js": "./src/engine/world.js?v=d95d53ce",
-  "./src/main.js": "./src/main.js?v=0615d138",
-  "./src/render/models.js": "./src/render/models.js?v=491776a5",
-  "./src/render/view.js": "./src/render/view.js?v=641774ad",
-  "./src/storage.js": "./src/storage.js?v=45651b3d",
-  "./src/ui/editor.js": "./src/ui/editor.js?v=5a9ee03e",
-  "./src/ui/game.js": "./src/ui/game.js?v=1213459a",
-  "./src/ui/map.js": "./src/ui/map.js?v=1798ed15",
-  "./src/ui/sfx.js": "./src/ui/sfx.js?v=693ac5b2",
+  "./src/engine/world.js": "./src/engine/world.js?v=5924de32",
+  "./src/main.js": "./src/main.js?v=5c640935",
+  "./src/render/models.js": "./src/render/models.js?v=95aa8aed",
+  "./src/render/themes.js": "./src/render/themes.js?v=285d926a",
+  "./src/render/view.js": "./src/render/view.js?v=3a686c8c",
+  "./src/storage.js": "./src/storage.js?v=85d21e98",
+  "./src/ui/editor.js": "./src/ui/editor.js?v=ea4193d8",
+  "./src/ui/game.js": "./src/ui/game.js?v=7d41af2c",
+  "./src/ui/map.js": "./src/ui/map.js?v=4cd4150a",
+  "./src/ui/sfx.js": "./src/ui/sfx.js?v=2f8031a6",
   "./vendor/three.bundle.min.js": "./vendor/three.bundle.min.js?v=0622f3b8"
  }
 }
@@ -38,7 +40,8 @@
     <div class="mapstats">
       <div class="rank glass"><small>RÜTBE</small><b id="rank">Çaylak Pilot</b></div>
       <div class="total glass"><svg viewBox="0 0 32 32"><use href="#i-star"/></svg><b id="totalStars">0</b><span id="maxStars">/ 72</span></div>
-      <button class="iconbtn" id="soundBtn" aria-label="Ses"><svg viewBox="0 0 32 32"><use href="#i-sound"/></svg></button>
+      <button class="iconbtn" id="musicBtn" aria-label="Müzik"><svg viewBox="0 0 32 32"><use href="#i-music"/></svg></button>
+      <button class="iconbtn" id="soundBtn" aria-label="Ses efektleri"><svg viewBox="0 0 32 32"><use href="#i-sound"/></svg></button>
     </div>
   </header>
   <div class="route" id="route"></div>
@@ -51,6 +54,7 @@
     <div class="ttl"><small id="sectorNo">SEKTÖR 1</small><b id="sectorName">Kalkış</b></div>
   </div>
   <div class="track" id="track"></div>
+  <div class="telemetry glass" id="telemetry" aria-live="polite" hidden></div>
 
   <aside class="code glass" id="panel">
     <div class="brief">
@@ -92,9 +96,12 @@
   <symbol id="i-pause" viewBox="0 0 32 32"><rect x="7" y="5" width="7" height="22" rx="2" fill="currentColor"/><rect x="18" y="5" width="7" height="22" rx="2" fill="currentColor"/></symbol>
   <symbol id="i-undo" viewBox="0 0 32 32"><path d="M9 11a9 9 0 1 1-2 9" fill="none" stroke="currentColor" stroke-width="3.500" stroke-linecap="round"/><path d="M4 6l5 6 6-4" fill="none" stroke="currentColor" stroke-width="3.500" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-sound" viewBox="0 0 32 32"><path d="M5 12h5l7-6v20l-7-6H5z" fill="currentColor"/><path class="waves-on" d="M21 11a7 7 0 0 1 0 10M24.500 7.500a12 12 0 0 1 0 17" fill="none" stroke="currentColor" stroke-width="2.800" stroke-linecap="round"/></symbol>
+  <symbol id="i-music" viewBox="0 0 32 32"><path d="M12 23V8l14-3.500V20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="8.500" cy="23" rx="4" ry="3.200" fill="currentColor"/><ellipse cx="22.500" cy="20" rx="4" ry="3.200" fill="currentColor"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 32 32"><path d="M18.500 2L6 18h8l-2.500 12L24 14h-8z" fill="currentColor"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 32 32"><path d="M16 3l11 4v8c0 7-4.500 11.500-11 14C9.500 26.500 5 22 5 15V7z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M11 15.500l3.500 3.500 6.500-7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-trash" viewBox="0 0 32 32"><path d="M7 9h18M13 9V6h6v3M9.500 9l1 17h11l1-17" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
 
-<script type="module" src="src/main.js?v=0615d138"></script>
+<script type="module" src="src/main.js?v=5c640935"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 // İlerleme kaydı: yıldızlar, çocuğun son programları ve ayarlar. Tarayıcıda saklanır.
 const KEY = 'kodpilotu.v1';
-let data = { stars: {}, programs: {}, intros: {}, sound: true, speed: 1 };
+let data = { stars: {}, programs: {}, intros: {}, sound: true, music: true, speed: 1 };
 try {
   const raw = localStorage.getItem(KEY);
   if (raw) data = { ...data, ...JSON.parse(raw) };
@@ -19,6 +19,8 @@ export const store = {
   markIntro(sector) { data.intros[sector] = true; save(); },
   get sound() { return data.sound; },
   set sound(v) { data.sound = !!v; save(); },
+  get music() { return data.music; },
+  set music(v) { data.music = !!v; save(); },
   get speed() { return data.speed; },
   set speed(v) { data.speed = v; save(); },
   isUnlocked(level, levels) {

@@ -1,6 +1,6 @@
 // Blok düzenleyici: paleti ve programı çizer; sürükle-bırak, dokunarak ekleme,
 // sayı ve koşul seçimi, silme ve geri alma işlerini yürütür. Fare ve dokunmatik çalışır.
-import { ACTIONS, CONDS, isAction, create, count, find, remove, listOf } from '../engine/blocks.js';
+import { ACTIONS, CONDS, EVENTS, FUNCTIONS, isAction, create, count, find, remove, listOf } from '../engine/blocks.js';
 
 const icon = (id) => {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 32 32');
@@ -16,11 +16,20 @@ function h(tag, cls, ...kids) {
 
 /** Bir bloğun (ve içindekilerin) görünümünü kurar. */
 export function renderBlock(b) {
-  if (isAction(b.type)) { const e = h('div', 'blk mov', ACTIONS[b.type].label); e.dataset.id = b.id; return e; }
-  const c = h('div', 'c ctl'); c.dataset.id = b.id;
+  const number = (value) => { const e = h('span', 'num', String(value)); e.dataset.num = '1'; return e; };
+  const choice = (key, label) => { const e = h('span', 'pick choice', label); e.dataset.choice = key; return e; };
+  if (isAction(b.type) || b.type === 'call') {
+    let e;
+    if (b.type === 'call') e = h('div', 'blk fun', choice('name', FUNCTIONS[b.name].label), 'çağır');
+    else if (b.type === 'setEnergy') e = h('div', 'blk variable', 'enerji =', number(b.value));
+    else if (b.type === 'addEnergy') e = h('div', 'blk variable', 'enerjiye', number(b.value), 'ekle');
+    else e = h('div', 'blk mov', ACTIONS[b.type].label);
+    e.dataset.id = b.id; return e;
+  }
+  const c = h('div', `c ${b.type === 'on' ? 'ev' : b.type === 'define' ? 'fun' : 'ctl'}`); c.dataset.id = b.id;
   const body = (key) => {
     const l = h('div', 'body'); l.dataset.list = key; l.dataset.parent = b.id;
-    for (const k of b[key]) l.append(renderBlock(k));
+    for (const k of b[key] || []) l.append(renderBlock(k));
     return l;
   };
   if (b.type === 'repeat') {
@@ -28,16 +37,21 @@ export function renderBlock(b) {
     c.append(h('div', 'blk', num, 'kez tekrarla'), body('body'), h('div', 'cap'));
   } else if (b.type === 'forever') {
     c.append(h('div', 'blk', 'sürekli tekrarla'), body('body'), h('div', 'cap'));
-  } else if (b.type === 'ifelse') {
+  } else if (b.type === 'on') {
+    c.append(h('div', 'blk', choice('event', EVENTS[b.event].label)), body('body'), h('div', 'cap'));
+  } else if (b.type === 'define') {
+    c.append(h('div', 'blk', choice('name', FUNCTIONS[b.name].label), 'tanımla'), body('body'), h('div', 'cap'));
+  } else if (b.type === 'ifelse' || b.type === 'until') {
     const cond = h('span', `cond pick${b.cond ? '' : ' empty'}`, b.cond ? CONDS[b.cond].label : 'koşul seç'); cond.dataset.cond = '1';
-    c.append(h('div', 'blk', 'eğer', cond, 'ise'), body('then'), h('div', 'blk mid', 'değilse'), body('else'), h('div', 'cap'));
+    if (b.type === 'until') c.append(h('div', 'blk', cond, 'olana kadar'), body('body'), h('div', 'cap'));
+    else c.append(h('div', 'blk', 'eğer', cond, 'ise'), body('then'), h('div', 'blk mid', 'değilse'), body('else'), h('div', 'cap'));
   }
   return c;
 }
 
 export function hatBlock() { return h('div', 'blk ev', icon('i-play'), 'kalkışta'); }
 
-const TOOL_LABEL = { repeat: 'tekrarla', forever: 'sürekli tekrarla', ifelse: 'eğer / değilse' };
+const TOOL_LABEL = { repeat: 'tekrarla', forever: 'sürekli tekrarla', ifelse: 'eğer / değilse', until: 'olana kadar', on: 'olay olunca', define: 'manevra tanımla', call: 'manevra çağır' };
 
 export class Editor {
   /**
@@ -76,11 +90,14 @@ export class Editor {
   renderPalette() {
     this.pal.replaceChildren();
     for (const t of this.level.tools) {
-      const e = h('div', `blk ${isAction(t) ? 'mov' : 'ctl'}`, isAction(t) ? ACTIONS[t].label : TOOL_LABEL[t]);
+      const cls = ['define', 'call'].includes(t) ? 'fun' : t === 'on' ? 'ev' : ['setEnergy', 'addEnergy'].includes(t) ? 'variable' : isAction(t) ? 'mov' : 'ctl';
+      const e = h('div', `blk ${cls}`, isAction(t) ? ACTIONS[t].label : TOOL_LABEL[t]);
       e.dataset.tool = t; this.pal.append(e);
     }
     // Tek sensör varsa palette gösterilir; birden çoksa "eğer" bloğundaki koşula dokunarak seçilir.
     if (this.level.conds.length === 1) { const e = h('span', 'cond', CONDS[this.level.conds[0]].label); e.dataset.condtool = this.level.conds[0]; this.pal.append(e); }
+    // Blok sayısı çoksa palet sıkışık çizilir; hepsi kaydırmadan görünsün.
+    this.pal.classList.toggle('dense', this.pal.children.length > 6);
   }
 
   // ---------- vurgular ----------
@@ -128,7 +145,7 @@ export class Editor {
     if (count(this.program) + count([block]) <= this.level.maxBlocks) return true;
     this.notify('full'); return false;
   }
-  newBlock(type) { return create(type, { cond: this.level.conds[0] || null }); }
+  newBlock(type) { return create(type, { cond: this.level.conds[0] || null, untilCond: this.level.conds.includes('atBeacon') ? 'atBeacon' : this.level.conds[0], event: this.level.events?.[0], name: this.level.functions?.[0] }); }
   deleteBlock(id) { this.snapshot(); remove(this.program, id); this.notify('remove'); this.changed(); }
 
   // ---------- sürükleme ----------
@@ -184,7 +201,7 @@ export class Editor {
     this.ws.classList.toggle('over', inWs);
     if (d.src.kind === 'cond') {
       const ifEl = under && under.closest('.c[data-id]'), hit = ifEl && find(this.program, ifEl.dataset.id);
-      if (hit && hit.block.type === 'ifelse') { d.target = { ifId: hit.block.id }; ifEl.firstElementChild.classList.add('condhit', 'sensing'); }
+      if (hit && ['ifelse', 'until'].includes(hit.block.type)) { d.target = { ifId: hit.block.id }; ifEl.firstElementChild.classList.add('condhit', 'sensing'); }
       return;
     }
     let list = under && under.closest('[data-list]');
@@ -246,13 +263,14 @@ export class Editor {
       this.ws.scrollTop = this.ws.scrollHeight;
     } else if (src.kind === 'cond') {
       const sel = this.selected && find(this.program, this.selected);
-      if (sel && sel.block.type === 'ifelse') { this.snapshot(); sel.block.cond = src.cond; this.notify('add'); this.changed(); }
+      if (sel && ['ifelse', 'until'].includes(sel.block.type)) { this.snapshot(); sel.block.cond = src.cond; this.notify('add'); this.changed(); }
       else this.notify('condtip');
     } else {
       const hit = find(this.program, src.id);
       if (!hit) return;
       if (d.hit.closest('[data-num]') && d.hit.closest('[data-id]') === src.el) this.openNums(hit.block, d.hit.closest('[data-num]'));
       else if (d.hit.closest('[data-cond]') && d.hit.closest('[data-id]') === src.el && this.level.conds.length > 1) this.openConds(hit.block, d.hit.closest('[data-cond]'));
+      else if (d.hit.closest('[data-choice]') && d.hit.closest('[data-id]') === src.el) this.openChoices(hit.block, d.hit.closest('[data-choice]'));
       else this.select(this.selected === src.id ? null : src.id);
     }
   }
@@ -269,9 +287,10 @@ export class Editor {
   closePop() { this.pop.hidden = true; }
   openNums(block, anchor) {
     const items = [];
-    for (let n = 2; n <= 9; n++) {
-      const b = h('button', n === block.count ? 'on' : '', String(n));
-      b.addEventListener('click', () => { this.closePop(); if (n === block.count) return; this.snapshot(); block.count = n; this.notify('add'); this.changed(); });
+    const key = block.type === 'repeat' ? 'count' : 'value';
+    for (let n = block.type === 'repeat' ? 2 : block.type === 'setEnergy' ? 0 : 1; n <= 9; n++) {
+      const b = h('button', n === block[key] ? 'on' : '', String(n));
+      b.addEventListener('click', () => { this.closePop(); if (n === block[key]) return; this.snapshot(); block[key] = n; this.notify('add'); this.changed(); });
       items.push(b);
     }
     this.openPop(anchor, 'nums', items);
@@ -283,5 +302,16 @@ export class Editor {
       return b;
     });
     this.openPop(anchor, 'conds', items);
+  }
+
+  openChoices(block, anchor) {
+    const key = anchor.dataset.choice, options = key === 'event' ? this.level.events || ['pirate'] : this.level.functions || ['zigzag'];
+    const labels = key === 'event' ? EVENTS : FUNCTIONS;
+    const items = options.map((value) => {
+      const b = h('button', block[key] === value ? 'on' : '', labels[value].label);
+      b.addEventListener('click', () => { this.closePop(); if (block[key] === value) return; this.snapshot(); block[key] = value; this.notify('add'); this.changed(); });
+      return b;
+    });
+    this.openPop(anchor, 'choices', items);
   }
 }
