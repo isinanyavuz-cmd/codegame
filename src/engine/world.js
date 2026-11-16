@@ -48,6 +48,10 @@ export function sense(field, lane, y, cond, state = {}) {
     const right = sense(field, lane, y, 'rightFree').result;
     return { cell: { lane, y: y + 1 }, result: cond === 'aheadAndRightFree' ? ahead && right : ahead || !right };
   }
+  if (cond === 'atBeaconOrAhead' || cond === 'atBeaconAndAhead') {
+    const at = field.beacons.has(key(lane, y)), ahead = hasMeteor(field, lane, y + 1);
+    return { cell: { lane, y: y + 1 }, result: cond === 'atBeaconOrAhead' ? at || ahead : at && ahead };
+  }
   const d = cond === 'rightFree' ? 1 : cond === 'leftFree' ? -1 : null;
   if (d === null) throw new Error(`Bilinmeyen koşul: ${cond}`);
   const l = lane + d;
@@ -56,6 +60,8 @@ export function sense(field, lane, y, cond, state = {}) {
 
 const STOP = Symbol('stop');
 const DELTA = { fwd: 0, left: -1, right: 1 };
+/** Deponun alabildiği en çok enerji. Göstergedeki hücre sayısı da budur. */
+export const ENERGY_MAX = 9;
 
 /**
  * Programı alanda çalıştırır ve olay listesini döndürür.
@@ -145,13 +151,21 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
         if (!EVENTS[b.event]) stop('fail', 'noevent', { t: 'fail', reason: 'noevent', id: b.id });
         handlers.set(b.id, b); return;
       case 'shield':
-        spin(b); shielded = true; announce({ t: 'shield', id: b.id, shielded }); return;
+        spin(b);
+        // Açık kalkan yeniden açılamaz: "her adımda kalkan aç" demek, olayın işini döngüye yaptırmaktır.
+        if (shielded) stop('fail', 'shield', { t: 'fail', reason: 'shield', id: b.id });
+        shielded = true; announce({ t: 'shield', id: b.id, shielded }); return;
       case 'setEnergy': case 'addEnergy': {
         spin(b);
         if (!Number.isInteger(b.value) || b.value < 0 || b.value > 9) stop('fail', 'value', { t: 'fail', reason: 'value', id: b.id });
         if (b.type === 'addEnergy' && !field.energyCells.has(key(lane, y))) stop('fail', 'station', { t: 'fail', reason: 'station', id: b.id });
         energy = b.type === 'setEnergy' ? b.value : (energy ?? 0) + b.value;
-        announce({ t: 'variable', id: b.id, name: 'energy', value: energy }); return;
+        // Depo sınırlıdır: gerekmeden yapılan şarj taşar. Sayaç dolu depoyu göstersin diye önce duyurulur.
+        const overflow = energy > ENERGY_MAX;
+        if (overflow) energy = ENERGY_MAX;
+        announce({ t: 'variable', id: b.id, name: 'energy', value: energy });
+        if (overflow) stop('fail', 'overflow', { t: 'fail', reason: 'overflow', id: b.id });
+        return;
       }
       case 'define':
         spin(b);
@@ -196,8 +210,10 @@ export const FAIL_TEXT = {
   limit: 'Uçuş çok uzun sürdü.',
   nocond: 'Bu bloğun koşulu eksik. Sensörüne dokunarak koşul seç.',
   pirate: 'Korsan saldırısı! Bu geçiş için kalkan açmalısın.',
+  shield: 'Kalkan zaten açık! Onu her adımda değil, yalnızca gerektiğinde aç.',
   energy: 'Enerji bitti! Başlangıç değerini ve şarj istasyonlarını kontrol et.',
   station: 'Enerji yalnızca yeşil şarj istasyonunda artırılabilir.',
+  overflow: `Depo taştı! Depo en çok ${ENERGY_MAX} enerji alır; daha az ekle ya da enerji azalınca şarj et.`,
   value: 'Enerji değeri 0–9 arasında tam sayı olmalı.',
   noevent: 'Olay bloğunda hangi olayı beklediğini seç.',
   definition: 'Her manevrayı bir kez tanımla; farklı manevralara farklı adlar ver.',

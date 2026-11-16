@@ -93,3 +93,8 @@ test('Sektör 3: iki sensörlü sahnelerde tek yöne kaçmak yetmez', () => {
     assert.equal(starsOf(level, one('left')), 0);
   }
 });
+
+test('Sektör 3: önce sola bakan ayna mantık da bütün dalgaları geçer', () => {
+  const mirror = [forever({ id: 'i', type: 'ifelse', cond: 'ahead', then: [{ id: 'j', type: 'ifelse', cond: 'leftFree', then: [{ id: 'l', type: 'left' }], else: [{ id: 'r', type: 'right' }] }], else: [F()] })];
+  for (const level of levelsOf(3).filter((l) => l.conds.includes('rightFree'))) assert.equal(starsOf(level, mirror), 3, level.id);
+});

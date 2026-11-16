@@ -16,6 +16,9 @@ export const CONDS = {
   leftFree: { label: 'solum boş mu?', py: 'solum_bos()' },
   atBeacon: { label: 'işarete vardım mı?', py: 'isarette_miyim()' },
   aheadAndRightFree: { label: 'meteor var VE sağım boş mu?', py: 'onumde_meteor_var() and sagim_bos()' },
+  atBeaconOrAhead: { label: 'işaretteyim VEYA meteor var mı?', py: 'isarette_miyim() or onumde_meteor_var()' },
+  atBeaconAndAhead: { label: 'işaretteyim VE meteor var mı?', py: 'isarette_miyim() and onumde_meteor_var()' },
+  // Artık hiçbir görevde sunulmuyor; eski kayıtlı programlar açılabilsin diye duruyor.
   aheadOrRightBlocked: { label: 'meteor var VEYA sağım dolu mu?', py: 'onumde_meteor_var() or not sagim_bos()' },
   atEnergy: { label: 'şarjda mıyım?', py: 'sarjda_miyim()' },
   energyLow: { label: 'enerji 3’ten az mı?', py: 'enerji < 3' },
@@ -130,6 +133,7 @@ export function listOf(program, parentId, key) {
 /** Programı Python benzeri metne çevirir (salt okunur görünüm için). */
 export function toPython(program) {
   const out = [];
+  let handlers = 0;
   const walk = (list, depth) => {
     const pad = '    '.repeat(depth);
     if (!list.length) { out.push(`${pad}pass`); return; }
@@ -140,7 +144,7 @@ export function toPython(program) {
       else if (b.type === 'repeat') { out.push(`${pad}for i in range(${b.count}):`); walk(b.body, depth + 1); }
       else if (b.type === 'forever') { out.push(`${pad}while True:`); walk(b.body, depth + 1); }
       else if (b.type === 'until') { out.push(`${pad}while not (${b.cond ? CONDS[b.cond].py : '...'}):`); walk(b.body, depth + 1); }
-      else if (b.type === 'on') { out.push(`${pad}@${EVENTS[b.event].py}`, `${pad}def olay_${b.id}():`); walk(b.body, depth + 1); }
+      else if (b.type === 'on') { out.push(`${pad}@${EVENTS[b.event].py}`, `${pad}def olay_${++handlers}():`); walk(b.body, depth + 1); }
       else if (b.type === 'define') { out.push(`${pad}def ${FUNCTIONS[b.name].py}():`); walk(b.body, depth + 1); }
       else if (b.type === 'call') out.push(`${pad}${FUNCTIONS[b.name].py}()`);
       else if (b.type === 'ifelse') {

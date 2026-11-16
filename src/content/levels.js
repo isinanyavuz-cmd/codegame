@@ -41,11 +41,13 @@ const dodge = (side) => () => [forever(ifelse('ahead', [side()], [F()]))];
 const dodgeRight = dodge(R), dodgeLeft = dodge(L);
 const twoSensor = () => [forever(ifelse('ahead', [ifelse('rightFree', [R()], [L()])], [F()]))];
 const twoSensorSwapped = () => [forever(ifelse('ahead', [ifelse('rightFree', [L()], [R()])], [F()]))];
+// Aynı mantığın aynası: önce sola bakar. O da doğru bir çözümdür, bütün dalgaları geçmelidir.
+const twoSensorLeft = () => [forever(ifelse('ahead', [ifelse('leftFree', [L()], [R()])], [F()]))];
 
 const waves1 = (seed, extra = {}) => genWaves({ lanes: 5, rows: 7, start: 2, density: 0.26, seed, solution: dodgeRight(), minDodges: 2, ...extra });
 const waves2 = (seed, extra = {}) => genWaves({
   lanes: 5, rows: 8, start: 2, density: 0.3, seed, solution: twoSensor(), minDodges: 3, needBoth: true,
-  decoys: [dodgeRight(), dodgeLeft()], ...extra,
+  decoys: [dodgeRight(), dodgeLeft()], alts: [twoSensorLeft()], ...extra,
 });
 
 const S3_TOOLS = [...MOVES, 'forever', 'ifelse'];
@@ -263,8 +265,9 @@ const DEFS = [
 ];
 
 export const LEVELS = [...DEFS, ...ADVANCED_LEVELS].map((d, i) => {
-  const sector = Math.floor(i / 8) + 1, n = (i % 8) + 1;
-  return { conds: [], ...d, id: `${sector}-${n}`, sector, n, index: i };
+  const sector = Math.floor(i / 8) + 1, n = (i % 8) + 1, id = `${sector}-${n}`;
+  // saveKey: çocuğun programının kayıt anahtarı. Baştan tasarlanan görevde (rev) eski program açılmaz.
+  return { conds: [], ...d, id, saveKey: d.rev ? `${id}@${d.rev}` : id, sector, n, index: i };
 });
 
 export const levelById = (id) => LEVELS.find((l) => l.id === id);

@@ -10,19 +10,24 @@ const SENSORS = ['ahead', 'rightFree', 'leftFree'];
 const cruise = () => forever(F());
 const steer = () => ifelse('ahead', [ifelse('rightFree', [R()], [L()])], [F()]);
 const steerAnd = () => ifelse('aheadAndRightFree', [R()], [F()]);
-const steerOr = () => ifelse('aheadOrRightBlocked', [L()], [F()]);
+// İki ayrı sebep, tek hareket: mor halkada da meteor görünce de sağa kaç.
+const steerOr = () => ifelse('atBeaconOrAhead', [R()], [F()]);
 
 // Yolun her harfi bir uçuş adımıdır; son adım çıkış çizgisini geçer.
-// Kaçıştan önce meteor koymak, sensörün gözle görünen engeli okumasını sağlar.
+// Büyük harfli kaçışın (L, R) önüne meteor konur; böylece sensör gözle görünen engeli okur.
+// Kaçılmayan yan da kapatılır: tek yöne kaçan program geçemez, iki yana da bakan geçer.
+// Küçük harf (l, r) meteorsuz dönüştür: sensörlerin göremediği, mor halkanın haber verdiği dönüş.
 function route(path, { start = 2, lanes = 5, beacons = [], pirates = [], energy = [], crystals = [], extra = [] } = {}) {
   const board = Array.from({ length: path.length }, () => Array(lanes).fill('.'));
   const positions = [start];
   for (let y = 1; y < path.length; y++) {
-    const delta = { F: 0, L: -1, R: 1 }[path[y - 1]], before = positions[y - 1], lane = before + delta;
+    const step = path[y - 1], delta = { F: 0, L: -1, R: 1 }[step.toUpperCase()], before = positions[y - 1], lane = before + delta;
     if (lane < 0 || lane >= lanes) throw new Error(`Rota şerit dışına çıkıyor: ${path}`);
     positions.push(lane);
-    if (delta) board[y][before] = 'M';
-    if (delta < 0 && before + 1 < lanes) board[y][before + 1] = 'M';
+    if (!delta || step !== step.toUpperCase()) continue;
+    board[y][before] = 'M';
+    const other = before - delta;
+    if (other >= 0 && other < lanes) board[y][other] = 'M';
   }
   for (const [lane, y] of extra) {
     if (positions[y] === lane) throw new Error('Meteor rotanın üstünde');
@@ -45,7 +50,24 @@ const safePaths = ['FRLFFRLFFF', 'FLRFLRFFFF', 'RFLRFLFFFF'];
 const safeWaves = (options = {}) => safePaths.map((p) => route(p, options));
 const longPaths = ['FRLFFRLFFFFF', 'FLRFFLRFFFFF', 'RFLFFRLFFFFF'];
 const energyWaves = (options = {}) => longPaths.map((p) => route(p, { energy: [3, 6, 9], ...options }));
+// Zikzak sayısı dalgadan dalgaya değişir. Halkadan sonra sağ şerit kapalıdır: zikzağı sürdüren çarpar.
+const zigzagWaves = (counts = [2, 3, 4], rows = 10) => counts.map((n) => route('RL'.repeat(n) + 'F'.repeat(rows - 2 * n), {
+  beacons: [2 * n], crystals: [2, 2 * n + 1], extra: [[3, 2 * n + 1]],
+}));
+// Dar geçit: mor halka bir meteor duvarının tek kapısında durur; iki sıra ileride ikinci duvar vardır
+// ve onun boşluğu sağdadır. Kapıdan düz çıkan gemi ikinci duvara sıkışır; halkadaki sağa dönüşü (r)
+// sensörler göremez. Geçitten önce de sonra da iki yöne kaçış gerekir.
+const GATE = [[0, 5], [2, 5], [3, 5], [4, 5], [0, 7]];
+// Son dalgada geçitten çıkınca sol yan kapalı, sağ yan çıkmaz sokaktır: meteor yokken de
+// kaçan (hep çapraz giden ya da boş buldukça sağa kayan) program orada çarpar.
+const wallRoutes = [['FRLFFrRRLFFF', []], ['FLRFFrRLFRFF', []], ['RFLFFrRFLRFF', [[2, 8]]]];
+const wallWaves = (options = {}) => wallRoutes.map(([p, sides]) => route(p, { start: 1, beacons: [5], extra: [...GATE, ...sides], ...options }));
 
+/**
+ * Görev tanımını tamamlar: hedef blok sayısı örnek çözümden, palet çözümde ve hazır programda
+ * geçen bloklardan çıkar. `rev`, görev baştan tasarlandığında artırılır; eski tasarım için
+ * kaydedilmiş program yeniden açılmaz (bkz. levels.js, saveKey).
+ */
 function mission(options) {
   const solution = options.solution(), par = count(solution), types = new Set(MOVES);
   const visit = (list) => { for (const b of list) { types.add(b.type); for (const key of CONTAINERS[b.type] || []) visit(b[key]); } };
@@ -77,7 +99,7 @@ export const ADVANCED_SECTORS = [
     id: 6, name: 'Enerji Krizi', concept: 'Değişkenler', hue: 150,
     intro: {
       title: 'Enerjinin değeri değişir',
-      text: 'Enerji bir sayı tutan değişkendir. Her uçuş adımı 1 enerji harcar. Başlangıç değerini ayarla; yeşil şarj istasyonlarında enerji ekle. Sayılara dokunarak değerleri değiştir.',
+      text: 'Enerji bir sayı tutan değişkendir. Her uçuş adımı 1 enerji harcar. Başlangıç değerini ayarla; yeşil şarj istasyonlarında enerji ekle. Depo en çok 9 enerji alır. Sayılara dokunarak değerleri değiştir.',
       demo: () => [setEnergy(3), rep(3, F()), addEnergy(3)],
     },
   },
@@ -101,11 +123,13 @@ export const ADVANCED_SECTORS = [
 
 const beaconSolution = () => [until('atBeacon', F()), R(), cruise()];
 const andSolution = () => [until('atBeacon', steerAnd()), cruise()];
-const orSolution = () => [until('atBeacon', steerOr()), cruise()];
+const orSolution = () => [forever(steerOr())];
 const energyLoop = () => [setEnergy(3), forever(ifelse('atEnergy', [addEnergy(3), F()], [F()]))];
 const zigzag = () => define('zigzag', R(), L());
+// Bileşik koşullu karar: meteor VE sağ boşsa sağa; kalan durumda meteor varsa sola; yoksa düz.
+const steerCompound = () => ifelse('aheadAndRightFree', [R()], [ifelse('ahead', [L()], [F()])]);
 const finalSolution = (initialEnergy = 3, compound = false) => [
-  define('safe', compound ? ifelse('aheadAndRightFree', [R()], [ifelse('aheadOrRightBlocked', [L()], [F()])]) : steer()),
+  define('safe', compound ? steerCompound() : steer()),
   define('protect', shield()),
   on('pirate', call('protect')), on('energy', addEnergy(3)), setEnergy(initialEnergy),
   until('atBeacon', call('safe')), rep(2, F()),
@@ -136,10 +160,10 @@ export const ADVANCED_LEVELS = [
     hint: 'VE koşulunda ikisi de doğru olmalı. Üst dala sağa kaç koy.',
   }),
   mission({
-    kind: 'pekistir', title: 'İkisinden Biri Yeter',
-    brief: '**Meteor varsa VEYA sağın doluysa** sola kaç. Hiçbiri yoksa düz uç. Mor halkadan sonra çıkışa devam et.',
-    waves: [route('FLFFLFFF', { beacons: [6], crystals: [2, 5] })], conds: ['atBeacon', 'aheadOrRightBlocked'], solution: orSolution,
-    hint: 'Eğer bloğundaki koşula dokunup VEYA sensörünü seç.',
+    kind: 'pekistir', title: 'İkisinden Biri Yeter', rev: 2,
+    brief: 'Mor halkadaysan **VEYA** önünde meteor varsa sağa kaç; ikisi de yoksa düz uç. Koşulun doğru olması için birinin olması yeter.',
+    waves: [route('FFrFRFFFF', { start: 1, beacons: [2], crystals: [3, 6] })], conds: ['atBeaconOrAhead'], solution: orSolution,
+    hint: 'Sürekli tekrarla içine eğer / değilse koy; koşulu VEYA sensörü olsun. Üst dala sağa kaç, alt dala düz uç.',
   }),
   mission({
     kind: 'pekistir', title: 'İki Durak',
@@ -156,11 +180,11 @@ export const ADVANCED_LEVELS = [
     hint: 'Olana kadar döngüsünün içine iki sensörlü karar ağacını koy.',
   }),
   mission({
-    kind: 'hata', title: 'VE mi VEYA mı?',
-    brief: 'Bu program boş yol varken sola kaçıyor. Koşulu incele: burada **VE** mi, **VEYA** mı kullanılmalı?',
-    waves: [route('FRFFRFFF', { beacons: [6], crystals: [2, 5], extra: [[1, 1], [3, 1]] })], conds: ['atBeacon', 'aheadAndRightFree', 'aheadOrRightBlocked'],
-    initial: orSolution, solution: andSolution,
-    hint: 'Meteor yokken düz gitmeli. Sağa kaçmak için meteor olması VE sağın boş olması gerekiyor.',
+    kind: 'hata', title: 'VE mi VEYA mı?', rev: 2,
+    brief: 'Bu program meteoru görse de kaçmıyor: halka ile meteorun birlikte olmasını bekliyor. Koşula dokun: burada **VE** mi, **VEYA** mı olmalı?',
+    waves: [route('FFRFFrRFF', { start: 1, beacons: [5], crystals: [4, 7] })], conds: ['atBeaconAndAhead', 'atBeaconOrAhead'],
+    initial: () => [forever(ifelse('atBeaconAndAhead', [R()], [F()]))], solution: orSolution,
+    hint: 'Mor halkada da kaçmalı, meteor görünce de. Birinin doğru olması yetmeli: VEYA sensörünü seç.',
   }),
   mission({
     kind: 'final', title: 'Bulutsu Finali',
@@ -172,23 +196,23 @@ export const ADVANCED_LEVELS = [
 
   // ───────────── 5 · Olaylar ─────────────
   mission({
-    kind: 'tanis', title: 'Korsan Alarmı', tools: EVENT_TOOLS, events: ['pirate'],
-    brief: 'Kırmızı gemi bir korsan! **Korsan görünce** bloğunun içine **kalkan aç** koy. Uçuş sırasında olay kendiliğinden çalışır.',
-    waves: [route('FFFFFF', { pirates: [2], crystals: [4] })],
+    kind: 'tanis', title: 'Korsan Alarmı', tools: EVENT_TOOLS, events: ['pirate'], rev: 2,
+    brief: 'Kırmızı gemiler korsan! **Korsan görünce** bloğunun içine **kalkan aç** koy. Olay her korsanda kendiliğinden yeniden çalışır.',
+    waves: [route('FFFFFFF', { pirates: [2, 5], crystals: [3] })],
     initial: () => [on('pirate'), cruise()], solution: () => [on('pirate', shield()), cruise()],
-    hint: 'Olay bloğu, sürekli uçuş döngüsünden önce durmalı.',
+    hint: 'Kalkan aç bloğunu sarı olay bloğunun içine bırak; en başa ya da uçuş döngüsünün içine değil.',
   }),
   mission({
-    kind: 'dene', title: 'İşaretten Gelen Uyarı', tools: EVENT_TOOLS, events: ['beacon', 'crystal'],
-    brief: 'Mor işaret korsandan önce geliyor. Olayın adını **işarete varınca** yap; kalkan bir sonraki saldırıya kadar açık kalır.',
-    waves: [route('FFFFFFF', { beacons: [2], pirates: [4], crystals: [5] })],
+    kind: 'dene', title: 'İşaretten Gelen Uyarı', tools: EVENT_TOOLS, events: ['beacon', 'crystal'], rev: 2,
+    brief: 'Mor işaretler korsanlardan önce geliyor. Olayın adını **işarete varınca** yap; kalkan bir sonraki saldırıya kadar açık kalır.',
+    waves: [route('FFFFFFFFF', { beacons: [2, 5], pirates: [4, 7], crystals: [8] })],
     initial: () => [on('crystal', shield()), cruise()], solution: () => [on('beacon', shield()), cruise()],
     hint: 'Olay bloğunun adına dokun. Kristal korsandan sonra geliyor, uyarı için geç!',
   }),
   mission({
-    kind: 'dene', title: 'Kristal Sinyali', tools: EVENT_TOOLS, events: ['crystal', 'beacon'],
-    brief: 'Kristali toplayınca kalkan açılsın. Olayın içini tamamla ve korsanın yanından güvenle geç.',
-    waves: [route('FFFFFFFF', { crystals: [2, 6], pirates: [4] })],
+    kind: 'dene', title: 'Kristal Sinyali', tools: EVENT_TOOLS, events: ['crystal', 'beacon'], rev: 2,
+    brief: 'Kristali toplayınca kalkan açılsın. Olayın içini tamamla ve iki korsanın yanından güvenle geç.',
+    waves: [route('FFFFFFFF', { crystals: [2, 5], pirates: [4, 7] })],
     initial: () => [on('crystal'), cruise()], solution: () => [on('crystal', shield()), cruise()],
     hint: 'Kalkan aç bloğu, kristal toplayınca olayının içinde olmalı.',
   }),
@@ -237,12 +261,13 @@ export const ADVANCED_LEVELS = [
     hint: 'Çıkış çizgisini geçmek de bir adım. Başlangıç enerjisini 6 yap.',
   }),
   mission({
-    kind: 'dene', title: 'Şarj Molaları', tools: ENERGY_TOOLS,
-    brief: 'Üç adımda bir yeşil şarj istasyonu var. **Enerjiye 3 ekle** bloğuyla değeri artır, sonra uçuşa devam et.',
-    waves: [route('FFFFFFFFF', { energy: [3, 6], crystals: [2, 5, 8] })],
-    initial: () => [setEnergy(3), rep(3, F()), addEnergy(1), rep(3, F())],
-    solution: () => [setEnergy(3), rep(3, F()), addEnergy(3), rep(3, F()), addEnergy(3), rep(3, F())],
-    hint: 'Her istasyonda enerjiye 3 ekle. Şarj komutu gemiyi ilerletmez.',
+    kind: 'dene', title: 'Şarj Molaları', tools: ENERGY_TOOLS, rev: 2,
+    brief: 'Üç adımda bir yeşil şarj istasyonu var. Her molada **enerjiye 3 ekle**, sonra 3 adım uç. Yanlış sayıyı düzelt ve son molayı ekle.',
+    // Yol depodan (9) uzun: baştan 9 enerji alıp hiç şarj etmeden bitirilemez.
+    waves: [route('FFFFFFFFFFFF', { energy: [3, 6, 9], crystals: [2, 5, 8, 11] })],
+    initial: () => [setEnergy(3), rep(3, F()), addEnergy(3), rep(3, F()), addEnergy(1), rep(3, F())],
+    solution: () => [setEnergy(3), rep(3, F()), addEnergy(3), rep(3, F()), addEnergy(3), rep(3, F()), addEnergy(3), rep(3, F())],
+    hint: 'Her istasyonda enerjiye 3 ekle. Şarj komutu gemiyi ilerletmez; ardından yine 3 adım uç.',
   }),
   mission({
     kind: 'dene', title: 'İstasyona Bak', tools: ENERGY_TOOLS, conds: ['atEnergy'],
@@ -259,9 +284,10 @@ export const ADVANCED_LEVELS = [
     hint: 'Enerji = 3 başlangıçta koşulu sağlamaz. İlk uçuş sonrası enerji 2 olur.',
   }),
   mission({
-    kind: 'pekistir', title: 'Gerektiği Kadar Şarj', tools: ENERGY_TOOLS, conds: ['atEnergy', 'energyLow'],
-    brief: '6 enerjiyle başla. Sadece **istasyondaysan** ve **enerji 3’ten azsa** 6 ekle. Her tur sonunda bir kez uç.',
-    waves: [route('FFFFFFFFFFFF', { energy: [3, 6, 9], crystals: [2, 4, 7, 10] })],
+    kind: 'pekistir', title: 'Gerektiği Kadar Şarj', tools: ENERGY_TOOLS, conds: ['atEnergy', 'energyLow'], rev: 2,
+    brief: '6 enerjiyle başla. Depo en çok 9 alır; taşarsa uçuş biter! Yalnızca **istasyondaysan** ve **enerji 3’ten azsa** 6 ekle: sonrası uzun yol.',
+    // İstasyonlar art arda, sonra sekiz sıra boş: her istasyonda şarj eden taşar, yalnızca enerjiye bakan istasyon dışında şarja kalkar.
+    waves: [route('FFFFFFFFFFFF', { energy: [1, 2, 3, 4], crystals: [5, 7, 9, 11] })],
     solution: () => [setEnergy(6), forever(ifelse('atEnergy', [ifelse('energyLow', [addEnergy(6)], [])], []), F())],
     hint: 'İstasyon koşulunun içine enerji koşulunu koy. Düz uç, iki eğer bloğunun da dışında olsun.',
   }),
@@ -318,11 +344,11 @@ export const ADVANCED_LEVELS = [
     hint: 'Fonksiyonlar sadece hareket değil, eğer bloklarını da içerebilir.',
   }),
   mission({
-    kind: 'pekistir', title: 'İşarete Kadar Çağır', tools: ALL_TOOLS, functions: ['straight', 'zigzag'], conds: ['atBeacon'],
-    brief: 'Düz geçişi tek düz uçuş olarak tanımla. Halkaya kadar çağır, sonra iki zikzak yap ve çıkışa düz devam et.',
-    waves: [route('FFFRLRLFFF', { beacons: [3], crystals: [4, 6] })],
-    solution: () => [define('straight', F()), zigzag(), until('atBeacon', call('straight')), rep(2, call('zigzag')), cruise()],
-    hint: 'Aynı çağır bloğu hem olana kadar hem sayılı döngünün içinde çalışabilir.',
+    kind: 'pekistir', title: 'İşarete Kadar Çağır', tools: ALL_TOOLS, functions: ['zigzag'], conds: ['atBeacon'], rev: 2,
+    brief: 'Zikzak sayısı her dalgada farklı. **Zikzak** manevranı tanımla ve halkaya varana kadar çağır; sonra çıkışa düz uç.',
+    waves: zigzagWaves(),
+    solution: () => [zigzag(), until('atBeacon', call('zigzag')), cruise()],
+    hint: 'Olana kadar bloğunun içine zikzak çağır koy. Halkadan sonra zikzak yapma: sağ şerit kapalı.',
   }),
   mission({
     kind: 'pekistir', title: 'Olay Fonksiyonu Çağırıyor', tools: ALL_TOOLS, functions: ['protect'], events: ['pirate'], conds: SENSORS,
@@ -339,11 +365,13 @@ export const ADVANCED_LEVELS = [
     hint: 'Tarifin adı zikzak. Çağır bloğundaki düz geçiş adını değiştir.',
   }),
   mission({
-    kind: 'final', title: 'Manevra Okulu Finali', tools: ALL_TOOLS, functions: ['safe'], events: ['pirate'], conds: ['atBeacon', ...SENSORS],
-    brief: 'Güvenli uçuşu tanımla. Halkaya kadar bu fonksiyonu çağır, sonra çağırmaya devam et. Korsan olayını da unutma!',
-    waves: longPaths.map((p) => route(p, { beacons: [9], pirates: [2, 5, 8], crystals: [3, 6, 10] })),
-    solution: () => [define('safe', steer()), on('pirate', shield()), until('atBeacon', call('safe')), forever(call('safe'))],
-    hint: 'Bir fonksiyon farklı döngülerden çağrılabilir; tanımını bir kez yazman yeter.',
+    kind: 'final', title: 'Manevra Okulu Finali', tools: ALL_TOOLS, functions: ['safe'], events: ['pirate'], conds: ['atBeacon', ...SENSORS], rev: 2,
+    brief: 'Güvenli uçuşu tanımla, halkaya kadar çağır. Halkada **sağa kaç**: öndeki duvarı sensörler aşamaz. Sonra yine güvenli uçuşu çağır. Korsanları unutma!',
+    waves: wallWaves({ pirates: [2, 9], crystals: [3, 6, 10] }),
+    solution: () => [define('safe', steer()), on('pirate', shield()), until('atBeacon', call('safe')), R(), forever(call('safe'))],
+    // Fonksiyonsuz yazım (karar ağacı iki döngüde iki kez) bu sınıra sığmaz.
+    maxBlocks: 14,
+    hint: 'Aynı fonksiyon iki döngüden çağrılır: önce olana kadar, sağa kaçıştan sonra sürekli tekrarla. Tanımı bir kez yazman yeter.',
   }),
 
   // ───────────── 8 · Bütün kavramların birleştiği final ─────────────
@@ -386,10 +414,10 @@ export const ADVANCED_LEVELS = [
     hint: 'Şarj fonksiyonunu yalnızca şarja varınca çağır: başka yerde enerji eklenmez.',
   }),
   mission({
-    kind: 'pekistir', title: 'İki Fonksiyonlu Pilot', tools: ALL_TOOLS, functions: ['safe', 'protect'], events: ['pirate'], conds: ['atBeacon', ...SENSORS],
-    brief: 'Güvenli uçuş yolu seçsin, korunma kalkanı açsın. Korsan olayı korunmayı; uçuş döngüleri güvenli uçuşu çağırsın.',
-    waves: longPaths.map((p) => route(p, { beacons: [9], pirates: [2, 5, 8], crystals: [3, 6, 10] })),
-    solution: () => [define('safe', steer()), define('protect', shield()), on('pirate', call('protect')), until('atBeacon', call('safe')), forever(call('safe'))],
+    kind: 'pekistir', title: 'İki Fonksiyonlu Pilot', tools: ALL_TOOLS, functions: ['safe', 'protect'], events: ['pirate'], conds: SENSORS, rev: 2,
+    brief: 'Güvenli uçuş yolu seçsin, korunma kalkanı açsın. Korsan olayı korunmayı, uçuş döngüsü güvenli uçuşu çağırsın.',
+    waves: longPaths.map((p) => route(p, { pirates: [2, 5, 8], crystals: [3, 6, 10] })),
+    solution: () => [define('safe', steer()), define('protect', shield()), on('pirate', call('protect')), forever(call('safe'))],
     hint: 'İki tanımın adları farklı olmalı. Her çağrı kendi tanımıyla eşleşmeli.',
   }),
   mission({
@@ -399,9 +427,9 @@ export const ADVANCED_LEVELS = [
     hint: 'İlk istasyon üçüncü sırada. 2 enerji yetmez; başlangıç değerini 3 yap.',
   }),
   mission({
-    kind: 'final', title: 'Ana Gemiye Dönüş', tools: ALL_TOOLS, functions: ['safe', 'protect'], events: ['pirate', 'energy'], conds: ['atBeacon', 'aheadAndRightFree', 'aheadOrRightBlocked'],
-    brief: 'Büyük final! VE / VEYA ile yol seç, olaylarla şarj ol ve korun. Mor halkaya kadar fonksiyonunu çağır, sonra iki kez düz uç.',
+    kind: 'final', title: 'Ana Gemiye Dönüş', tools: ALL_TOOLS, functions: ['safe', 'protect'], events: ['pirate', 'energy'], conds: ['atBeacon', 'aheadAndRightFree', 'ahead'], rev: 2,
+    brief: 'Büyük final! Güvenli uçuş: meteor **VE** sağ boşsa sağa, başka meteor varsa sola, yoksa düz. Olaylarla şarj ol ve korun; halkadan sonra iki kez düz uç.',
     waves: finalWaves(), solution: () => finalSolution(3, true),
-    hint: 'Önce iki fonksiyon ve iki olay. 3 enerjiyle kalk. Halkaya kadar güvenli uçuş; sonunda 2 düz uçuş.',
+    hint: 'Önce iki fonksiyon ve iki olay. 3 enerjiyle kalk. Halkaya kadar güvenli uçuşu çağır; sonunda 2 düz uçuş.',
   }),
 ];

@@ -1,10 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseField, simulate, sense } from '../src/engine/world.js';
-import { F, R, forever, ifelse, until, on, shield, setEnergy, addEnergy, define, call, clone, count, find, remove, toPython, CONTAINERS, create } from '../src/engine/blocks.js';
-import { LEVELS, SECTORS, levelsOf } from '../src/content/levels.js';
+import { parseField, simulate, sense, stars, ENERGY_MAX } from '../src/engine/world.js';
+import { F, L, R, rep, forever, ifelse, until, on, shield, setEnergy, addEnergy, define, call, clone, count, find, remove, toPython, CONTAINERS, CONDS, create } from '../src/engine/blocks.js';
+import { LEVELS, SECTORS, levelsOf, levelById } from '../src/content/levels.js';
 
 const run = (lines, program) => simulate(parseField(lines), program);
+const fly = (level, program) => level.waves.map((w) => simulate(parseField(w), program));
+const wins = (level, program) => fly(level, program).every((r) => r.outcome === 'win');
+const starsOf = (level, program) => stars(fly(level, program), count(program), level.par);
+const advanced = LEVELS.filter((l) => l.sector >= 4);
+const twoSensor = () => ifelse('ahead', [ifelse('rightFree', [R()], [L()])], [F()]);
+const twoSensorLeft = () => ifelse('ahead', [ifelse('leftFree', [L()], [R()])], [F()]);
+const isSteer = (b) => b.type === 'ifelse' && b.cond === 'ahead' && b.then[0]?.type === 'ifelse';
+const hasSteer = (program) => program.some((b) => isSteer(b) || (CONTAINERS[b.type] || []).some((k) => hasSteer(b[k])));
+/** Programdaki iki sensörlü karar ağacını (önümde meteor → sağım boş mu) başka bir ağaçla değiştirir. */
+const swapSteer = (program, make) => program.map((b) => {
+  if (isSteer(b)) return make();
+  const c = { ...b };
+  for (const k of CONTAINERS[b.type] || []) c[k] = swapSteer(b[k], make);
+  return c;
+});
 
 test('sekiz sektör ve 64 görev tamam: ilk üç sektörün kimlikleri korunur', () => {
   assert.equal(SECTORS.length, 8);
@@ -65,6 +80,17 @@ test('VE ile VEYA doğru doğruluk tablolarını ve şerit duvarını kullanır'
     assert.equal(sense(f, 1, 0, 'aheadOrRightBlocked').result, ahead || !rightFree);
   }
   assert.equal(sense(parseField(['...', '..S']), 2, 0, 'aheadOrRightBlocked').result, true);
+  // İşaret ile meteor: VEYA için biri yeter, VE ikisini birden ister.
+  for (const [lines, y, at, ahead] of [[['...', '...', '.S.'], 0, false, false], [['.M.', '...', '.S.'], 1, false, true], [['...', '.B.', '.S.'], 1, true, false], [['.M.', '.B.', '.S.'], 1, true, true]]) {
+    const f = parseField(lines);
+    assert.equal(sense(f, 1, y, 'atBeaconOrAhead').result, at || ahead);
+    assert.equal(sense(f, 1, y, 'atBeaconAndAhead').result, at && ahead);
+  }
+});
+
+test('eski VEYA sensörü hiçbir görevde sunulmuyor ama kayıtlı programlar için tanımlı', () => {
+  assert.ok(CONDS.aheadOrRightBlocked);
+  for (const l of LEVELS) assert.ok(!l.conds.includes('aheadOrRightBlocked'), l.id);
 });
 
 test('kalkan bir korsan saldırısını durdurur, olay her yeni saldırıda çalışır', () => {
@@ -76,6 +102,16 @@ test('kalkan bir korsan saldırısını durdurur, olay her yeni saldırıda çal
   assert.equal(result.events.filter((e) => e.blocked).length, 2);
   assert.equal(result.shielded, false);
   assert.equal(run(['...', '.M.', '.S.'], [shield(), forever(F())]).reason, 'meteor');
+});
+
+test('açık kalkan yeniden açılamaz: döngüde kalkan açmak olayın yerini tutmaz', () => {
+  const lines = ['...', '.P.', '...', '.P.', '...', '.S.'];
+  const polled = run(lines, [forever(shield(), F())]);
+  assert.equal(polled.outcome, 'fail');
+  assert.equal(polled.reason, 'shield');
+  assert.equal(polled.ticks, 1, 'ikinci turdaki kalkan komutu uçuşu durdurur');
+  // Saldırı kalkanı indirir; ondan sonra yeniden açmak serbesttir.
+  assert.equal(run(lines, [shield(), F(), F(), shield(), forever(F())]).outcome, 'win');
 });
 
 test('işaret ve kristal olayları yalnızca varınca çalışır', () => {
@@ -121,6 +157,17 @@ test('enerji yalnızca istasyonda artırılır ve sensör güncel değeri okur',
   assert.equal(sense(f, 1, 0, 'energyLow', { energy: 3 }).result, false);
 });
 
+test('depo sınırlıdır: fazla şarj taşar, sayaç dolu depoda kalır', () => {
+  const lines = ['...', '...', '.E.', '.S.'];
+  const result = run(lines, [on('energy', addEnergy(9)), setEnergy(3), forever(F())]);
+  assert.equal(result.outcome, 'fail');
+  assert.equal(result.reason, 'overflow');
+  assert.equal(result.energy, ENERGY_MAX);
+  assert.equal(result.events.filter((e) => e.t === 'variable').at(-1).value, ENERGY_MAX);
+  // Tam dolduran şarj taşma değildir.
+  assert.equal(run(lines, [on('energy', addEnergy(7)), setEnergy(3), forever(F())]).outcome, 'win');
+});
+
 test('bir dalganın enerjisi, olayları ve fonksiyonları diğerine taşınmaz', () => {
   const f = parseField(['...', '.E.', '.S.']);
   const program = [on('energy', addEnergy(3)), setEnergy(1), forever(F())];
@@ -141,7 +188,7 @@ test('fonksiyon tanımı uçmaz; çağrı gövdeyi çalıştırır ve olaylardan
 });
 
 test('hareketsiz yeni döngüler ve boş fonksiyonlar sınırlı olayla durur', () => {
-  for (const program of [[until('atBeacon')], [forever(shield())], [forever(setEnergy(3))], [define('safe'), forever(call('safe'))]]) {
+  for (const program of [[until('atBeacon')], [forever(setEnergy(3))], [define('safe'), forever(call('safe'))]]) {
     const result = run(['...', '.S.'], program);
     assert.equal(result.outcome, 'fail');
     assert.equal(result.reason, 'idle');
@@ -192,5 +239,96 @@ test('değişen işaret dalgaları tek bir sabit mesafeye indirgenmez', () => {
   for (const n of [2, 4, 6]) {
     const fixed = [...Array.from({ length: n }, F), R(), forever(F())];
     assert.ok(level.waves.some((w) => simulate(parseField(w), fixed).outcome !== 'win'));
+  }
+});
+
+// ───────────── görev tasarımı: kavram gerçekten gerekli mi? ─────────────
+
+test('baştan tasarlanan görevlerde eski kayıtlı program açılmaz, ötekilerde kayıt anahtarı değişmez', () => {
+  for (const l of LEVELS) assert.equal(l.saveKey, l.rev ? `${l.id}@${l.rev}` : l.id);
+  assert.ok(LEVELS.filter((l) => l.sector <= 3).every((l) => !l.rev), 'ilk üç sektörün kayıtları korunur');
+});
+
+test('çok dalgalı görevlerde bir dalganın ezberi öteki dalgaları geçemez', () => {
+  for (const level of advanced.filter((l) => l.waves.length > 1)) {
+    assert.equal(new Set(level.waves.map((w) => w.join())).size, level.waves.length, `${level.id}: dalgalar aynı`);
+    level.waves.forEach((w, i) => {
+      const memo = simulate(parseField(w), level.solution()).events.filter((e) => e.t === 'move').map((e) => ({ id: 'm', type: e.kind }));
+      const others = level.waves.filter((_, j) => j !== i).map((o) => simulate(parseField(o), memo));
+      assert.ok(others.some((r) => r.outcome !== 'win'), `${level.id}: ${i + 1}. dalganın ezberi her yerde işliyor`);
+    });
+  }
+});
+
+test('iki sensörlü görevlerde tek yöne kaçmak yetmez; önce sola bakan ayna mantık da 3 yıldız alır', () => {
+  const levels = advanced.filter((l) => hasSteer(l.solution()));
+  assert.ok(levels.length >= 12);
+  for (const level of levels) {
+    const sol = level.solution();
+    assert.equal(starsOf(level, swapSteer(sol, twoSensorLeft)), 3, `${level.id}: ayna mantık`);
+    assert.ok(!wins(level, swapSteer(sol, () => ifelse('ahead', [L()], [F()]))), `${level.id}: yalnız sola kaçmak yetiyor`);
+    assert.ok(!wins(level, swapSteer(sol, () => ifelse('ahead', [R()], [F()]))), `${level.id}: yalnız sağa kaçmak yetiyor`);
+  }
+});
+
+test('Sektör 5: kalkanı olaya bağlamayan program geçemez', () => {
+  for (const level of levelsOf(5)) {
+    const plain = level.solution().filter((b) => b.type !== 'on');
+    const polled = plain.map((b) => (['forever', 'until'].includes(b.type) ? { ...b, body: [shield(), ...b.body] } : b));
+    assert.ok(!wins(level, polled), `${level.id}: döngüde kalkan yetiyor`);
+    assert.ok(!wins(level, [shield(), ...plain]), `${level.id}: baştaki tek kalkan yetiyor`);
+    assert.ok(parseField(level.waves[0]).pirates.size >= 2, `${level.id}: tek korsan olayı gereksiz kılar`);
+  }
+});
+
+test('VEYA görevinde her koşul tek başına da tetikler; hata avında yalnızca koşulu değiştirmek yeter', () => {
+  const or = levelById('4-4'), field = parseField(or.waves[0]);
+  const senses = simulate(field, or.solution()).events.filter((e) => e.t === 'sense' && e.result);
+  const alone = senses.map((e) => [field.beacons.has(`${e.lane},${e.y}`), field.meteors.has(`${e.lane},${e.y + 1}`)]);
+  assert.ok(alone.some(([at, ahead]) => at && !ahead), 'yalnızca işaret');
+  assert.ok(alone.some(([at, ahead]) => !at && ahead), 'yalnızca meteor');
+
+  const bug = levelById('4-7'), fixed = bug.initial();
+  assert.equal(starsOf(bug, fixed), 0);
+  fixed[0].body[0].cond = 'atBeaconOrAhead';
+  assert.equal(starsOf(bug, fixed), 3);
+  assert.deepEqual(bug.conds, ['atBeaconAndAhead', 'atBeaconOrAhead']);
+});
+
+test('büyük finalin karar ağacı yol boşken kaçmaz', () => {
+  const safe = levelById('8-8').solution().find((b) => b.type === 'define' && b.name === 'safe');
+  const first = (row) => simulate(parseField([row, '..S..']), [clone([safe])[0], call('safe')]).events.find((e) => e.t === 'move' || e.t === 'crash').kind;
+  assert.equal(first('.....'), 'fwd');
+  assert.equal(first('...M.'), 'fwd', 'sağ dolu ama yol boş: düz uçmalı');
+  assert.equal(first('..M..'), 'right');
+  assert.equal(first('..MM.'), 'left');
+});
+
+test('Sektör 6: şarj etmeden ya da enerjiye bakmadan geçilemez', () => {
+  const stops = levelById('6-2');
+  assert.ok(parseField(stops.waves[0]).rows > ENERGY_MAX, 'yol depodan uzun olmalı');
+  assert.ok(!wins(stops, [setEnergy(9), rep(9, F()), rep(3, F())]));
+
+  const need = levelById('6-5');
+  for (const [start, add] of [[6, 6], [6, 3], [3, 3], [9, 3], [3, 6], [9, 9]]) {
+    assert.ok(!wins(need, [setEnergy(start), forever(ifelse('atEnergy', [addEnergy(add)], []), F())]), `her istasyonda şarj (${start}, +${add}) geçiyor`);
+    assert.ok(!wins(need, [setEnergy(start), forever(ifelse('energyLow', [addEnergy(add)], []), F())]), `yalnızca enerjiye bakmak (${start}, +${add}) geçiyor`);
+  }
+});
+
+test('Sektör 7: halkaya kadar çağırmak ve aynı fonksiyonu iki döngüde kullanmak gerçekten gerekli', () => {
+  const zig = levelById('7-5'), z = () => define('zigzag', R(), L());
+  assert.equal(zig.waves.length, 3);
+  for (const n of [2, 3, 4]) assert.ok(!wins(zig, [z(), rep(n, call('zigzag')), forever(F())]), `${n} zikzak saymak yetiyor`);
+  assert.ok(!wins(zig, [z(), forever(call('zigzag'))]), 'halkadan sonra zikzak sürdürülebiliyor');
+
+  const fin = levelById('7-8'), guard = () => on('pirate', shield());
+  assert.ok(!wins(fin, [define('safe', twoSensor()), guard(), forever(call('safe'))]), 'halkadaki dönüş gereksiz');
+  const inline = [guard(), until('atBeacon', twoSensor()), R(), forever(twoSensor())];
+  assert.ok(wins(fin, inline) && count(inline) > fin.maxBlocks, 'fonksiyonsuz yazım blok sınırına sığmamalı');
+  // Geçitten önce de sonra da tam karar ağacı gerekir: daha ucuz bir ikinci döngü yetmez.
+  for (const cheap of [() => ifelse('ahead', [L()], [F()]), () => ifelse('ahead', [R()], [F()]), () => ifelse('leftFree', [L()], [R()]), () => ifelse('rightFree', [R()], [L()])]) {
+    assert.ok(!wins(fin, [guard(), until('atBeacon', twoSensor()), R(), forever(cheap())]));
+    assert.ok(!wins(fin, [guard(), until('atBeacon', cheap()), R(), forever(twoSensor())]));
   }
 });

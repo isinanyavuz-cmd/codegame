@@ -21,10 +21,11 @@ function randomLines({ lanes, rows, start, density }, next) {
  * @param spec.minDodges  çözümün dalga başına yapması gereken en az kaçış
  * @param spec.needBoth   her dalgada hem sola hem sağa kaçış gereksin
  * @param spec.decoys     "kolay yol" programları; her biri en az bir dalgada başarısız olmalı
+ * @param spec.alts       örnek çözümle aynı değerde sayılan programlar; onlar da her dalgayı geçmeli
  * Ayrıca bir dalganın ezber çözümü en az bir başka dalgada başarısız olur.
  */
 export function genWaves(spec) {
-  const { count = 3, seed, solution, minDodges = 2, needBoth = false, decoys = [] } = spec;
+  const { count = 3, seed, solution, minDodges = 2, needBoth = false, decoys = [], alts = [] } = spec;
   for (let attempt = 0; attempt < 400; attempt++) {
     const waves = [];
     for (let i = 0; i < 300 && waves.length < count; i++) {
@@ -35,6 +36,7 @@ export function genWaves(spec) {
       const lefts = moves.filter((e) => e.kind === 'left').length, rights = moves.filter((e) => e.kind === 'right').length;
       if (lefts + rights < minDodges) continue;
       if (needBoth && (!lefts || !rights)) continue;
+      if (alts.some((a) => simulate(parseField(lines), a).outcome !== 'win')) continue;
       if (waves.some((w) => w.join() === lines.join())) continue;
       waves.push(lines);
     }
