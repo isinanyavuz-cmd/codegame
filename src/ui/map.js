@@ -1,19 +1,23 @@
 // Rota ekranı: aşağıdan yukarıya tırmanan bir yıldız haritası. Sektörler gezegen,
 // görevler gezegenler arasındaki yolun üstünde düğümdür. Gemi sıradaki görevin
 // önünde durur; bir görev geçilince yol boyunca yeni yerine uçar.
-import { LEVELS, SECTORS, levelsOf } from '../content/levels.js';
+import { LEVELS, SECTORS, levelsOf, levelById } from '../content/levels.js';
+import { rankOf } from '../content/ranks.js';
+import { groupLog, welcome } from '../content/logbook.js';
+import { robot } from './copilot.js';
+import { showCard, hideCard, makeCard } from './overlay.js';
 
 const $ = (id) => document.getElementById(id);
 const svg = (id, cls = '') => `<svg viewBox="0 0 32 32" class="${cls}"><use href="#${id}"/></svg>`;
 // Yayındaki sürümü ayırt etmek için: tools/surum.js bu kodu index.html içine yazar.
 const SURUM = document.querySelector('meta[name="surum"]')?.content || '';
-const RANKS = [[0, 'Çaylak Pilot'], [9, 'Pilot'], [24, 'Kıdemli Pilot'], [45, 'Kaptan'], [66, 'As Kaptan'], [120, 'Uzay Kaşifi'], [192, 'Galaksi Ustası']];
+const rich = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 const NS = 'http://www.w3.org/2000/svg';
 const SHIP = `<svg viewBox="-24 -24 48 48"><path class="flame" d="M-7 13L-4.500 27-2 13zM2 13l2.500 14L7 13z"/><path d="M0-21C3.500-15 5-7 5 3v9h-10V3c0-10 1.500-18 5-24z" fill="#e6ecf7"/><path d="M-5-2L-21 11v5l16-3zM5-2l16 13v5L5 13z" fill="#dfe6f3"/><path d="M-21 11v5l6-1.200V7zM21 11v5l-6-1.200V7z" fill="#ff6a2b"/><ellipse cx="0" cy="-6" rx="2.300" ry="5.500" fill="#2fc8ff"/></svg>`;
 
 export class MapScreen {
-  constructor({ store, sfx, music, onOpen }) {
-    Object.assign(this, { store, sfx, music, onOpen });
+  constructor({ store, sfx, music, voice, onOpen }) {
+    Object.assign(this, { store, sfx, music, voice, onOpen });
     this.segs = []; this.shipLen = null; this.raf = 0;
     $('route').addEventListener('click', (e) => {
       const b = e.target.closest('[data-level]');
@@ -22,6 +26,12 @@ export class MapScreen {
     });
     $('soundBtn').addEventListener('click', () => { store.sound = !store.sound; sfx.enabled = store.sound; this.renderToggles(); sfx.click(); });
     $('musicBtn').addEventListener('click', () => { store.music = !store.music; music.enabled = store.music; this.renderToggles(); sfx.click(); });
+    $('voiceBtn').hidden = !voice.supported;
+    $('voiceBtn').addEventListener('click', () => {
+      store.voice = !store.voice; voice.enabled = store.voice; this.renderToggles(); sfx.click();
+      if (store.voice) voice.say('Sesli okuma açık. Görevleri sana ben okuyacağım.');
+    });
+    $('logBtn').addEventListener('click', () => { sfx.click(); this.showLog(); });
     let timer = 0;
     window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(() => { if (!$('map').hidden) this.render(false); }, 150); });
     this.renderToggles();
@@ -30,23 +40,59 @@ export class MapScreen {
   renderToggles() {
     $('soundBtn').classList.toggle('off', !this.store.sound);
     $('musicBtn').classList.toggle('off', !this.store.music);
+    $('voiceBtn').classList.toggle('off', !this.store.voice);
   }
 
   show() {
     this.renderToggles();
     $('map').hidden = false;
     this.render(true);
+    this.greet();
+  }
+
+  /** Oyuna yeni bir günde dönen çocuğu günlükten bir özetle karşılar (sayfa açılışında bir kez). */
+  greet() {
+    if (this.greeted) return;
+    this.greeted = true;
+    const next = this.current();
+    const w = welcome(this.store.log(), { levelById, sectorName: (id) => SECTORS.find((s) => s.id === id).name, next });
+    if (!w) return;
+    showCard(makeCard(`<div class="who">${robot('happy')}<span class="tag">KAPTAN GÜNLÜĞÜ</span></div><h1>Tekrar hoş geldin!</h1>
+      <p>${rich(w.text)}</p><div class="hooks"><p>${rich(w.next)}</p></div>
+      <div class="btns"><button class="btn" data-act="close">Rotaya bak</button>${next ? `<button class="btn primary" data-act="go">Devam et${svg('i-play')}</button>` : ''}</div>`, (act) => {
+      this.sfx.click(); hideCard(); this.voice.stop();
+      if (act === 'go') this.onOpen(next);
+    }));
+    this.voice.say(`Tekrar hoş geldin! ${w.text} ${w.next}`);
+  }
+
+  /** Kaptan günlüğü: son günlerde geçilen ve sonraya bırakılan görevler. */
+  showLog() {
+    const groups = groupLog(this.store.log()).slice(0, 6), stars = (n) => [1, 2, 3].map((i) => svg('i-star', i <= n ? 'lit' : '')).join('');
+    const rows = groups.map((g) => `<h3>${g.label}</h3><ul>${g.entries.slice(0, 10).map((e) => {
+      const level = levelById(e.id);
+      if (!level) return '';
+      return e.kind === 'skip'
+        ? `<li class="skip"><span>${level.id}</span><b>${level.title}</b><i>sonraya bırakıldı</i></li>`
+        : `<li><span>${level.id}</span><b>${level.title}</b><i class="mstars">${stars(e.stars)}</i></li>`;
+    }).join('')}</ul>`).join('');
+    showCard(makeCard(`<div class="who">${robot('idle')}<span class="tag">KAPTAN GÜNLÜĞÜ</span></div><h1>Uçuş kayıtların</h1>
+      ${rows ? `<div class="loglist">${rows}</div>` : '<p>Henüz kayıt yok. İlk görevini geçince burada görünecek.</p>'}
+      <div class="btns"><button class="btn primary" data-act="close">Tamam</button></div>`, () => { this.sfx.click(); hideCard(); }));
   }
   hide() { $('map').hidden = true; cancelAnimationFrame(this.raf); }
 
-  /** Sıradaki görev: açık olup henüz geçilmemiş ilk görev. */
-  current() { return LEVELS.find((l) => this.store.isUnlocked(l, LEVELS) && this.store.stars(l.id) === 0) || null; }
+  /** Sıradaki görev: açık olup henüz geçilmemiş ilk görev; sonraya bırakılanlar en sona kalır. */
+  current() {
+    const open = LEVELS.filter((l) => this.store.isUnlocked(l, LEVELS) && this.store.stars(l.id) === 0);
+    return open.find((l) => !this.store.isSkipped(l.id)) || open[0] || null;
+  }
 
   // ---------- yerleşim ----------
   render(travel) {
     const { store } = this, route = $('route'), total = store.total();
     $('totalStars').textContent = total; $('maxStars').textContent = `/ ${LEVELS.length * 3}`;
-    $('rank').textContent = RANKS.filter(([min]) => total >= min).pop()[1];
+    $('rank').textContent = rankOf(total);
 
     const W = Math.min(1040, $('map').clientWidth - 24), narrow = W < 660;
     const side = narrow ? 58 : 150, R = narrow ? 34 : 48, band = narrow ? 420 : 330, soonBand = narrow ? 210 : 230;
@@ -94,7 +140,7 @@ export class MapScreen {
         const at = g.start + g.len * ((k + 1) / (levels.length + (i === sectors.length - 1 ? 1.8 : 1)));
         lenOf.set(l.id, at);
         const p = this.pointAt(at), st = store.stars(l.id), locked = !store.isUnlocked(l, LEVELS), isCur = cur && l.id === cur.id;
-        const cls = ['node', l.n === 8 ? 'boss' : '', isCur ? 'cur' : st ? 'done' : '', locked ? 'locked' : ''].join(' ');
+        const cls = ['node', l.n === 8 ? 'boss' : '', isCur ? 'cur' : st ? 'done' : '', locked ? 'locked' : '', store.isSkipped(l.id) ? 'skipped' : ''].join(' ');
         const inner = locked ? svg('i-lock') : l.n === 8 ? svg('i-star') : l.n;
         const stars = locked ? '' : [1, 2, 3].map((n) => svg('i-star', n <= st ? 'lit' : '')).join('');
         html.push(`<div class="mn" style="left:${p.x}px;top:${p.y}px"><button class="${cls}" data-level="${l.id}" title="${l.title}" aria-label="Görev ${l.id}: ${l.title}">${inner}</button><div class="mstars">${stars}</div></div>`);

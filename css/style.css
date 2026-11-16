@@ -27,6 +27,15 @@ svg { display: block; }
 
 /* ───────── görev ekranı: üst şerit ───────── */
 .top { position: absolute; left: 22px; top: 20px; display: flex; align-items: center; gap: 14px; }
+/* Kristal sayacı: ses düğmesinin yanında. */
+.gems { position: absolute; left: 76px; top: 86px; height: 36px; padding: 0 12px; border-radius: 12px; display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 800; z-index: 2; box-shadow: none; }
+.gems svg { width: 15px; height: 15px; color: #58e6ff; filter: drop-shadow(0 0 6px rgba(88, 230, 255, .8)); }
+.gems span { font-size: 13px; font-weight: 600; color: var(--soft); }
+.gems.full { border-color: rgba(88, 230, 255, .75); }
+.gems.bump { animation: gempop .32s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes gempop { 40% { transform: scale(1.28); } }
+.floaty { position: absolute; transform: translate(-50%, -120%); padding: 3px 9px; border-radius: 9px; font-size: 14px; font-weight: 800; color: #3b2a00; background: var(--now); pointer-events: none; z-index: 5; white-space: nowrap; animation: floaty 1s ease-out forwards; }
+@keyframes floaty { from { opacity: 0; transform: translate(-50%, -60%) scale(.7); } 25% { opacity: 1; transform: translate(-50%, -130%) scale(1); } to { opacity: 0; transform: translate(-50%, -230%) scale(1); } }
 /* Ses düğmesi geri düğmesinin altında durur; panele ve görev şeridine değmez. */
 .iconbtn.gsnd { position: absolute; left: 22px; top: 82px; z-index: 2; width: 44px; height: 44px; border-radius: 14px; }
 .back, .iconbtn { width: 50px; height: 50px; border-radius: 16px; display: grid; place-items: center; background: rgba(24, 33, 72, .85); border: 1px solid var(--line); color: #cfd9ff; }
@@ -69,6 +78,8 @@ button.node:not(.locked):active { transform: scale(.92); }
 .waves button.ok { background: var(--ok); border-color: var(--ok); color: #06301d; }
 .waves button.on { background: var(--now); border-color: var(--now); color: #3a2c00; box-shadow: 0 0 10px rgba(255, 213, 61, .8); }
 .waves button.bad { background: var(--bad); border-color: var(--bad); color: #fff; }
+.brief .row .speak { margin-left: auto; width: 30px; height: 30px; }
+.node.skipped { border-style: dashed; border-color: var(--now); color: var(--now); }
 .brief h2 { margin: 0 0 4px; font-size: 21px; font-weight: 800; line-height: 1.1; }
 .brief p { margin: 0; font-size: 16px; line-height: 1.34; font-weight: 500; color: #d7e0ff; }
 .brief p b { color: #fff; font-weight: 700; }
@@ -103,6 +114,9 @@ button.node:not(.locked):active { transform: scale(.92); }
        width: max-content; background: var(--col); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .2); white-space: nowrap; touch-action: none; cursor: grab; position: relative; }
 .ev { --col: var(--ev); color: #3b2a00; border-radius: 20px 20px 10px 10px; cursor: default; }
 .ev svg { width: 14px; height: 14px; }
+.blk .bi { width: 17px; height: 17px; flex: none; }
+.palrow .blk .bi { width: 15px; height: 15px; }
+.blk.hole { --col: rgba(255, 255, 255, .1); border: 2px dashed rgba(255, 233, 163, .6); box-shadow: none; color: #ffe9a3; min-width: 70px; justify-content: center; cursor: default; }
 .ctl { --col: var(--ctl); } .mov { --col: var(--mov); }
 .fun { --col: #9154ce; } .variable { --col: #217c60; }
 .choice { padding: 3px 8px; border-radius: 8px; background: rgba(0, 0, 0, .18); cursor: pointer; }
@@ -176,6 +190,13 @@ button.node:not(.locked):active { transform: scale(.92); }
 
 .toast { position: absolute; left: 50%; top: 112px; transform: translateX(-50%); padding: 13px 16px 13px 18px; display: flex; align-items: center; gap: 13px; font-size: 16.5px; font-weight: 700;
          max-width: min(560px, 92vw); z-index: 6; animation: rise .25s ease-out; }
+.toast .robot { width: 46px; height: 46px; flex: none; margin: -4px 0 -4px -6px; }
+.toast .say { min-width: 0; }
+.tbtns { display: flex; gap: 8px; flex: none; }
+.toast button.nudge { border-color: var(--now); color: #ffe9a3; animation: nudge 1.1s ease-in-out infinite; }
+@keyframes nudge { 50% { transform: scale(1.07); box-shadow: 0 0 16px rgba(255, 213, 61, .55); } }
+.robot.happy, .robot.wow { animation: bob .9s ease-in-out infinite alternate; }
+@keyframes bob { to { transform: translateY(-3px) rotate(3deg); } }
 .toast.bad { border-color: rgba(255, 77, 106, .7); }
 .toast.good { border-color: rgba(55, 227, 154, .7); }
 .toast .hint { font-size: 13.5px; font-weight: 500; color: #c6d1f5; display: block; margin-top: 3px; line-height: 1.3; }
@@ -212,6 +233,23 @@ button.node:not(.locked):active { transform: scale(.92); }
 @keyframes fade { from { opacity: 0; } }
 .card { width: min(520px, 100%); padding: 26px 26px 22px; text-align: center; animation: pop .3s cubic-bezier(.2, 1.4, .4, 1); max-height: 100%; overflow: auto; }
 @keyframes pop { from { transform: scale(.9); opacity: 0; } }
+.card .who { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.card .who .robot { width: 62px; height: 62px; }
+.hooks { margin: 0 auto 18px; padding: 10px 14px; border-radius: 14px; max-width: 430px; background: rgba(255, 213, 61, .08); border: 1px solid rgba(255, 213, 61, .3); }
+.card .hooks p { margin: 0; font-size: 14.5px; line-height: 1.35; color: #ffe9a3; }
+.card .hooks p + p { margin-top: 4px; color: #d7e0ff; }
+.confetti { position: fixed; inset: 0; z-index: 70; pointer-events: none; overflow: hidden; }
+.confetti i { position: absolute; top: -26px; border-radius: 2px; animation: fall linear forwards; }
+@keyframes fall { to { transform: translate(var(--drift), 112vh) rotate(var(--spin)); } }
+.loglist { text-align: left; max-height: 44vh; overflow: auto; margin: 0 0 18px; padding-right: 4px; }
+.loglist h3 { margin: 12px 0 6px; font-size: 12px; font-weight: 800; letter-spacing: .14em; color: #7fd8ff; }
+.loglist h3:first-child { margin-top: 0; }
+.loglist ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.loglist li { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 11px; background: rgba(255, 255, 255, .05); font-size: 15px; }
+.loglist li span { font-size: 12px; font-weight: 800; color: var(--soft); width: 30px; flex: none; }
+.loglist li b { flex: 1; font-weight: 700; }
+.loglist li i { font-style: normal; font-size: 12.5px; color: var(--soft); flex: none; }
+.loglist li.skip b { color: var(--soft); }
 .card .tag { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: .16em; color: #7fd8ff; margin-bottom: 8px; }
 .card h1 { margin: 0 0 10px; font-size: 30px; font-weight: 800; line-height: 1.1; }
 .card p { margin: 0 auto 16px; font-size: 16.5px; line-height: 1.4; color: #d7e0ff; max-width: 420px; }
@@ -329,6 +367,8 @@ button.node:not(.locked):active { transform: scale(.92); }
   .brief p { font-size: 14px; } .brief h2 { display: none; } .wavebar { margin-top: 5px; padding: 4px 8px; } .wavebar .note { font-size: 11.5px; }
   .top { left: 12px; top: 12px; } .ttl b { font-size: 20px; }
   .iconbtn.gsnd { left: auto; right: 12px; top: 12px; }
+  .gems { left: auto; right: 64px; top: 16px; }
+  .tbtns { flex-direction: column; }
   .toast { top: 72px; }
   .rank { display: none; }
   .slabel b { font-size: 18px; } .nova i { width: 110px; height: 110px; } .nova b { font-size: 24px; }

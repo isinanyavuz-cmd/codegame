@@ -48,6 +48,10 @@ export const CONTAINERS = {
   define: ['body'],
 };
 
+/** Kapsayıcı blokların paletteki adları. */
+export const TOOLS = { repeat: 'tekrarla', forever: 'sürekli tekrarla', ifelse: 'eğer / değilse', until: 'olana kadar', on: 'olay olunca', define: 'manevra tanımla', call: 'manevra çağır' };
+export const toolLabel = (type) => (ACTIONS[type] ? ACTIONS[type].label : TOOLS[type]);
+
 export const isAction = (type) => type in ACTIONS;
 export const isCond = (type) => type in CONDS;
 

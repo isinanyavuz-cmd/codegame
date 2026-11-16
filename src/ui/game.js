@@ -1,9 +1,13 @@
 // Görev ekranı: sahneyi açar, programı çalıştırır, olayları sırayla oynatır,
 // dalgaları ve sonucu yönetir.
-import { parseField, simulate, sense, stars as calcStars, FAIL_TEXT } from '../engine/world.js';
+import { parseField, simulate, sense, hasMeteor, stars as calcStars, FAIL_TEXT } from '../engine/world.js';
 import { count, clone, toPython, CONDS, EVENTS, FUNCTIONS } from '../engine/blocks.js';
 import { LEVELS, SECTORS, KINDS, levelsOf } from '../content/levels.js';
+import { missing, skeleton, hintSteps } from '../content/hints.js';
+import { teaser, nearGoal } from '../content/story.js';
 import { Editor, renderBlock, hatBlock } from './editor.js';
+import { robot, COPILOT } from './copilot.js';
+import { showCard, hideCard, makeCard, confetti } from './overlay.js';
 
 const $ = (id) => document.getElementById(id);
 const svg = (id, cls = '') => `<svg viewBox="0 0 32 32" class="${cls}"><use href="#${id}"/></svg>`;
@@ -14,8 +18,8 @@ const IN_FLIGHT = ['meteor', 'wall', 'pirate', 'shield', 'energy', 'overflow', '
 const TONE = { bad: 'var(--bad)', ok: 'var(--ok)', info: '#8fa6e8' };
 
 export class Game {
-  constructor({ view, store, sfx, music, onExit }) {
-    Object.assign(this, { view, store, sfx, music, onExit });
+  constructor({ view, store, sfx, music, voice, onExit }) {
+    Object.assign(this, { view, store, sfx, music, voice, onExit });
     this.status = 'idle'; this.loopId = 0; this.current = Promise.resolve(); this.level = null; this.tab = 'blocks';
     this.editor = new Editor({
       ws: $('ws'), pal: $('pal'), pop: $('pop'),
@@ -40,6 +44,8 @@ export class Game {
       const b = e.target.closest('[data-level]');
       if (b && !b.classList.contains('locked') && b.dataset.level !== this.level.id) { sfx.click(); this.open(LEVELS.find((l) => l.id === b.dataset.level)); }
     });
+    $('speakBtn').hidden = !voice.supported;
+    $('speakBtn').addEventListener('click', () => { sfx.click(); voice.say(`${this.level.title}. ${this.level.brief}`, { force: true }); });
     this.setSpeed(SPEEDS.includes(store.speed) ? store.speed : 1);
   }
 
@@ -50,6 +56,7 @@ export class Game {
     this.sector = sector;
     this.fields = level.waves.map(parseField);
     this.wave = 0; this.results = [];
+    this.hintStep = 0; this.clock = performance.now();
     $('game').hidden = false;
     $('sectorNo').textContent = `SEKTÖR ${sector.id}`; $('sectorName').textContent = sector.name;
     $('missionNo').textContent = `GÖREV ${level.n} / 8`; $('conceptChip').textContent = sector.concept;
@@ -69,11 +76,12 @@ export class Game {
     this.view.enter();
     history.replaceState(null, '', `#${level.id}`);
     if (level.n === 1 && !this.store.introSeen(sector.id)) this.showIntro(sector);
+    else this.voice.say(`${level.title}. ${level.brief}`);
   }
 
   close() {
     this.loopId++; this.view.setField(null); this.view.setTheme(0);
-    this.hideCall(); this.hideToast(); this.hideOverlay(); this.editor.closePop();
+    this.hideCall(); this.hideToast(); this.hideOverlay(); this.editor.closePop(); this.voice.stop();
     $('game').hidden = true;
     history.replaceState(null, '', location.pathname + location.search);
     this.onExit(this.level);
@@ -97,7 +105,7 @@ export class Game {
     const levels = levelsOf(this.level.sector), parts = [];
     levels.forEach((l, i) => {
       const done = this.store.stars(l.id) > 0, cur = l.id === this.level.id, locked = !this.store.isUnlocked(l, LEVELS);
-      const cls = ['node', l.n === 8 ? 'boss' : '', cur ? 'cur' : done ? 'done' : '', locked ? 'locked' : ''].join(' ');
+      const cls = ['node', l.n === 8 ? 'boss' : '', cur ? 'cur' : done ? 'done' : '', locked ? 'locked' : '', this.store.isSkipped(l.id) ? 'skipped' : ''].join(' ');
       const inner = l.n === 8 ? svg('i-star') : done && !cur ? svg('i-check') : l.n;
       parts.push(`<div class="n"><button class="${cls}" data-level="${l.id}" aria-label="Görev ${l.n}">${inner}</button><span class="${cur ? 'on' : ''}">${KINDS[l.kind]}</span></div>`);
       if (i < levels.length - 1) parts.push(`<div class="seg ${done ? 'done' : ''}"></div>`);
@@ -122,7 +130,7 @@ export class Game {
   showWave(i) {
     this.loopId++; this.hideCall(); this.hideToast(); this.editor.mark(null);
     this.results = []; this.wave = i;
-    this.view.setField(this.fields[i]);
+    this.view.setField(this.fields[i], { rain: true });
     this.resetTelemetry(); this.setStatus('idle');
   }
 
@@ -162,8 +170,8 @@ export class Game {
     else if (kind === 'full') {
       this.sfx.bad();
       const c = $('counter'); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake');
-      this.showToast('bad', `Blok sınırı doldu: en fazla ${this.level.maxBlocks} blok.`, this.level.sector === 2 ? 'Tekrar eden hareketleri bir "tekrarla" bloğuna topla.' : '');
-    } else if (kind === 'condtip') this.showToast('', 'Sensörü "eğer" veya "olana kadar" bloğuna bırak. Koşulu değiştirmek için de bloğun koşuluna dokunabilirsin.');
+      this.showToast('bad', `Blok sınırı doldu: en fazla ${this.level.maxBlocks} blok.`, { sub: this.level.sector === 2 ? 'Tekrar eden hareketleri bir "tekrarla" bloğuna topla.' : '', mood: 'think' });
+    } else if (kind === 'condtip') this.showToast('', 'Sensörü "eğer" veya "olana kadar" bloğuna bırak. Koşulu değiştirmek için de bloğun koşuluna dokunabilirsin.', { mood: 'think' });
   }
 
   /** Sesi ve müziği birlikte açar/kapatır. Harita ekranındaki iki düğmeyle aynı ayarları kullanır. */
@@ -249,8 +257,18 @@ export class Game {
 
   resetTelemetry() {
     const f = this.fields[this.wave];
-    this.flight = { energy: f.energyCells.size ? 0 : null, shielded: false, message: '' };
-    this.renderTelemetry();
+    this.flight = { energy: f.energyCells.size ? 0 : null, shielded: false, message: '', gems: 0, dodged: false };
+    this.renderTelemetry(); this.renderGems();
+  }
+
+  /** Kristal sayacı: bu dalgada toplanan / toplam. */
+  renderGems(pop = false) {
+    const el = $('gems'), total = this.fields[this.wave].crystals.size;
+    el.hidden = !total;
+    if (!total) return;
+    el.innerHTML = `${svg('i-gem')}<b>${this.flight.gems}</b><span>/ ${total}</span>`;
+    el.classList.toggle('full', this.flight.gems === total);
+    if (pop) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }   // 'pop' adı açılır kutunun sınıfıdır
   }
 
   /** Uçuş göstergesi: enerji hücreleri, kalkan durumu ve alandaki özel karelerin anlamı. */
@@ -316,9 +334,14 @@ export class Game {
     if (ev.t === 'move') {
       if (ev.kind === 'fwd') sfx.move(); else sfx.dodge();
       this.showTarget(ev);
-      await view.move(ev);
+      // Önündeki meteordan kaçış tam tur dönüşle yapılır; art arda kaçışlarda (zikzak) baş döndürmesin diye yalnız ilkinde.
+      const field = this.fields[this.wave], dodge = ev.kind !== 'fwd' && hasMeteor(field, ev.from.lane, ev.from.y + 1);
+      const roll = dodge && !this.flight.dodged;
+      this.flight.dodged = ev.kind !== 'fwd';
+      await view.move({ ...ev, roll });
       if (!alive()) return true;
-      if (ev.collect) sfx.collect();
+      if (ev.collect) { sfx.collect(this.flight.gems); this.flight.gems++; this.renderGems(true); }
+      if (!ev.exit) this.nearMiss(field, ev.to);
       this.flight.energy = ev.energy;
       if (ev.shielded !== undefined) this.flight.shielded = ev.shielded;
       if (ev.blocked) this.flight.message = 'Korsan saldırısı engellendi';
@@ -345,11 +368,11 @@ export class Game {
     if (!alive()) return true;
     this.results.push(this.sim);
     if (this.wave < this.fields.length - 1) {
-      this.showToast('good', `Dalga ${this.wave + 1} tamam! Sıradaki dalga geliyor…`);
+      this.showToast('good', `Dalga ${this.wave + 1} tamam! Sıradaki dalga geliyor…`, { quiet: true });
       this.wave++; this.renderWaves();
       await view.wait(500);
       if (!alive()) return true;
-      view.setField(this.fields[this.wave]);
+      view.setField(this.fields[this.wave], { rain: true });
       await view.enter();
       if (!alive()) return true;
       this.hideToast(); this.simulateWave();
@@ -365,14 +388,75 @@ export class Game {
     const text = inFlight ? `Dalga ${this.wave + 1}: ${FAIL_TEXT[reason]}` : FAIL_TEXT[reason];
     // Önceki dalgayı geçen program burada takıldıysa nedeni söylenir; yoksa "çözmüştüm" diye düşünülür.
     const sub = inFlight && this.wave > 0 ? 'Programın önceki dalgayı geçti ama burada yol farklı. Aynı program bütün dalgaları geçmeli.' : '';
-    this.showToast('bad', text, sub, this.level.hint);
+    // Boş programla basılan "Uçur" bir deneme sayılmaz.
+    if (reason !== 'empty') this.store.attempt(this.level.id, { won: false, reason, ms: this.lap() });
+    this.failure = { text, sub };
+    this.showFailure();
+  }
+
+  /** Son denemeden bu yana geçen süre (ms); sayaç yeniden başlar. */
+  lap() { const now = performance.now(), ms = now - this.clock; this.clock = now; return ms; }
+
+  /** Bu görevin ipucu cümleleri; son basamak (iskelet) ayrı bir kartta gösterilir. */
+  hintLines() { return [this.level.hint, missing(this.level, this.editor.program)].filter(Boolean); }
+
+  /**
+   * Başarısızlık balonu. Bip önce ne olduğunu söyler; düğmeye basıldıkça ipucu bir basamak
+   * derinleşir. Üç başarısız denemeden sonra ipucunu kendisi önerir, beşten sonra görevi
+   * sonraya bırakmayı da.
+   */
+  showFailure() {
+    const { level } = this, streak = this.store.tries(level.id)?.streak || 0, lines = this.hintLines(), steps = hintSteps(level);
+    const sub = this.hintStep > 0 ? lines[Math.min(this.hintStep, lines.length) - 1] : this.failure.sub || (streak >= 3 ? 'Birkaç kez denedin. İstersen bir ipucu vereyim.' : '');
+    const label = this.hintStep === 0 ? 'İpucu' : this.hintStep >= steps - 1 ? 'İskeleti göster' : 'Bir ipucu daha';
+    const buttons = [{ label, cls: streak >= 3 && this.hintStep === 0 ? 'nudge' : '', onClick: () => this.nextHint() }];
+    if (streak >= 5 && this.canSkip()) buttons.push({ label: 'Sonraya bırak', onClick: () => this.skip() });
+    this.showToast('bad', this.failure.text, { sub, buttons, mood: this.hintStep ? 'think' : 'sad' });
+  }
+
+  nextHint() {
+    const steps = hintSteps(this.level);
+    if (this.hintStep >= steps - 1) { this.hintStep = steps; this.showSkeleton(); return; }
+    this.hintStep++; this.showFailure();
+  }
+
+  /** Son ipucu basamağı: örnek çözümün yapısı, komutlarının yarısı gizli. */
+  showSkeleton() {
+    const card = makeCard(`<div class="who">${robot('think')}<span class="tag">${COPILOT.toLocaleUpperCase('tr')}'İN İPUCU</span></div><h1>Programın iskeleti</h1>
+      <p>Programın aşağı yukarı böyle görünmeli. Soru işaretli yerleri sen doldur.</p><div class="demo"></div>
+      <div class="btns"><button class="btn primary" data-act="ok">Anladım</button></div>`, () => { this.sfx.click(); this.hideOverlay(); });
+    card.querySelector('.demo').append(hatBlock(), ...skeleton(this.level.solution()).map(renderBlock));
+    this.showOverlay(card);
+    this.voice.say('Programın aşağı yukarı böyle görünmeli. Soru işaretli yerleri sen doldur.');
+  }
+
+  /** Çok takılınan görev sonraya bırakılabilir: sıradaki açılır, buna dönmek her zaman mümkündür. */
+  canSkip() { const l = this.level; return !l.extra && l.index < LEVELS.length - 1 && !this.store.passed(l); }
+  skip() {
+    const next = LEVELS[this.level.index + 1];
+    this.store.skip(this.level.id); this.store.addLog({ kind: 'skip', id: this.level.id });
+    this.open(next);
+    this.showToast('', 'O görevi sonraya bıraktık.', { sub: 'Rota ekranından istediğin zaman geri dönebilirsin.', mood: 'happy' });
+  }
+
+  /** İki yanı da kapalı bir aralıktan geçildiyse küçük bir kutlama. */
+  nearMiss(field, cell) {
+    const blocked = (lane) => lane < 0 || lane >= field.lanes || hasMeteor(field, lane, cell.y);
+    if (!blocked(cell.lane - 1) || !blocked(cell.lane + 1) || !(hasMeteor(field, cell.lane - 1, cell.y) || hasMeteor(field, cell.lane + 1, cell.y))) return;
+    const box = this.view.cellBox(cell), el = document.createElement('div');
+    el.className = 'floaty'; el.textContent = 'Kıl payı!';
+    el.style.left = `${(box.left + box.right) / 2}px`; el.style.top = `${box.y}px`;
+    $('game').append(el); this.sfx.whoosh();
+    setTimeout(() => el.remove(), 1000);
   }
 
   finish() {
     const { level, store } = this, blocks = count(this.editor.program);
     const got = calcStars(this.results, blocks, level.par);
-    const first = store.stars(level.id) === 0;
+    const before = store.stars(level.id), first = before === 0;
     store.setStars(level.id, got);
+    store.attempt(level.id, { won: true, ms: this.lap() });
+    store.addLog({ kind: 'win', id: level.id, stars: got, gain: Math.max(0, got - before) });
     this.setStatus('won'); this.renderTrack();
     const total = this.results.reduce((a, r) => a + r.total, 0), collected = this.results.reduce((a, r) => a + r.collected, 0);
     const next = LEVELS[level.index + 1];
@@ -382,21 +466,21 @@ export class Game {
       total ? [`Kristaller: ${collected} / ${total}`, collected === total] : null,
       [blocks <= level.par ? `En çok ${level.par} blok kullandın` : `${blocks} blok kullandın (hedef ${level.par})`, blocks <= level.par],
     ].filter(Boolean);
-    const card = document.createElement('div'); card.className = 'card glass';
-    card.innerHTML = `
-      <span class="tag">${lastOfSector ? `SEKTÖR ${level.sector} TAMAMLANDI` : `GÖREV ${level.n} / 8`}</span>
+    // Kanca: sırada ne var ve en yakın hedef ne? Çocuk kartı kapatmadan bir sonraki adımı görsün.
+    const leftInSector = levelsOf(level.sector).filter((l) => !store.passed(l)).length;
+    const hooks = [teaser(next), nearGoal({ total: store.total(), leftInSector, sectorName: this.sector.name })].filter(Boolean);
+    const card = makeCard(`
+      <div class="who">${robot(got === 3 ? 'wow' : 'happy')}<span class="tag">${lastOfSector ? `SEKTÖR ${level.sector} TAMAMLANDI` : `GÖREV ${level.n} / 8`}</span></div>
       <h1>${lastOfSector ? `${this.sector.name} geçildi!` : got === 3 ? 'Kusursuz uçuş!' : 'Görev tamam!'}</h1>
       <div class="bigstars">${[1, 2, 3].map((i) => svg('i-star', i <= got ? 'lit' : '')).join('')}</div>
       <ul class="checks">${checks.map(([t, ok]) => `<li class="${ok ? '' : 'no'}">${svg(ok ? 'i-check' : 'i-cross')}${t}</li>`).join('')}</ul>
       ${lastOfSector && !next ? `<p>Ana gemiye döndün! ${SECTORS.length} sektör ve ${LEVELS.length} görev tamamlandı. Kendi otopilotunu yazdın; şimdi eksik yıldızları tamamlayabilirsin.</p>` : ''}
+      ${hooks.length ? `<div class="hooks">${hooks.map((h) => `<p>${rich(h)}</p>`).join('')}</div>` : ''}
       <div class="btns">
         <button class="btn" data-act="again">${svg('i-undo')}Tekrar</button>
         <button class="btn" data-act="map">Rota</button>
         ${next ? `<button class="btn primary" data-act="next">${lastOfSector ? 'Sonraki sektör' : 'Sonraki görev'}${svg('i-play')}</button>` : ''}
-      </div>`;
-    card.addEventListener('click', (e) => {
-      const act = e.target.closest('[data-act]')?.dataset.act;
-      if (!act) return;
+      </div>`, (act) => {
       this.sfx.click(); this.hideOverlay();
       if (act === 'again') this.showWave(0);
       else if (act === 'map') this.close();
@@ -404,6 +488,8 @@ export class Game {
     });
     this.showOverlay(card);
     for (let i = 0; i < got; i++) setTimeout(() => this.sfx.star(i), 250 + i * 180);
+    if (got === 3) confetti();
+    this.voice.say(`${got === 3 ? 'Kusursuz uçuş!' : 'Görev tamam!'} ${hooks.join(' ')}`);
     return first;
   }
 
@@ -471,25 +557,43 @@ export class Game {
     if (ev && !ev.exit) this.view.showTarget(ev.to); else this.view.hideTarget();
   }
 
-  showToast(kind, text, sub = '', hint = '') {
+  /**
+   * Bip'in konuşma balonu.
+   * @param kind          'bad' | 'good' | ''
+   * @param opts.sub      ikinci satır (açıklama ya da ipucu)
+   * @param opts.mood     robotun yüzü; verilmezse türe göre seçilir
+   * @param opts.buttons  [{ label, onClick, cls }]
+   * @param opts.quiet    sesli okuma açık olsa da okunmaz
+   */
+  showToast(kind, text, { sub = '', mood = null, buttons = [], quiet = false } = {}) {
     const el = $('toast');
     el.className = `toast glass ${kind}`;
-    el.innerHTML = `<div>${rich(text)}${sub ? `<span class="hint">${rich(sub)}</span>` : ''}</div>${hint ? '<button>İpucu</button>' : ''}`;
-    if (hint) el.querySelector('button').addEventListener('click', () => { this.sfx.click(); this.showToast(kind, text, hint); });
+    el.innerHTML = `${robot(mood || (kind === 'bad' ? 'sad' : kind === 'good' ? 'happy' : 'idle'))}<div class="say">${rich(text)}${sub ? `<span class="hint">${rich(sub)}</span>` : ''}</div>`;
+    if (buttons.length) {
+      const box = document.createElement('div'); box.className = 'tbtns';
+      for (const b of buttons) {
+        const btn = document.createElement('button'); btn.textContent = b.label; if (b.cls) btn.className = b.cls;
+        btn.addEventListener('click', () => { this.sfx.click(); b.onClick(); });
+        box.append(btn);
+      }
+      el.append(box);
+    }
     el.hidden = false;
+    if (!quiet) this.voice.say(`${text} ${sub}`);
   }
   hideToast() { $('toast').hidden = true; }
 
-  showOverlay(card) { const o = $('overlay'); o.replaceChildren(card); o.hidden = false; }
-  hideOverlay() { $('overlay').hidden = true; }
+  showOverlay(card) { showCard(card); }
+  hideOverlay() { hideCard(); }
 
   showIntro(sector) {
     const card = document.createElement('div'); card.className = 'card glass';
-    card.innerHTML = `<span class="tag">SEKTÖR ${sector.id} · YENİ KAVRAM: ${sector.concept.toUpperCase()}</span><h1>${sector.intro.title}</h1><p>${sector.intro.text}</p>
+    card.innerHTML = `<span class="tag">SEKTÖR ${sector.id} · YENİ KAVRAM: ${sector.concept.toLocaleUpperCase('tr')}</span><h1>${sector.intro.title}</h1><p>${sector.intro.text}</p>
       <div class="demo"></div><div class="btns"><button class="btn primary" data-act="go">Başla${svg('i-play')}</button></div>`;
     const demo = card.querySelector('.demo');
     demo.append(hatBlock(), ...sector.intro.demo().map(renderBlock));
-    card.querySelector('[data-act]').addEventListener('click', () => { this.sfx.click(); this.store.markIntro(sector.id); this.hideOverlay(); });
+    card.querySelector('[data-act]').addEventListener('click', () => { this.sfx.click(); this.store.markIntro(sector.id); this.hideOverlay(); this.voice.say(`${this.level.title}. ${this.level.brief}`); });
     this.showOverlay(card);
+    this.voice.say(`${sector.intro.title}. ${sector.intro.text}`);
   }
 }

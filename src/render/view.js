@@ -179,7 +179,8 @@ export class View {
   }
 
   // ---------- alan ----------
-  setField(field) {
+  /** Alanı kurar. `rain` verilirse meteorlar yukarıdan yağarak yerlerine oturur (dalga değişimi). */
+  setField(field, { rain = false } = {}) {
     this.cancel();
     for (const o of [...this.level.children]) {
       this.level.remove(o);
@@ -244,6 +245,32 @@ export class View {
     }
     this.fit();
     this.resetShip();
+    if (rain) this.rain();
+  }
+
+  /** Dalga değişimi: meteorlar yukarıdan düşer, öteki nesneler belirir. Alanın değiştiği böylece gözle görülür. */
+  rain() {
+    const drops = [];
+    for (const m of this.meteors.values()) { drops.push({ o: m, y: m.position.y, delay: Math.random() * 0.42, fall: true }); m.position.y += 9; }
+    for (const group of [this.crystals, this.pirates, this.landmarks]) {
+      for (const o of group.values()) { drops.push({ o, s: o.scale.x, delay: 0.28 + Math.random() * 0.22 }); o.scale.setScalar(0.001); }
+    }
+    this.drops = drops;
+    const gen = this.gen;
+    this.tween(880, (k) => {
+      if (gen !== this.gen || this.drops !== drops) return;
+      for (const d of drops) {
+        const t = Math.max(0, Math.min(1, (k - d.delay) / 0.5)), e = 1 - Math.pow(1 - t, 3);
+        if (d.fall) d.o.position.y = d.y + 9 * (1 - e); else d.o.scale.setScalar(Math.max(0.001, d.s * e));
+      }
+      if (k >= 1) this.drops = null;
+    }, false);
+  }
+  /** Yarıda kalan yağışı bitirir: her şey yerine oturur. */
+  settle() {
+    if (!this.drops) return;
+    for (const d of this.drops) { if (d.fall) d.o.position.y = d.y; else d.o.scale.setScalar(d.s); }
+    this.drops = null;
   }
 
   exitTexture() {
@@ -312,6 +339,7 @@ export class View {
   }
   wait(ms) { return this.tween(ms, () => {}); }
   cancel() {
+    this.settle();
     this.gen++; this.carry = 0;
     for (const tw of [...this.tweens]) { this.tweens.delete(tw); tw.resolve(); }
     for (const b of this.bursts) { this.scene.remove(b.pts); b.pts.geometry.dispose(); b.pts.material.dispose(); }
@@ -427,7 +455,8 @@ export class View {
       if (gen !== this.gen) return;
       this.ship.position.set(a.x + (b.x - a.x) * ease(k), SHIP_Y, a.z + (b.z - a.z) * k);
       const s = Math.sin(Math.PI * k);
-      this.ship.rotation.z = -dl * 0.55 * s; this.ship.rotation.y = -dl * 0.18 * s;
+      // Meteordan kaçış tam tur dönüşle (ev.roll), öteki yana kayışlar hafif yatışla yapılır.
+      this.ship.rotation.z = ev.roll ? -dl * Math.PI * 2 * ease(k) : -dl * 0.55 * s; this.ship.rotation.y = -dl * 0.18 * s;
       this.thrust = 1.25 + s * 0.3;
     });
     if (gen !== this.gen) return;

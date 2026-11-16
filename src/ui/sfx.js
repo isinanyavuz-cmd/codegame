@@ -46,7 +46,10 @@ export const sfx = {
   move: () => tone(210, 0.14, { type: 'triangle', vol: 0.06, slide: 110 }),
   dodge: () => tone(300, 0.18, { type: 'triangle', vol: 0.08, slide: 280 }),
   sense: (yes) => tone(yes ? 920 : 560, 0.08, { type: 'square', vol: 0.03 }),
-  collect: () => { tone(988, 0.1, { vol: 0.09 }); tone(1319, 0.18, { vol: 0.09, delay: 0.08 }); },
+  /** Kristal: aynı uçuşta toplanan her kristalde ses bir basamak incelir. */
+  collect: (n = 0) => { const k = Math.pow(2, Math.min(n, 8) * 2 / 12); tone(988 * k, 0.1, { vol: 0.09 }); tone(1319 * k, 0.18, { vol: 0.09, delay: 0.08 }); },
+  /** Dar bir aralıktan geçiş. */
+  whoosh: () => { noise(0.28, 0.12, { from: 2600, to: 500, type: 'bandpass', q: 1.4, swell: true }); tone(1480, 0.16, { vol: 0.04, slide: 600, delay: 0.05 }); },
   crash: () => { noise(0.55, 0.32); tone(110, 0.45, { type: 'sawtooth', vol: 0.12, slide: -70 }); },
   win: () => {
     noise(0.5, 0.1, { from: 500, to: 5000, type: 'bandpass', q: 1.2, swell: true });

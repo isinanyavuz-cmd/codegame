@@ -1,9 +1,10 @@
 // Blok düzenleyici: paleti ve programı çizer; sürükle-bırak, dokunarak ekleme,
 // sayı ve koşul seçimi, silme ve geri alma işlerini yürütür. Fare ve dokunmatik çalışır.
-import { ACTIONS, CONDS, EVENTS, FUNCTIONS, isAction, create, count, find, remove, listOf } from '../engine/blocks.js';
+import { ACTIONS, CONDS, EVENTS, FUNCTIONS, TOOLS, isAction, create, count, find, remove, listOf } from '../engine/blocks.js';
 
-const icon = (id) => {
+const icon = (id, cls = '') => {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 32 32');
+  if (cls) s.setAttribute('class', cls);
   const u = document.createElementNS('http://www.w3.org/2000/svg', 'use'); u.setAttribute('href', `#${id}`); s.append(u);
   return s;
 };
@@ -14,16 +15,25 @@ function h(tag, cls, ...kids) {
   return e;
 }
 
+// Her bloğun simgesi: yazıyı okumadan da ne yaptığı anlaşılsın.
+const ICONS = {
+  fwd: 'i-up', left: 'i-upl', right: 'i-upr', shield: 'i-shield', setEnergy: 'i-bolt', addEnergy: 'i-bolt',
+  repeat: 'i-loop', forever: 'i-inf', ifelse: 'i-if', until: 'i-flag', on: 'i-event', define: 'i-fn', call: 'i-call',
+};
+const sign = (type) => icon(ICONS[type], 'bi');
+
 /** Bir bloğun (ve içindekilerin) görünümünü kurar. */
 export function renderBlock(b) {
+  // İpucu iskeletindeki gizli komut
+  if (b.type === 'gizli') return h('div', 'blk hole', '?');
   const number = (value) => { const e = h('span', 'num', String(value)); e.dataset.num = '1'; return e; };
   const choice = (key, label) => { const e = h('span', 'pick choice', label); e.dataset.choice = key; return e; };
   if (isAction(b.type) || b.type === 'call') {
     let e;
-    if (b.type === 'call') e = h('div', 'blk fun', choice('name', FUNCTIONS[b.name].label), 'çağır');
-    else if (b.type === 'setEnergy') e = h('div', 'blk variable', 'enerji =', number(b.value));
-    else if (b.type === 'addEnergy') e = h('div', 'blk variable', 'enerjiye', number(b.value), 'ekle');
-    else e = h('div', 'blk mov', ACTIONS[b.type].label);
+    if (b.type === 'call') e = h('div', 'blk fun', sign('call'), choice('name', FUNCTIONS[b.name].label), 'çağır');
+    else if (b.type === 'setEnergy') e = h('div', 'blk variable', sign(b.type), 'enerji =', number(b.value));
+    else if (b.type === 'addEnergy') e = h('div', 'blk variable', sign(b.type), 'enerjiye', number(b.value), 'ekle');
+    else e = h('div', 'blk mov', sign(b.type), ACTIONS[b.type].label);
     e.dataset.id = b.id; return e;
   }
   const c = h('div', `c ${b.type === 'on' ? 'ev' : b.type === 'define' ? 'fun' : 'ctl'}`); c.dataset.id = b.id;
@@ -34,24 +44,23 @@ export function renderBlock(b) {
   };
   if (b.type === 'repeat') {
     const num = h('span', 'num', String(b.count)); num.dataset.num = '1';
-    c.append(h('div', 'blk', num, 'kez tekrarla'), body('body'), h('div', 'cap'));
+    c.append(h('div', 'blk', sign('repeat'), num, 'kez tekrarla'), body('body'), h('div', 'cap'));
   } else if (b.type === 'forever') {
-    c.append(h('div', 'blk', 'sürekli tekrarla'), body('body'), h('div', 'cap'));
+    c.append(h('div', 'blk', sign('forever'), 'sürekli tekrarla'), body('body'), h('div', 'cap'));
   } else if (b.type === 'on') {
-    c.append(h('div', 'blk', choice('event', EVENTS[b.event].label)), body('body'), h('div', 'cap'));
+    c.append(h('div', 'blk', sign('on'), choice('event', EVENTS[b.event].label)), body('body'), h('div', 'cap'));
   } else if (b.type === 'define') {
-    c.append(h('div', 'blk', choice('name', FUNCTIONS[b.name].label), 'tanımla'), body('body'), h('div', 'cap'));
+    c.append(h('div', 'blk', sign('define'), choice('name', FUNCTIONS[b.name].label), 'tanımla'), body('body'), h('div', 'cap'));
   } else if (b.type === 'ifelse' || b.type === 'until') {
     const cond = h('span', `cond pick${b.cond ? '' : ' empty'}`, b.cond ? CONDS[b.cond].label : 'koşul seç'); cond.dataset.cond = '1';
-    if (b.type === 'until') c.append(h('div', 'blk', cond, 'olana kadar'), body('body'), h('div', 'cap'));
-    else c.append(h('div', 'blk', 'eğer', cond, 'ise'), body('then'), h('div', 'blk mid', 'değilse'), body('else'), h('div', 'cap'));
+    if (b.type === 'until') c.append(h('div', 'blk', sign('until'), cond, 'olana kadar'), body('body'), h('div', 'cap'));
+    else c.append(h('div', 'blk', sign('ifelse'), 'eğer', cond, 'ise'), body('then'), h('div', 'blk mid', 'değilse'), body('else'), h('div', 'cap'));
   }
   return c;
 }
 
 export function hatBlock() { return h('div', 'blk ev', icon('i-play'), 'kalkışta'); }
 
-const TOOL_LABEL = { repeat: 'tekrarla', forever: 'sürekli tekrarla', ifelse: 'eğer / değilse', until: 'olana kadar', on: 'olay olunca', define: 'manevra tanımla', call: 'manevra çağır' };
 
 export class Editor {
   /**
@@ -91,7 +100,7 @@ export class Editor {
     this.pal.replaceChildren();
     for (const t of this.level.tools) {
       const cls = ['define', 'call'].includes(t) ? 'fun' : t === 'on' ? 'ev' : ['setEnergy', 'addEnergy'].includes(t) ? 'variable' : isAction(t) ? 'mov' : 'ctl';
-      const e = h('div', `blk ${cls}`, isAction(t) ? ACTIONS[t].label : TOOL_LABEL[t]);
+      const e = h('div', `blk ${cls}`, sign(t), isAction(t) ? ACTIONS[t].label : TOOLS[t]);
       e.dataset.tool = t; this.pal.append(e);
     }
     // Tek sensör varsa palette gösterilir; birden çoksa "eğer" bloğundaki koşula dokunarak seçilir.
