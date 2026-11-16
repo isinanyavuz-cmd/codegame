@@ -1,0 +1,30 @@
+name: Testler
+
+# Her PR'da ve ana dala giren her değişiklikte çalışır: motor ve görev testleri,
+# sürüm damgalarının güncelliği (npm run surum unutulduysa burada yakalanır)
+# ve görev denetçisi (bir görev kavramı kullanılmadan geçilebiliyorsa haber verir).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Kod Pilotu testleri
+        run: npm test
+      - name: Görev denetçisi
+        run: npm run denetle
+      - name: BİLSEM testleri
+        run: node --test bilsem/tests/*.test.js
+      - name: KodRobot testleri
+        working-directory: kodrobot-eski
+        run: node --test

@@ -168,7 +168,9 @@ export const ADVANCED_LEVELS = [
   mission({
     kind: 'pekistir', title: 'İki Durak',
     brief: 'İlk mor halkaya kadar düz uç, sağa kaç. İkinci halkaya kadar düz uç, sola kaç ve çıkışa devam et.',
-    waves: [route('FFFRFFLFFF', { beacons: [3, 6], crystals: [4, 7] })], conds: ['atBeacon'],
+    // İki durak da zorunlu: ilk halkadan önce sağ şerit, ikinci halkadan önce orta şerit kapalı.
+    // Yoksa baştan sağa geçmek ya da ikinci halkayı beklemeden geri dönmek yetiyordu.
+    waves: [route('FFFRFFLFFF', { beacons: [3, 6], crystals: [4, 7], extra: [[3, 1], [3, 2], [3, 3], [2, 5], [2, 6]] })], conds: ['atBeacon'],
     solution: () => [until('atBeacon', F()), R(), until('atBeacon', F()), L(), cruise()],
     hint: 'İlk halkadan bir kaçışla ayrıldıktan sonra ikinci olana kadar döngüsü başlayabilir.',
   }),
