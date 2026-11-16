@@ -162,8 +162,10 @@
     const v = S.progress[id];
     return typeof v === 'number' && v > 0 ? Math.min(3, Math.floor(v)) : 0;
   }
+  // true: tüm bölümler baştan açık. Normal ilerleme kuralını geri getirmek için false yap.
+  const ALL_LEVELS_OPEN = true;
   function isUnlocked(i) {
-    if (i <= 0) return true;
+    if (ALL_LEVELS_OPEN || i <= 0) return true;
     const lv = S.levels[i];
     return !!lv && (starsFor(S.levels[i - 1].id) > 0 || starsFor(lv.id) > 0);
   }
