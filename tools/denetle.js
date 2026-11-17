@@ -68,11 +68,14 @@ const mirrored = () => [IF('ahead', [IF('leftFree', [mv('left')], [mv('right')])
 /** Fonksiyon çağrılarını gövdeleriyle değiştirir, tanımları siler. */
 function inline(program) {
   const defs = new Map();
-  walk(program, (b) => { if (b.type === 'define') defs.set(b.name, b.body); });
+  walk(program, (b) => { if (b.type === 'define') defs.set(b.name, b); });
+  // Sayı alan manevra açılırken döngülerindeki "n" yerine çağrıdaki sayı yazılır.
+  const bind = (list, n) => rewrite(list, (b) => (b.type === 'repeat' && b.count === 'n' ? [{ ...b, count: n, body: bind(b.body, n) }] : null));
   const expand = (list, depth) => rewrite(list, (b) => {
     if (b.type === 'define') return [];
-    if (b.type === 'call') return depth > 4 || !defs.has(b.name) ? [] : expand(clone(defs.get(b.name)), depth + 1);
-    return null;
+    if (b.type !== 'call') return null;
+    const d = defs.get(b.name);
+    return depth > 4 || !d ? [] : expand(d.param ? bind(clone(d.body), b.arg) : clone(d.body), depth + 1);
   });
   return expand(program, 0);
 }
@@ -137,6 +140,7 @@ function singleFixes(level) {
 /** Bir görevin bulguları: [{ duzey: 'HATA' | 'UYARI' | 'BİLGİ', kod, metin }] */
 export function audit(level) {
   const out = [], add = (duzey, kod, metin) => out.push({ duzey, kod, metin });
+  if (level.tahmin) return out;   // tahmin turunda çocuk program yazmaz; soruları tests/predict.test.js doğrular
   const sol = level.solution(), types = typesOf(sol), concept = [...types].filter((t) => !MOVES.includes(t));
   const fields = level.waves.map(parseField);
   const short = (g) => `${g.n} blok, ${g.stars} yıldız`;
@@ -144,7 +148,6 @@ export function audit(level) {
   const official = grade(level, sol);
   if (official.stars !== 3) add('HATA', 'cozum', `örnek çözüm 3 yıldız almıyor (${short(official)})`);
   if (level.initial && !level.watch && grade(level, level.initial()).stars > 0) add('HATA', 'baslangic', 'hazır program zaten geçiyor');
-  if (level.tahmin) return out;   // tahmin turunda çocuk program yazmaz
 
   // Ezber: bir dalganın hareket dizisi öteki dalgaları da geçiyor mu?
   if (fields.length > 1) {

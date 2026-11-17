@@ -5,33 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#070b22">
 <title>Kod Pilotu</title>
-<link rel="stylesheet" href="css/style.css?v=8772389e">
-<meta name="surum" content="5dae05a">
+<link rel="stylesheet" href="css/style.css?v=476c8169">
+<meta name="surum" content="33721fb">
 <script type="importmap">
 {
  "imports": {
   "./src/content/advanced.js": "./src/content/advanced.js?v=23f10a04",
-  "./src/content/extras.js": "./src/content/extras.js?v=83261125",
+  "./src/content/extras.js": "./src/content/extras.js?v=1031b56a",
   "./src/content/gen.js": "./src/content/gen.js?v=368a1598",
   "./src/content/hangar.js": "./src/content/hangar.js?v=a0240ee7",
   "./src/content/hints.js": "./src/content/hints.js?v=d989e36c",
   "./src/content/levels.js": "./src/content/levels.js?v=5ef62d20",
   "./src/content/logbook.js": "./src/content/logbook.js?v=6b617bdb",
+  "./src/content/predict.js": "./src/content/predict.js?v=1f782951",
   "./src/content/ranks.js": "./src/content/ranks.js?v=4a7c597a",
   "./src/content/story.js": "./src/content/story.js?v=8ee94c79",
-  "./src/engine/blocks.js": "./src/engine/blocks.js?v=17a1ddfd",
+  "./src/engine/blocks.js": "./src/engine/blocks.js?v=b74f7525",
   "./src/engine/rng.js": "./src/engine/rng.js?v=09b50631",
-  "./src/engine/world.js": "./src/engine/world.js?v=156bd7d7",
+  "./src/engine/world.js": "./src/engine/world.js?v=bf63e0b0",
   "./src/main.js": "./src/main.js?v=ce35601b",
   "./src/render/models.js": "./src/render/models.js?v=61728efe",
   "./src/render/themes.js": "./src/render/themes.js?v=285d926a",
-  "./src/render/view.js": "./src/render/view.js?v=2f9d4fc8",
+  "./src/render/view.js": "./src/render/view.js?v=c4880048",
   "./src/storage.js": "./src/storage.js?v=34ad32dd",
   "./src/ui/copilot.js": "./src/ui/copilot.js?v=514243d9",
-  "./src/ui/editor.js": "./src/ui/editor.js?v=be71bded",
-  "./src/ui/game.js": "./src/ui/game.js?v=5bfd54c3",
+  "./src/ui/editor.js": "./src/ui/editor.js?v=7a2120b4",
+  "./src/ui/game.js": "./src/ui/game.js?v=98d5cd82",
   "./src/ui/hangar.js": "./src/ui/hangar.js?v=0dd951e3",
-  "./src/ui/map.js": "./src/ui/map.js?v=9a4af6f2",
+  "./src/ui/map.js": "./src/ui/map.js?v=5516ba7e",
   "./src/ui/overlay.js": "./src/ui/overlay.js?v=ab98ef4f",
   "./src/ui/sfx.js": "./src/ui/sfx.js?v=1e0d5a56",
   "./src/ui/shipart.js": "./src/ui/shipart.js?v=4c8f3755",
@@ -87,6 +88,7 @@
     </div>
     <div class="ws" id="ws"></div>
     <pre class="py" id="py" hidden></pre>
+    <div class="quizbar" id="quizBar" hidden><p id="quizAsk"></p><div class="qbtns" id="quizBtns"></div></div>
     <div class="pal"><div class="pl">BU GÖREVİN BLOKLARI</div><div class="palrow" id="pal"></div></div>
     <div class="ctrl">
       <button class="big" id="runBtn"></button>
@@ -96,7 +98,9 @@
     </div>
   </aside>
 
+  <label class="scrub glass" id="scrub" hidden><span>geri sar</span><input type="range" id="scrubRange" min="0" max="1" step="1" value="1" aria-label="Uçuşu geri sar"><b id="scrubLab"></b></label>
   <div id="calls"></div>
+  <div id="picks"></div>
   <div id="toast" class="toast glass" hidden></div>
 </section>
 
@@ -130,6 +134,8 @@
   <symbol id="i-book" viewBox="0 0 32 32"><path d="M16 9c-2.500-2-6-3-11-3v18c5 0 8.500 1 11 3 2.500-2 6-3 11-3V6c-5 0-8.500 1-11 3zM16 9v18" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linejoin="round"/></symbol>
   <symbol id="i-crew" viewBox="0 0 32 32"><circle cx="11.500" cy="11" r="5" fill="none" stroke="currentColor" stroke-width="3.200"/><path d="M3 27c0-5 3.500-8 8.500-8s8.500 3 8.500 8" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linecap="round"/><circle cx="23" cy="9" r="3.600" fill="none" stroke="currentColor" stroke-width="2.800"/><path d="M24 17c3.500.500 5.500 3 5.500 7" fill="none" stroke="currentColor" stroke-width="2.800" stroke-linecap="round"/></symbol>
   <symbol id="i-ship" viewBox="0 0 32 32"><path d="M16 3c3.500 4 5 8.500 5 14v5H11v-5c0-5.500 1.500-10 5-14z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M11 15l-6 6v4l6-2M21 15l6 6v4l-6-2M13.500 26.500l2.500 3 2.500-3" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-count" viewBox="0 0 32 32"><path d="M12 5l-3 22M23 5l-3 22M5 12h23M4 20h23" fill="none" stroke="currentColor" stroke-width="3.400" stroke-linecap="round"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 32 32"><path d="M3 16c3.500-6 8-9 13-9s9.500 3 13 9c-3.500 6-8 9-13 9s-9.500-3-13-9z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><circle cx="16" cy="16" r="4.200" fill="currentColor"/></symbol>
   <symbol id="i-fork" viewBox="0 0 32 32"><path d="M16 28V17M16 17c0-6-7-5-7-12M16 17c0-6 7-5 7-12M5.500 9L9 5l3.500 4M19.500 9L23 5l3.500 4" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-radio" viewBox="0 0 32 32"><path d="M9 22a10 10 0 0 1 0-12M23 10a10 10 0 0 1 0 12M4.500 26a16 16 0 0 1 0-20M27.500 6a16 16 0 0 1 0 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="16" cy="16" r="3.500" fill="currentColor"/></symbol>
   <symbol id="i-trash" viewBox="0 0 32 32"><path d="M7 9h18M13 9V6h6v3M9.500 9l1 17h11l1-17" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>

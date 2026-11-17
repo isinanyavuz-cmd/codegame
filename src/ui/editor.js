@@ -17,7 +17,7 @@ function h(tag, cls, ...kids) {
 
 // Her bloğun simgesi: yazıyı okumadan da ne yaptığı anlaşılsın.
 const ICONS = {
-  fwd: 'i-up', left: 'i-upl', right: 'i-upr', shield: 'i-shield', setEnergy: 'i-bolt', addEnergy: 'i-bolt',
+  fwd: 'i-up', left: 'i-upl', right: 'i-upr', shield: 'i-shield', setEnergy: 'i-bolt', addEnergy: 'i-bolt', setCounter: 'i-count', addCounter: 'i-count',
   repeat: 'i-loop', forever: 'i-inf', ifelse: 'i-if', until: 'i-flag', on: 'i-event', define: 'i-fn', call: 'i-call',
 };
 const sign = (type) => icon(ICONS[type], 'bi');
@@ -30,9 +30,12 @@ export function renderBlock(b) {
   const choice = (key, label) => { const e = h('span', 'pick choice', label); e.dataset.choice = key; return e; };
   if (isAction(b.type) || b.type === 'call') {
     let e;
-    if (b.type === 'call') e = h('div', 'blk fun', sign('call'), choice('name', FUNCTIONS[b.name].label), 'çağır');
+    // Sayı alan manevranın çağrısı sayıyı da gösterir: "zikzak ( 2 ) çağır"
+    if (b.type === 'call') e = h('div', 'blk fun', sign('call'), choice('name', FUNCTIONS[b.name].label), ...(b.arg === undefined ? [] : [number(b.arg)]), 'çağır');
     else if (b.type === 'setEnergy') e = h('div', 'blk variable', sign(b.type), 'enerji =', number(b.value));
     else if (b.type === 'addEnergy') e = h('div', 'blk variable', sign(b.type), 'enerjiye', number(b.value), 'ekle');
+    else if (b.type === 'setCounter') e = h('div', 'blk variable counter', sign(b.type), 'sayaç =', number(b.value));
+    else if (b.type === 'addCounter') e = h('div', 'blk variable counter', sign(b.type), 'sayacı', number(b.value), 'artır');
     else e = h('div', 'blk mov', sign(b.type), ACTIONS[b.type].label);
     e.dataset.id = b.id; return e;
   }
@@ -50,7 +53,7 @@ export function renderBlock(b) {
   } else if (b.type === 'on') {
     c.append(h('div', 'blk', sign('on'), choice('event', EVENTS[b.event].label)), body('body'), h('div', 'cap'));
   } else if (b.type === 'define') {
-    c.append(h('div', 'blk', sign('define'), choice('name', FUNCTIONS[b.name].label), 'tanımla'), body('body'), h('div', 'cap'));
+    c.append(h('div', 'blk', sign('define'), choice('name', FUNCTIONS[b.name].label), ...(b.param ? [h('span', 'param', 'n')] : []), 'tanımla'), body('body'), h('div', 'cap'));
   } else if (b.type === 'ifelse' || b.type === 'until') {
     const cond = h('span', `cond pick${b.cond ? '' : ' empty'}`, b.cond ? CONDS[b.cond].label : 'koşul seç'); cond.dataset.cond = '1';
     if (b.type === 'until') c.append(h('div', 'blk', sign('until'), cond, 'olana kadar'), body('body'), h('div', 'cap'));
@@ -81,9 +84,12 @@ export class Editor {
     this.ws.addEventListener('click', (e) => { if (e.target.closest('.del') && this.selected) this.deleteBlock(this.selected); });
   }
 
-  /** @param library  bu görevde tanımlamadan çağrılabilen manevraların adları (otopilot kitaplığı) */
-  load(level, program, library = []) {
-    this.level = level; this.program = program; this.history = []; this.selected = null; this.library = library;
+  /**
+   * @param library  bu görevde tanımlamadan çağrılabilen manevraların adları (otopilot kitaplığı)
+   * @param locked   program yalnızca okunur (tahmin turu)
+   */
+  load(level, program, library = [], locked = false) {
+    this.level = level; this.program = program; this.history = []; this.selected = null; this.library = library; this.locked = locked;
     this.ws.classList.toggle('multi', level.conds.length > 1);
     this.closePop(); this.render(); this.renderPalette();
   }
@@ -100,7 +106,7 @@ export class Editor {
   renderPalette() {
     this.pal.replaceChildren();
     for (const t of this.level.tools) {
-      const cls = ['define', 'call'].includes(t) ? 'fun' : t === 'on' ? 'ev' : ['setEnergy', 'addEnergy'].includes(t) ? 'variable' : isAction(t) ? 'mov' : 'ctl';
+      const cls = ['define', 'call'].includes(t) ? 'fun' : t === 'on' ? 'ev' : ['setEnergy', 'addEnergy'].includes(t) ? 'variable' : ['setCounter', 'addCounter'].includes(t) ? 'variable counter' : isAction(t) ? 'mov' : 'ctl';
       const e = h('div', `blk ${cls}`, sign(t), isAction(t) ? ACTIONS[t].label : TOOLS[t]);
       e.dataset.tool = t; this.pal.append(e);
     }
@@ -163,13 +169,13 @@ export class Editor {
   newBlock(type, name = null) {
     const { conds, events, functions } = this.level;
     // "Olana kadar" çoğunlukla işareti bekler; "eğer" ise yol seçen bir sensörle başlar.
-    return create(type, { cond: conds.find((c) => c !== 'atBeacon') || conds[0] || null, untilCond: conds.includes('atBeacon') ? 'atBeacon' : conds[0], event: events?.[0], name: name || functions?.[0] });
+    return create(type, { cond: conds.find((c) => c !== 'atBeacon') || conds[0] || null, untilCond: conds.includes('atBeacon') ? 'atBeacon' : conds[0], event: events?.[0], name: name || functions?.[0], params: !!this.level.params });
   }
   deleteBlock(id) { this.snapshot(); remove(this.program, id); this.notify('remove'); this.changed(); }
 
   // ---------- sürükleme ----------
   down(e) {
-    if (e.button > 0 || e.target.closest('.del')) return;
+    if (this.locked || e.button > 0 || e.target.closest('.del')) return;
     const tool = e.target.closest('[data-tool]'), condTool = e.target.closest('[data-condtool]');
     const blockEl = e.target.closest('[data-id]');
     let src = null;
@@ -306,8 +312,13 @@ export class Editor {
   closePop() { this.pop.hidden = true; }
   openNums(block, anchor) {
     const items = [];
-    const key = block.type === 'repeat' ? 'count' : 'value';
-    for (let n = block.type === 'repeat' ? 2 : block.type === 'setEnergy' ? 0 : 1; n <= 9; n++) {
+    const key = block.type === 'repeat' ? 'count' : block.type === 'call' ? 'arg' : 'value';
+    const from = block.type === 'repeat' ? 2 : ['setEnergy', 'setCounter'].includes(block.type) ? 0 : 1;
+    const values = [];
+    for (let n = from; n <= 9; n++) values.push(n);
+    // Sayı alan bir manevranın içindeki döngü, o sayıyı (n) da kullanabilir.
+    if (block.type === 'repeat' && this.program.some((d) => d.type === 'define' && d.param && find(d.body, block.id))) values.push('n');
+    for (const n of values) {
       const b = h('button', n === block[key] ? 'on' : '', String(n));
       b.addEventListener('click', () => { this.closePop(); if (n === block[key]) return; this.snapshot(); block[key] = n; this.notify('add'); this.changed(); });
       items.push(b);

@@ -43,6 +43,7 @@ export function sense(field, lane, y, cond, state = {}) {
   if (cond === 'atBeacon') return { cell: { lane, y }, result: field.beacons.has(key(lane, y)) };
   if (cond === 'atEnergy') return { cell: { lane, y }, result: field.energyCells.has(key(lane, y)) };
   if (cond === 'energyLow') return { cell: { lane, y }, result: state.energy !== null && state.energy < 3 };
+  if (cond === 'counter3') return { cell: { lane, y }, result: Number.isInteger(state.counter) && state.counter >= 3 };
   if (cond === 'aheadAndRightFree' || cond === 'aheadOrRightBlocked') {
     const ahead = sense(field, lane, y, 'ahead').result;
     const right = sense(field, lane, y, 'rightFree').result;
@@ -76,6 +77,8 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
   let lane = field.start, y = 0, ticks = 0, idle = 0, collected = 0;
   let outcome = null, reason = null;
   let energy = field.energyCells.size ? 0 : null, shielded = false, ops = 0, callDepth = 0;
+  let counter = null;        // sayaç: ayarlanana kadar yoktur
+  const args = [];           // çağrı yığını: parametreli manevralara verilen sayılar
   const handlers = new Map(), functions = new Map(), activeEvents = new Set();
 
   const stop = (o, r, ev) => { outcome = o; reason = r; events.push(ev); throw STOP; };
@@ -132,7 +135,7 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
   function check(b) {
     spin(b);
     if (!b.cond) stop('fail', 'nocond', { t: 'fail', reason: 'nocond', id: b.id });
-    const s = sense(field, lane, y, b.cond, { energy });
+    const s = sense(field, lane, y, b.cond, { energy, counter });
     if (idle <= 8) events.push({ t: 'sense', id: b.id, cond: b.cond, result: s.result, cell: s.cell, lane, y });
     return s.result;
   }
@@ -141,7 +144,13 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
     if (++ops > maxOps) stop('fail', 'limit', { t: 'fail', reason: 'limit', id: b.id });
     switch (b.type) {
       case 'fwd': case 'left': case 'right': act(b); return;
-      case 'repeat': for (let i = 0; i < b.count; i++) { spin(b); run(b.body); } return;
+      case 'repeat': {
+        // 'n': içinde durduğu manevraya çağrıda verilen sayı
+        const times = b.count === 'n' ? args[args.length - 1] : b.count;
+        if (!Number.isInteger(times)) stop('fail', 'param', { t: 'fail', reason: 'param', id: b.id });
+        for (let i = 0; i < times; i++) { spin(b); run(b.body); }
+        return;
+      }
       case 'forever': for (;;) { spin(b); run(b.body); }
       case 'until': while (!check(b)) run(b.body); return;
       case 'ifelse': {
@@ -169,6 +178,15 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
         if (overflow) stop('fail', 'overflow', { t: 'fail', reason: 'overflow', id: b.id });
         return;
       }
+      case 'setCounter': case 'addCounter': {
+        spin(b);
+        if (!Number.isInteger(b.value) || b.value < 0 || b.value > 9) stop('fail', 'value', { t: 'fail', reason: 'value', id: b.id });
+        // Değişken kullanılmadan önce bir değere ayarlanmalıdır.
+        if (b.type === 'addCounter' && counter === null) stop('fail', 'counter', { t: 'fail', reason: 'counter', id: b.id });
+        counter = b.type === 'setCounter' ? b.value : Math.min(99, counter + b.value);
+        announce({ t: 'variable', id: b.id, name: 'counter', value: counter });
+        return;
+      }
       case 'define':
         spin(b);
         if (!FUNCTIONS[b.name] || functions.has(b.name)) stop('fail', 'definition', { t: 'fail', reason: 'definition', id: b.id });
@@ -178,8 +196,10 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
         const fn = functions.get(b.name) || (library && library[b.name] ? { body: library[b.name] } : null);
         if (!fn) stop('fail', 'function', { t: 'fail', reason: 'function', id: b.id });
         if (++callDepth > 32) stop('fail', 'recursion', { t: 'fail', reason: 'recursion', id: b.id });
-        announce({ t: 'call', id: b.id, name: b.name });
-        try { run(fn.body); } finally { callDepth--; }
+        if (fn.param && !Number.isInteger(b.arg)) stop('fail', 'param', { t: 'fail', reason: 'param', id: b.id });
+        announce({ t: 'call', id: b.id, name: b.name, arg: fn.param ? b.arg : undefined });
+        args.push(fn.param ? b.arg : null);
+        try { run(fn.body); } finally { callDepth--; args.pop(); }
         return;
       }
       default: throw new Error(`Bilinmeyen blok: ${b.type}`);
@@ -193,7 +213,7 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
   } catch (e) {
     if (e !== STOP) throw e;
   }
-  return { events, outcome, reason, ticks, collected, total: field.crystals.size, ship: { lane, y }, energy, shielded };
+  return { events, outcome, reason, ticks, collected, total: field.crystals.size, ship: { lane, y }, energy, shielded, counter };
 }
 
 /** Yıldız: geçmek 1, bütün kristaller +1, `par` blok veya azı +1. Geçemediyse 0. */
@@ -216,7 +236,9 @@ export const FAIL_TEXT = {
   energy: 'Enerji bitti! Başlangıç değerini ve şarj istasyonlarını kontrol et.',
   station: 'Enerji yalnızca yeşil şarj istasyonunda artırılabilir.',
   overflow: `Depo taştı! Depo en çok ${ENERGY_MAX} enerji alır; daha az ekle ya da enerji azalınca şarj et.`,
-  value: 'Enerji değeri 0–9 arasında tam sayı olmalı.',
+  value: 'Değer 0–9 arasında tam sayı olmalı.',
+  counter: 'Sayaç henüz ayarlanmadı. Önce "sayaç = 0" bloğunu koy.',
+  param: 'Bu manevra bir sayı bekliyor: çağrıya sayı ver; "n kez tekrarla" yalnızca sayı alan bir manevranın içinde çalışır.',
   noevent: 'Olay bloğunda hangi olayı beklediğini seç.',
   definition: 'Her manevrayı bir kez tanımla; farklı manevralara farklı adlar ver.',
   function: 'Bu manevra henüz tanımlanmadı. Önce aynı adlı tanımı ekle.',

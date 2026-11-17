@@ -116,3 +116,39 @@ test('Python görünümü', () => {
     'for i in range(3):', '    duz_uc()', 'while True:', '    if onumde_meteor_var():', '        saga_kac()', '    else:', '        pass',
   ].join('\n'));
 });
+
+// ---------- sayaç değişkeni ve sayı alan manevra ----------
+import { until, on, define, call, setCounter, addCounter, defineN, callN, pythonLines } from '../src/engine/blocks.js';
+
+test('sayaç: ayarlanmadan artırılamaz; olayla artar ve koşul ona bakar', () => {
+  const f = field(['.....', '.....', '..K..', '..K..', '..K..', '..S..']);
+  assert.equal(simulate(f, [on('crystal', addCounter(1)), forever(F())]).reason, 'counter');
+  const res = simulate(f, [setCounter(0), on('crystal', addCounter(1)), until('counter3', F()), R()]);
+  assert.equal(res.counter, 3);
+  assert.deepEqual(res.ship, { lane: 3, y: 4 }, 'üçüncü kristalde döngü biter, sağa kaçış bir kez çalışır');
+  assert.deepEqual(res.events.filter((e) => e.t === 'variable').map((e) => [e.name, e.value]), [['counter', 0], ['counter', 1], ['counter', 2], ['counter', 3]]);
+  assert.equal(sense(f, 2, 0, 'counter3', { counter: null }).result, false);
+  assert.equal(sense(f, 2, 0, 'counter3', { counter: 4 }).result, true);
+});
+
+test('sayı alan manevra: çağrıdaki sayı tanımdaki "n kez tekrarla"ya gider', () => {
+  const f = field(Array.from({ length: 9 }, (_, i) => (i === 8 ? '.S..' : '....')));
+  const zig = () => defineN('zigzag', rep('n', R(), L()));
+  const moves = (p) => simulate(f, p).events.filter((e) => e.t === 'move').map((e) => e.kind[0]).join('');
+  assert.equal(moves([zig(), callN('zigzag', 1), F(), callN('zigzag', 2)]), 'rlfrlrl');
+  // Sayı verilmeden çağrı ve manevra dışında "n" hatadır.
+  assert.equal(simulate(f, [zig(), call('zigzag')]).reason, 'param');
+  assert.equal(simulate(f, [rep('n', F())]).reason, 'param');
+  // İç içe çağrıda her manevra kendi sayısını görür.
+  const nested = [defineN('zigzag', rep('n', R(), L())), defineN('straight', rep('n', F()), callN('zigzag', 1)), callN('straight', 2)];
+  assert.equal(moves(nested), 'ffrl');
+});
+
+test('Python satırları: her satır kendi bloğunu bilir; sayaç ve parametre yazılır', () => {
+  const prog = [setCounter(0), defineN('zigzag', rep('n', R(), L())), callN('zigzag', 2), define('safe', F()), call('safe'), addCounter(1)];
+  const lines = pythonLines(prog);
+  assert.deepEqual(lines.map((l) => l.text), ['sayac = 0', 'def zikzak(n):', '    for i in range(n):', '        saga_kac()', '        sola_kac()', 'zikzak(2)', 'def guvenli_ucus():', '    duz_uc()', 'guvenli_ucus()', 'sayac += 1']);
+  assert.equal(lines[0].id, prog[0].id);
+  assert.equal(lines[5].id, prog[2].id);
+  assert.equal(toPython(prog), lines.map((l) => l.text).join('\n'));
+});

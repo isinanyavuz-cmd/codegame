@@ -355,6 +355,18 @@ export class View {
 
   setShield(visible) { this.shieldBubble.visible = !!visible; }
 
+  /**
+   * Geri sarma: gemiyi animasyonsuz bir kareye koyar. O ana kadar toplanan kristaller (`taken`)
+   * ve savuşturulan korsanlar (`gone`) gizlenir, öteki her şey yerindedir.
+   */
+  pose(cell, { taken = [], gone = [], shielded = false } = {}) {
+    this.resetShip();
+    this.ship.position.copy(this.cellPos(cell));
+    for (const c of taken) { const m = this.crystals.get(`${c.lane},${c.y}`); if (m) m.visible = false; }
+    for (const c of gone) { const p = this.pirates.get(`${c.lane},${c.y}`); if (p) { p.visible = false; p.userData.gone = true; } }
+    this.setShield(shielded);
+  }
+
   /** Hangarda seçilen görünüm (renkler ve biçim). */
   setLook(look) { styleShip(this.ship, look); styleShip(this.ghost, look); }
 

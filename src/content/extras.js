@@ -3,27 +3,31 @@
 //   gizli   sektörde yeterince yıldız toplanınca açılır; ödülü Bip'in bir arkadaşıdır
 //   acil    bir ana görev bitince araya giren beklenmedik görev (bir kez haber verilir)
 //   catal   bir ana görevin öteki yolu: ikisinden hangisi geçilirse sıradaki görev açılır
+//   tahmin  program yazılmaz, hazır program okunur: gemi nerede durur? (bkz. predict.js)
 // Alanları ana görevlerle aynıdır; ek olarak `extra` (tür), `after` (haritada yanında
 // durduğu ana görev) ve `open(store, levels)` (açık mı) taşırlar. Ana yolu kilitlemezler.
-import { F, L, R, rep, forever, ifelse, until, on, shield, setEnergy, addEnergy, define, call } from '../engine/blocks.js';
+import { F, L, R, rep, forever, ifelse, until, on, shield, setEnergy, addEnergy, setCounter, addCounter, define, call, defineN, callN } from '../engine/blocks.js';
 import { genWaves } from './gen.js';
 import { route, mission, wallWaves, steer, cruise, MOVES, LOOPS, EVENT_TOOLS, ENERGY_TOOLS, ALL_TOOLS, SENSORS } from './advanced.js';
-import { LEVELS, levelById, levelsOf } from './levels.js';
+import { LEVELS, SECTORS, levelById, levelsOf } from './levels.js';
+import { ROUNDS } from './predict.js';
 
 /** Gizli görevin açılması için sektörde toplanması gereken yıldız (24 üzerinden). */
 export const SECRET_STARS = 20;
-export const EXTRA_LABEL = { gizli: 'GİZLİ GÖREV', acil: 'ACİL DURUM', catal: 'ÖTEKİ YOL' };
+export const EXTRA_LABEL = { gizli: 'GİZLİ GÖREV', acil: 'ACİL DURUM', catal: 'ÖTEKİ YOL', tahmin: 'TAHMİN TURU' };
+const SUFFIX = { gizli: 'g', acil: 'a', tahmin: 't' };
 export const sectorStars = (store, sector) => levelsOf(sector).reduce((a, l) => a + store.stars(l.id), 0);
 
 const OPEN = {
   gizli: (l) => (store) => sectorStars(store, l.sector) >= SECRET_STARS,
   acil: (l) => (store) => store.passed(levelById(l.after)),
   catal: (l) => (store, levels) => store.isUnlocked(levelById(l.after), levels),
+  tahmin: (l) => (store) => store.passed(levelById(l.after)),
 };
 
 /** @param after  haritada yanında duracağı ana görevin sırası (1–8) */
 function extra(kind, sector, after, def) {
-  const id = kind === 'catal' ? `${sector}-${after}-b` : `${sector}-${kind === 'gizli' ? 'g' : 'a'}`;
+  const id = kind === 'catal' ? `${sector}-${after}-b` : `${sector}-${SUFFIX[kind]}`;
   const level = { conds: [], events: [], functions: [], ...def, id, saveKey: id, sector, extra: kind, kind, after: `${sector}-${after}` };
   level.open = OPEN[kind](level);
   // Çatal: ana görev öteki yolunu tanır; kayıt (storage.passed) ikisinden birini geçilmiş sayar.
@@ -33,6 +37,13 @@ function extra(kind, sector, after, def) {
 const secret = (sector, def) => extra('gizli', sector, 8, def);
 const alarm = (sector, after, def) => extra('acil', sector, after, def);
 const fork = (sector, after, def) => extra('catal', sector, after, def);
+// Tahmin turu: sektörün üçüncü görevinden sonra açılır; yıldızı doğru tahmin sayısıdır.
+const quiz = (sector) => extra('tahmin', sector.id, 3, {
+  tahmin: true, title: `Tahmin Turu: ${sector.concept}`,
+  brief: 'Bu kez program hazır: **oku ve tahmin et**. Program bitince gemi hangi karede olur? Harflerden birine dokun.',
+  hint: 'Programı blok blok oku; her blokta geminin hangi kareye geçtiğini parmağınla izle.',
+  rounds: ROUNDS[sector.id], waves: ROUNDS[sector.id].map((r) => r.lines), tools: [], maxBlocks: 0, par: 0,
+});
 
 const twoSensor = () => [forever(steer())];
 const oneSide = (side) => [forever(ifelse('ahead', [side()], [F()]))];
@@ -45,6 +56,13 @@ const chain = (path, start) => {
   const beacons = [], walls = [];
   [...path].forEach((step, y) => { if (step === 'r') { beacons.push(y); walls.push([lane, y + 1], [lane + 1, y]); lane++; } });
   return route(path, { start, beacons, crystals: beacons.map((y) => y + 1), extra: walls });
+};
+
+// Sayaçlı dönüş: üçüncü kristalde sağa dönülür. Orası her dalgada başka sıradadır ve hiçbir sensör
+// göstermez; önü ve sağı kapalıdır (erken ya da geç dönen çarpar). `path` içindeki tek 'r' dönüştür.
+const countTurn = (path, crystals, start = 1) => {
+  const y = path.indexOf('r');
+  return route(path, { start, crystals, extra: [[start, y + 1], [start + 1, y]] });
 };
 
 export const EXTRAS = [
@@ -90,6 +108,21 @@ export const EXTRAS = [
     ],
     solution: () => [on('pirate', shield()), on('beacon', R()), cruise()],
     hint: 'İki olay bloğu kur: biri korsan görünce kalkan açsın, öteki işarete varınca sağa kaçsın.',
+  })),
+  secret(6, mission({
+    title: 'Kristal Sayacı', tools: [...EVENT_TOOLS, 'setCounter', 'addCounter'], events: ['crystal'], conds: ['counter3'],
+    brief: 'Yeni bir değişken: **sayaç**! Onu 0\'a ayarla, her kristalde 1 artır. Sayaç **3 olana kadar** düz uç, sonra sağa kaç: üçüncü kristalin ötesi kapalı.',
+    waves: [countTurn('FFFFrFFFFF', [1, 3, 4, 7]), countTurn('FFFFFFrFFF', [2, 3, 6, 8]), countTurn('FFFrFFFFFF', [1, 2, 3, 6])],
+    solution: () => [setCounter(0), on('crystal', addCounter(1)), until('counter3', F()), R(), cruise()],
+    hint: 'Önce sayaç = 0. Kristal toplayınca olayının içine "sayacı 1 artır" koy. Uçuş: sayaç 3 olana kadar düz, sonra sağa, sonra hep düz.',
+  })),
+  secret(7, mission({
+    title: 'Sayı Alan Manevra', tools: ALL_TOOLS, functions: ['zigzag'], params: true,
+    brief: 'Manevralar **sayı alabilir**: zikzak (n) tanımında döngü **n kez** döner; çağırırken sayıyı sen verirsin. Bir zikzak, düz; iki zikzak, düz; iki zikzak daha.',
+    waves: [route('RLFRLRLFRLRL', { start: 1, lanes: 4, crystals: [3, 8, 11] })],
+    solution: () => [defineN('zigzag', rep('n', R(), L())), callN('zigzag', 1), F(), callN('zigzag', 2), F(), callN('zigzag', 2)],
+    maxBlocks: 10,
+    hint: 'Tanımın içine bir tekrarla koy ve sayısına dokunup n seç. Sonra zikzağı 1, 2 ve 2 sayılarıyla çağır; aralara birer düz uç.',
   })),
   secret(8, mission({
     title: 'Atlas\'ın Kalbi', tools: ALL_TOOLS, functions: ['safe'], events: ['pirate', 'energy'], conds: ['atBeacon', ...SENSORS], library: true,
@@ -140,6 +173,9 @@ export const EXTRAS = [
     solution: () => [setEnergy(6), forever(ifelse('energyLow', [addEnergy(6)], []), F())],
     hint: 'İstasyona değil enerjiye bak: "enerji 3\'ten az mı?" sensörünü seç. Düz uç, eğer bloğunun dışında olsun.',
   })),
+
+  // ───────────── tahmin turları ─────────────
+  ...SECTORS.filter((s) => ROUNDS[s.id]).map(quiz),
 
   // ───────────── acil durumlar ─────────────
   alarm(2, 5, {

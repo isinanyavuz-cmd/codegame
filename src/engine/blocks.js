@@ -8,6 +8,9 @@ export const ACTIONS = {
   shield: { label: 'kalkan aç', py: 'kalkan_ac()' },
   setEnergy: { label: 'enerjiyi ayarla', py: 'enerji' },
   addEnergy: { label: 'enerjiyi artır', py: 'enerji' },
+  // Sayaç: çocuğun kendi değişkeni. Önce ayarlanır, sonra artırılır; koşullar ona bakabilir.
+  setCounter: { label: 'sayacı ayarla', py: 'sayac' },
+  addCounter: { label: 'sayacı artır', py: 'sayac' },
 };
 
 export const CONDS = {
@@ -22,6 +25,7 @@ export const CONDS = {
   aheadOrRightBlocked: { label: 'meteor var VEYA sağım dolu mu?', py: 'onumde_meteor_var() or not sagim_bos()' },
   atEnergy: { label: 'şarjda mıyım?', py: 'sarjda_miyim()' },
   energyLow: { label: 'enerji 3’ten az mı?', py: 'enerji < 3' },
+  counter3: { label: 'sayaç 3 oldu mu?', py: 'sayac >= 3' },
 };
 
 export const EVENTS = {
@@ -70,20 +74,28 @@ export const on = (event, ...body) => ({ id: uid(), type: 'on', event, body });
 export const shield = () => ({ id: uid(), type: 'shield' });
 export const setEnergy = (value) => ({ id: uid(), type: 'setEnergy', value });
 export const addEnergy = (value) => ({ id: uid(), type: 'addEnergy', value });
+export const setCounter = (value) => ({ id: uid(), type: 'setCounter', value });
+export const addCounter = (value) => ({ id: uid(), type: 'addCounter', value });
 export const define = (name, ...body) => ({ id: uid(), type: 'define', name, body });
 export const call = (name) => ({ id: uid(), type: 'call', name });
+// Parametreli manevra: tanım bir sayı (n) alır, içindeki "tekrarla" o sayıyı kullanabilir (count: 'n');
+// çağrı sayıyı verir. Aynı manevra farklı sayılarla çağrılabilir.
+export const defineN = (name, ...body) => ({ id: uid(), type: 'define', name, param: true, body });
+export const callN = (name, arg) => ({ id: uid(), type: 'call', name, arg });
 
 /** Paletten yeni blok: kapsayıcılar boş gövdeyle gelir. */
 export function create(type, defaults = {}) {
   if (type === 'setEnergy' || type === 'addEnergy') return { id: uid(), type, value: 3 };
+  if (type === 'setCounter' || type === 'addCounter') return { id: uid(), type, value: type === 'setCounter' ? 0 : 1 };
   if (isAction(type)) return { id: uid(), type };
   if (type === 'repeat') return { id: uid(), type, count: defaults.count || 3, body: [] };
   if (type === 'forever') return { id: uid(), type, body: [] };
   if (type === 'ifelse') return { id: uid(), type, cond: defaults.cond || null, then: [], else: [] };
   if (type === 'until') return { id: uid(), type, cond: defaults.untilCond || defaults.cond || 'atBeacon', body: [] };
   if (type === 'on') return { id: uid(), type, event: defaults.event || 'pirate', body: [] };
-  if (type === 'define') return { id: uid(), type, name: defaults.name || 'zigzag', body: [] };
-  if (type === 'call') return { id: uid(), type, name: defaults.name || 'zigzag' };
+  // `params`: bu görevde manevralar sayı alır (bkz. defineN, callN).
+  if (type === 'define') return { id: uid(), type, name: defaults.name || 'zigzag', ...(defaults.params ? { param: true } : {}), body: [] };
+  if (type === 'call') return { id: uid(), type, name: defaults.name || 'zigzag', ...(defaults.params ? { arg: 2 } : {}) };
   throw new Error(`Bilinmeyen blok: ${type}`);
 }
 
@@ -146,34 +158,41 @@ export function undefinedCalls(program) {
 }
 
 /**
- * Programı Python benzeri metne çevirir (salt okunur görünüm için).
+ * Programı Python benzeri satırlara çevirir: [{ text, id }]. `id` satırı üreten bloğun
+ * kimliğidir (yoksa null); uçuş sırasında çalışan satırı vurgulamak için kullanılır.
  * @param o.library  kitaplıktaki manevra adları; tanımsız çağrılanlar "import" satırıyla gösterilir
  */
-export function toPython(program, { library = [] } = {}) {
+export function pythonLines(program, { library = [] } = {}) {
   const out = [];
   let handlers = 0;
+  const push = (text, id = null) => out.push({ text, id });
   const imported = undefinedCalls(program).filter((n) => library.includes(n));
-  if (imported.length) out.push(`from kitaplik import ${imported.map((n) => FUNCTIONS[n].py).join(', ')}`, '');
+  if (imported.length) { push(`from kitaplik import ${imported.map((n) => FUNCTIONS[n].py).join(', ')}`); push(''); }
   const walk = (list, depth) => {
     const pad = '    '.repeat(depth);
-    if (!list.length) { out.push(`${pad}pass`); return; }
+    if (!list.length) { push(`${pad}pass`); return; }
     for (const b of list) {
-      if (b.type === 'setEnergy') out.push(`${pad}enerji = ${b.value}`);
-      else if (b.type === 'addEnergy') out.push(`${pad}enerji += ${b.value}  # şarj istasyonunda`);
-      else if (isAction(b.type)) out.push(pad + ACTIONS[b.type].py);
-      else if (b.type === 'repeat') { out.push(`${pad}for i in range(${b.count}):`); walk(b.body, depth + 1); }
-      else if (b.type === 'forever') { out.push(`${pad}while True:`); walk(b.body, depth + 1); }
-      else if (b.type === 'until') { out.push(`${pad}while not (${b.cond ? CONDS[b.cond].py : '...'}):`); walk(b.body, depth + 1); }
-      else if (b.type === 'on') { out.push(`${pad}@${EVENTS[b.event].py}`, `${pad}def olay_${++handlers}():`); walk(b.body, depth + 1); }
-      else if (b.type === 'define') { out.push(`${pad}def ${FUNCTIONS[b.name].py}():`); walk(b.body, depth + 1); }
-      else if (b.type === 'call') out.push(`${pad}${FUNCTIONS[b.name].py}()`);
+      if (b.type === 'setEnergy') push(`${pad}enerji = ${b.value}`, b.id);
+      else if (b.type === 'addEnergy') push(`${pad}enerji += ${b.value}  # şarj istasyonunda`, b.id);
+      else if (b.type === 'setCounter') push(`${pad}sayac = ${b.value}`, b.id);
+      else if (b.type === 'addCounter') push(`${pad}sayac += ${b.value}`, b.id);
+      else if (isAction(b.type)) push(pad + ACTIONS[b.type].py, b.id);
+      else if (b.type === 'repeat') { push(`${pad}for i in range(${b.count}):`, b.id); walk(b.body, depth + 1); }
+      else if (b.type === 'forever') { push(`${pad}while True:`, b.id); walk(b.body, depth + 1); }
+      else if (b.type === 'until') { push(`${pad}while not (${b.cond ? CONDS[b.cond].py : '...'}):`, b.id); walk(b.body, depth + 1); }
+      else if (b.type === 'on') { push(`${pad}@${EVENTS[b.event].py}`); push(`${pad}def olay_${++handlers}():`, b.id); walk(b.body, depth + 1); }
+      else if (b.type === 'define') { push(`${pad}def ${FUNCTIONS[b.name].py}(${b.param ? 'n' : ''}):`, b.id); walk(b.body, depth + 1); }
+      else if (b.type === 'call') push(`${pad}${FUNCTIONS[b.name].py}(${b.arg ?? ''})`, b.id);
       else if (b.type === 'ifelse') {
-        out.push(`${pad}if ${b.cond ? CONDS[b.cond].py : '...'}:`); walk(b.then, depth + 1);
-        out.push(`${pad}else:`); walk(b.else, depth + 1);
+        push(`${pad}if ${b.cond ? CONDS[b.cond].py : '...'}:`, b.id); walk(b.then, depth + 1);
+        push(`${pad}else:`); walk(b.else, depth + 1);
       }
     }
   };
-  if (!program.length) return '# program boş';
+  if (!program.length) return [{ text: '# program boş', id: null }];
   walk(program, 0);
-  return out.join('\n');
+  return out;
 }
+
+/** Programı Python benzeri metne çevirir (salt okunur görünüm için). */
+export const toPython = (program, options) => pythonLines(program, options).map((l) => l.text).join('\n');

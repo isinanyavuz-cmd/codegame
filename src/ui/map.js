@@ -1,7 +1,7 @@
 // Rota ekranı: aşağıdan yukarıya tırmanan bir yıldız haritası. Sektörler gezegen,
 // görevler gezegenler arasındaki yolun üstünde düğümdür. Gemi sıradaki görevin
 // önünde durur; bir görev geçilince yol boyunca yeni yerine uçar.
-import { LEVELS, SECTORS, levelsOf, levelById } from '../content/levels.js';
+import { LEVELS, SECTORS, levelsOf } from '../content/levels.js';
 import { ALL_LEVELS, EXTRA_LABEL, SECRET_STARS, extrasOf, findLevel, sectorStars, wonEither } from '../content/extras.js';
 import { rankOf } from '../content/ranks.js';
 import { groupLog, welcome } from '../content/logbook.js';
@@ -94,7 +94,7 @@ export class MapScreen {
     if (this.greeted) return;
     this.greeted = true;
     const next = this.current();
-    const w = welcome(this.store.log(), { levelById, sectorName: (id) => SECTORS.find((s) => s.id === id).name, next });
+    const w = welcome(this.store.log(), { levelById: findLevel, sectorName: (id) => SECTORS.find((s) => s.id === id).name, next });
     if (!w) return;
     showCard(makeCard(`<div class="who">${robot('happy')}<span class="tag">KAPTAN GÜNLÜĞÜ</span></div><h1>Tekrar hoş geldin!</h1>
       <p>${rich(w.text)}</p><div class="hooks"><p>${rich(w.next)}</p></div>
@@ -109,11 +109,11 @@ export class MapScreen {
   showLog() {
     const groups = groupLog(this.store.log()).slice(0, 6), stars = (n) => [1, 2, 3].map((i) => svg('i-star', i <= n ? 'lit' : '')).join('');
     const rows = groups.map((g) => `<h3>${g.label}</h3><ul>${g.entries.slice(0, 10).map((e) => {
-      const level = levelById(e.id);
+      const level = findLevel(e.id);
       if (!level) return '';
       return e.kind === 'skip'
-        ? `<li class="skip"><span>${level.id}</span><b>${level.title}</b><i>sonraya bırakıldı</i></li>`
-        : `<li><span>${level.id}</span><b>${level.title}</b><i class="mstars">${stars(e.stars)}</i></li>`;
+        ? `<li class="skip"><span>${level.id.slice(0, 3)}</span><b>${level.title}</b><i>sonraya bırakıldı</i></li>`
+        : `<li><span>${level.id.slice(0, 3)}</span><b>${level.title}</b><i class="mstars">${stars(e.stars)}</i></li>`;
     }).join('')}</ul>`).join('');
     showCard(makeCard(`<div class="who">${robot('idle')}<span class="tag">KAPTAN GÜNLÜĞÜ</span></div><h1>Uçuş kayıtların</h1>
       ${rows ? `<div class="loglist">${rows}</div>` : '<p>Henüz kayıt yok. İlk görevini geçince burada görünecek.</p>'}
@@ -188,6 +188,7 @@ export class MapScreen {
         html.push(`<div class="mn" style="left:${p.x}px;top:${p.y}px"><button class="${cls}" data-level="${l.id}" title="${l.title}" aria-label="Görev ${l.id}: ${l.title}">${inner}</button><div class="mstars">${stars}</div></div>`);
       });
       // Yan görevler: bağlı oldukları ana görevin yanında, yoldan dışarıda durur.
+      const taken = new Set();
       for (const x of extrasOf(s.id)) {
         const at = lenOf.get(x.after), unlocked = store.isUnlocked(x, LEVELS);
         // Gizli görev sektör açılınca kilitli görünür (hedef olsun); acil durum açılmadan görünmez.
@@ -196,13 +197,14 @@ export class MapScreen {
         const tx = (q.x - p.x) / len, ty = (q.y - p.y) / len, toCentre = Math.sign(W / 2 - p.x) || 1;
         // Yola dik iki yönden yukarı ve haritanın ortasına bakanı seçilir: gezegen etiketlerine değmesin.
         const score = (nx, ny) => ny - toCentre * nx * 0.6;
-        const [nx, ny] = score(-ty, tx) < score(ty, -tx) ? [-ty, tx] : [ty, -tx], D = narrow ? 54 : 66;
+        const first = !taken.has(x.after); taken.add(x.after);
+        const [nx, ny] = (score(-ty, tx) < score(ty, -tx)) === first ? [-ty, tx] : [ty, -tx], D = narrow ? 54 : 66;
         const sx = p.x + nx * D, sy = p.y + ny * D, st = store.stars(x.id);
         const line = document.createElementNS(NS, 'line');
         line.setAttribute('class', 'rside'); line.setAttribute('x1', p.x); line.setAttribute('y1', p.y); line.setAttribute('x2', sx); line.setAttribute('y2', sy);
         root.append(line);
         const cls = ['node', st ? 'done' : '', unlocked ? '' : 'locked'].join(' ');
-        const inner = !unlocked ? svg('i-lock') : x.extra === 'gizli' ? '?' : x.extra === 'catal' ? svg('i-fork') : '!';
+        const inner = !unlocked ? svg('i-lock') : x.extra === 'gizli' ? '?' : x.extra === 'catal' ? svg('i-fork') : x.extra === 'tahmin' ? svg('i-eye') : '!';
         const under = unlocked ? `<div class="mstars">${[1, 2, 3].map((n) => svg('i-star', n <= st ? 'lit' : '')).join('')}</div>` : `<small>${SECRET_STARS}${svg('i-star')}</small>`;
         html.push(`<div class="mn side ${x.extra}" style="left:${sx}px;top:${sy}px"><button class="${cls}" data-level="${x.id}" title="${x.title}" aria-label="${EXTRA_LABEL[x.extra]}: ${x.title}">${inner}</button>${under}</div>`);
       }

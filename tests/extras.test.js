@@ -24,7 +24,7 @@ test('yan görevler: kimlikler benzersiz, her biri kendi sektöründeki bir ana 
     const main = levelById(x.after);
     assert.ok(main, `${x.id}: ${x.after} yok`);
     assert.equal(main.sector, x.sector);
-    assert.ok(['gizli', 'acil', 'catal'].includes(x.extra));
+    assert.ok(['gizli', 'acil', 'catal', 'tahmin'].includes(x.extra));
     assert.ok(x.title && x.brief && x.hint, x.id);
     assert.equal(findLevel(x.id), x);
     if (x.extra === 'acil') assert.ok(x.alarm, `${x.id}: acil durum haberi yok`);
@@ -33,7 +33,7 @@ test('yan görevler: kimlikler benzersiz, her biri kendi sektöründeki bir ana 
 });
 
 test('yan görevler: örnek çözüm tam yıldız alır ve paletteki bloklarla yazılabilir', () => {
-  for (const x of EXTRAS) {
+  for (const x of EXTRAS.filter((e) => !e.tahmin)) {
     const sol = x.solution();
     assert.equal(starsOf(x, sol), 3, x.id);
     assert.ok(count(sol) <= x.maxBlocks, x.id);

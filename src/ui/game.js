@@ -1,12 +1,13 @@
 // Görev ekranı: sahneyi açar, programı çalıştırır, olayları sırayla oynatır,
 // dalgaları ve sonucu yönetir.
 import { parseField, simulate, sense, hasMeteor, stars as calcStars, FAIL_TEXT } from '../engine/world.js';
-import { count, clone, toPython, sameBlocks, CONDS, EVENTS, FUNCTIONS } from '../engine/blocks.js';
+import { count, clone, pythonLines, sameBlocks, CONDS, EVENTS, FUNCTIONS } from '../engine/blocks.js';
 import { LEVELS, SECTORS, KINDS, levelsOf } from '../content/levels.js';
 import { EXTRAS, EXTRA_LABEL, SECRET_STARS, sectorStars, extrasOf } from '../content/extras.js';
 import { missing, skeleton, hintSteps } from '../content/hints.js';
 import { teaser, nearGoal, STORY, VILLAIN, crewOf, botOf } from '../content/story.js';
 import { rankOf } from '../content/ranks.js';
+import { choicesFor, LETTERS } from '../content/predict.js';
 import { unlockedBetween } from '../content/hangar.js';
 import { Editor, renderBlock, hatBlock } from './editor.js';
 import { robot, face, miniBot, COPILOT } from './copilot.js';
@@ -17,7 +18,7 @@ const svg = (id, cls = '') => `<svg viewBox="0 0 32 32" class="${cls}"><use href
 const rich = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 const SPEEDS = [1, 2, 0.5];
 // Uçuş sırasında ortaya çıkan başarısızlıklar; çok dalgalı görevde hangi dalgada olduğu da söylenir.
-const IN_FLIGHT = ['meteor', 'wall', 'pirate', 'shield', 'energy', 'overflow', 'station', 'ended', 'idle', 'limit'];
+const IN_FLIGHT = ['meteor', 'wall', 'pirate', 'shield', 'energy', 'overflow', 'station', 'counter', 'param', 'ended', 'idle', 'limit'];
 const TONE = { bad: 'var(--bad)', ok: 'var(--ok)', info: '#8fa6e8' };
 
 export class Game {
@@ -47,6 +48,8 @@ export class Game {
       const b = e.target.closest('[data-level]');
       if (b && !b.classList.contains('locked') && b.dataset.level !== this.level.id) { sfx.click(); this.open(LEVELS.find((l) => l.id === b.dataset.level)); }
     });
+    $('scrubRange').addEventListener('input', (e) => this.scrubTo(Number(e.target.value)));
+    for (const id of ['quizBtns', 'picks']) $(id).addEventListener('click', (e) => { const b = e.target.closest('[data-pick]'); if (b) this.pickAnswer(Number(b.dataset.pick)); });
     $('speakBtn').hidden = !voice.supported;
     $('speakBtn').addEventListener('click', () => { sfx.click(); voice.say(`${this.level.title}. ${this.level.brief}`, { force: true }); });
     this.setSpeed(SPEEDS.includes(store.speed) ? store.speed : 1);
@@ -60,17 +63,22 @@ export class Game {
     this.fields = level.waves.map(parseField);
     this.wave = 0; this.results = [];
     this.hintStep = 0; this.clock = performance.now();
+    // Tahmin turu: program yazılmaz, okunur (bkz. askRound).
+    this.quiz = level.tahmin ? { score: [] } : null;
+    $('game').dataset.mode = level.tahmin ? 'tahmin' : '';
+    $('quizBar').hidden = !this.quiz; $('picks').replaceChildren();
     $('game').hidden = false;
     $('sectorNo').textContent = `SEKTÖR ${sector.id}`; $('sectorName').textContent = sector.name;
     $('missionNo').textContent = level.extra ? EXTRA_LABEL[level.extra] : `GÖREV ${level.n} / 8`; $('conceptChip').textContent = sector.concept;
     $('panel').dataset.extra = level.extra || '';
     $('missionTitle').textContent = level.title; $('missionText').innerHTML = rich(level.brief);
     this.renderTrack();
-    $('waveNote').innerHTML = `Aynı program ${this.fields.length} dalgayı da geçmeli.<span class="more"> Görmek için sayıya dokun.</span>`;
+    $('waveNote').innerHTML = this.quiz ? `${this.fields.length} soru: her birinde geminin duracağı kareyi tahmin et.`
+      : `Aynı program ${this.fields.length} dalgayı da geçmeli.<span class="more"> Görmek için sayıya dokun.</span>`;
     const saved = this.store.program(level.saveKey);
-    const program = saved && saved.length ? clone(saved) : level.initial ? level.initial() : [];
+    const program = this.quiz ? level.rounds[0].program() : saved && saved.length ? clone(saved) : level.initial ? level.initial() : [];
     this.lib = this.libraryFor(level);
-    this.editor.load(level, program, Object.keys(this.lib || {}));
+    this.editor.load(level, program, Object.keys(this.lib || {}), !!this.quiz);
     this.setTab('blocks'); this.hideToast(); this.hideCall(); this.setStatus('idle');
     this.refreshMeta(); this.renderWaves();
     this.resetTelemetry();
@@ -81,6 +89,7 @@ export class Game {
     this.setScene(0);
     this.view.enter();
     this.renderRecord();
+    if (this.quiz) this.askRound();
     history.replaceState(null, '', `#${level.id}`);
     if (level.n === 1 && !this.store.introSeen(sector.id)) this.showStory(sector, () => this.showIntro(sector));
     else {
@@ -113,6 +122,7 @@ export class Game {
   close() {
     this.loopId++; this.view.setField(null); this.view.setTheme(0);
     this.hideCall(); this.hideToast(); this.hideOverlay(); this.editor.closePop(); this.voice.stop();
+    $('picks').replaceChildren();
     $('game').hidden = true;
     history.replaceState(null, '', location.pathname + location.search);
     this.onExit(this.level);
@@ -133,6 +143,9 @@ export class Game {
     this.rect = { x: 0, y: stageTop, w: stacked ? W : p.left - 6, h: Math.max(120, stageBottom - stageTop) };
     this.view.setRect(this.rect);
     $('toast').style.left = `${this.rect.x + this.rect.w / 2}px`;
+    const scrub = $('scrub').style;
+    scrub.right = `${W - this.rect.x - this.rect.w + 14}px`; scrub.top = `${this.rect.y + this.rect.h - (stacked ? 44 : 52)}px`;
+    if (this.quiz?.choices) this.renderPicks();
   }
 
   renderTrack() {
@@ -152,6 +165,12 @@ export class Game {
     const el = $('waves'), many = this.fields.length > 1;
     $('waveBar').hidden = !many;
     if (!many) { el.innerHTML = ''; return; }
+    if (this.quiz) {
+      // Tahmin turunda sayılar sorulardır: doğru yeşil, yanlış kırmızı; aralarında gezilmez.
+      const { score } = this.quiz;
+      el.innerHTML = this.fields.map((_, i) => `<button class="${score[i] === true ? 'ok' : score[i] === false ? 'bad' : i === this.wave ? 'view' : ''}" disabled>${i + 1}</button>`).join('');
+      return;
+    }
     const flying = this.status === 'running' || this.status === 'paused';
     const pips = this.fields.map((_, i) => {
       const cls = i < this.results.length ? 'ok' : i !== this.wave ? '' : this.status === 'failed' ? 'bad' : flying ? 'on' : 'view';
@@ -162,7 +181,7 @@ export class Game {
 
   /** Uçuşu durdurur ve seçilen dalganın alanını gösterir: çocuk programı yazarken bütün dalgalara bakabilsin. */
   showWave(i) {
-    this.loopId++; this.hideCall(); this.hideToast(); this.editor.mark(null);
+    this.loopId++; this.hideCall(); this.hideToast(); this.markBlocks([]);
     this.results = []; this.wave = i;
     this.setScene(i, { rain: true });
     this.resetTelemetry(); this.setStatus('idle');
@@ -184,12 +203,31 @@ export class Game {
     if (tab === 'python') this.renderPython();
   }
   renderPython() {
-    const code = toPython(this.editor.program, { library: Object.keys(this.lib || {}) }).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    const paint = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;')
       .replace(/\b(for|in|while|if|else|pass|True|not|and|or|def|from|import)\b/g, '<span class="k">$1</span>')
       .replace(/\b([a-z_]+)\(/g, '<span class="f">$1</span>(')
-      .replace(/\((\d+)\)/g, '(<span class="n">$1</span>)')
-      .replace(/^(#.*)$/gm, '<span class="c">$1</span>');
-    $('py').innerHTML = `<span class="c"># Aynı program, Python diliyle</span>\n${code}`;
+      .replace(/\((\d+|n)\)/g, '(<span class="pn">$1</span>)')
+      .replace(/(#.*)$/, '<span class="c">$1</span>');
+    // Her satır kendisini üreten bloğun kimliğini taşır: uçuşta çalışan satır vurgulanır.
+    const lines = pythonLines(this.editor.program, { library: Object.keys(this.lib || {}) })
+      .map((l) => `<span class="ln"${l.id ? ` data-id="${l.id}"` : ''}>${paint(l.text) || ' '}</span>`);
+    $('py').innerHTML = `<span class="ln c"># Aynı program, Python diliyle</span>${lines.join('')}`;
+    this.paintPython();
+  }
+
+  /** Blokları ve (Python sekmesi açıksa) karşılık gelen satırları vurgular. */
+  markBlocks(list) {
+    this.editor.markAll(list); this.pyMarks = list;
+    if (this.tab === 'python') this.paintPython();
+  }
+  paintPython() {
+    const box = $('py');
+    for (const e of box.querySelectorAll('.now, .sensing, .err')) e.classList.remove('now', 'sensing', 'err');
+    let last = null;
+    for (const { id, cls } of this.pyMarks || []) { const e = id && box.querySelector(`[data-id="${id}"]`); if (e) { e.classList.add(cls); last = e; } }
+    if (!last) return;
+    const r = last.getBoundingClientRect(), w = box.getBoundingClientRect();
+    if (r.top < w.top + 6 || r.bottom > w.bottom - 6) last.scrollIntoView({ block: 'center' });
   }
 
   programChanged() {
@@ -226,6 +264,7 @@ export class Game {
   // ---------- çalıştırma ----------
   setStatus(s) {
     this.status = s;
+    if (s !== 'failed') { this.reel = null; $('scrub').hidden = true; }
     const btn = $('runBtn');
     const label = { idle: ['i-play', 'Uçur'], running: ['i-pause', 'Duraklat'], paused: ['i-play', 'Devam'], failed: ['i-undo', 'Tekrar dene'], won: ['i-play', 'Uçur'] }[s];
     btn.innerHTML = `${svg(label[0])}${label[1]}`;
@@ -283,7 +322,7 @@ export class Game {
   stop() { this.loopId++; this.reset(); this.setStatus('idle'); }
 
   reset() {
-    this.hideCall(); this.hideToast(); this.editor.mark(null);
+    this.hideCall(); this.hideToast(); this.markBlocks([]);
     this.results = [];
     this.view.resetShip();
     this.resetTelemetry();
@@ -291,7 +330,7 @@ export class Game {
 
   resetTelemetry() {
     const f = this.fields[this.wave];
-    this.flight = { energy: f.energyCells.size ? 0 : null, shielded: false, message: '', gems: 0, dodged: false };
+    this.flight = { energy: f.energyCells.size ? 0 : null, counter: null, shielded: false, message: '', gems: 0, dodged: false };
     this.renderTelemetry(); this.renderGems();
   }
 
@@ -308,9 +347,10 @@ export class Game {
   /** Uçuş göstergesi: enerji hücreleri, kalkan durumu ve alandaki özel karelerin anlamı. */
   renderTelemetry() {
     const el = $('telemetry'), f = this.fields[this.wave], state = this.flight;
-    const hasEnergy = state.energy !== null, hasShield = f.pirates.size > 0;
-    el.hidden = !(hasEnergy || hasShield || f.beacons.size || f.energyCells.size);
+    const hasEnergy = state.energy !== null, hasShield = f.pirates.size > 0, hasCounter = this.level.tools.includes('setCounter');
+    el.hidden = !(hasEnergy || hasShield || hasCounter || f.beacons.size || f.energyCells.size);
     const gauges = [], key = [];
+    if (hasCounter) gauges.push(`<div class="gauge counter ${state.counter === null ? 'off' : ''}">${svg('i-count')}<b>sayaç = ${state.counter ?? '?'}</b></div>`);
     if (hasEnergy) {
       const cells = Array.from({ length: 9 }, (_, i) => `<i class="${i < state.energy ? 'on' : ''}"></i>`).join('');
       gauges.push(`<div class="gauge energy ${state.energy < 3 ? 'low' : ''}">${svg('i-bolt')}<div class="cells">${cells}</div><b>${state.energy}</b></div>`);
@@ -354,13 +394,14 @@ export class Game {
     const marks = senses.map((s) => ({ id: s.id, cls: 'sensing' }));
     if (['move', 'event', 'variable', 'shield', 'call'].includes(ev.t)) marks.push({ id: ev.id, cls: 'now' });
     else if (ev.t === 'crash' || ev.t === 'fail') marks.push({ id: ev.id, cls: 'err' });
-    editor.markAll(marks);
+    this.markBlocks(marks);
     if (senses.length) { this.showCalls(senses); sfx.sense(senses[senses.length - 1].result); } else this.hideCall();
     if (['event', 'variable', 'shield', 'call'].includes(ev.t)) {
       if (ev.t === 'event') this.flight.message = EVENTS[ev.event].label;
-      if (ev.t === 'variable') { this.flight.energy = ev.value; this.flight.message = 'Enerji güncellendi'; }
+      if (ev.t === 'variable' && ev.name === 'counter') { this.flight.counter = ev.value; this.flight.message = `Sayaç ${ev.value} oldu`; }
+      else if (ev.t === 'variable') { this.flight.energy = ev.value; this.flight.message = 'Enerji güncellendi'; }
       if (ev.t === 'shield') { this.flight.shielded = ev.shielded; this.flight.message = 'Kalkan hazır'; view.setShield(ev.shielded); sfx.shield(); }
-      if (ev.t === 'call') this.flight.message = `${FUNCTIONS[ev.name].label} çağrılıyor`;
+      if (ev.t === 'call') this.flight.message = `${FUNCTIONS[ev.name].label}${ev.arg === undefined ? '' : ` (${ev.arg})`} çağrılıyor`;
       this.renderTelemetry();
       await view.wait(130);
       return !alive();
@@ -396,12 +437,12 @@ export class Game {
       return true;
     }
     if (ev.t === 'fail') {
-      sfx.bad();
+      if (!this.quiz) sfx.bad();
       this.fail(ev.reason);
       return true;
     }
     // win
-    editor.mark(null); sfx.win();
+    this.markBlocks([]); sfx.win();
     await view.win(this.wave === this.fields.length - 1);
     if (!alive()) return true;
     this.results.push(this.sim);
@@ -421,6 +462,7 @@ export class Game {
   }
 
   fail(reason) {
+    if (this.quiz) { this.quizEnd(reason); return; }
     this.setStatus('failed');
     const inFlight = this.fields.length > 1 && IN_FLIGHT.includes(reason);
     const text = inFlight ? `Dalga ${this.wave + 1}: ${FAIL_TEXT[reason]}` : FAIL_TEXT[reason];
@@ -430,6 +472,113 @@ export class Game {
     if (reason !== 'empty') this.store.attempt(this.level.id, { won: false, reason, ms: this.lap() });
     this.failure = { text, sub };
     this.showFailure();
+    this.showScrub();
+  }
+
+  /**
+   * Geri sarma: başarısız uçuşun kareleri (başlangıç, her hareketten sonraki durum ve hatanın
+   * olduğu adım). Kaydırıcı çekilince gemi o kareye, vurgu o kareyi üreten bloğa gider.
+   */
+  showScrub() {
+    const f = this.fields[this.wave], reel = [{ cell: { lane: f.start, y: 0 }, mark: [], energy: f.energyCells.size ? 0 : null, taken: [], gone: [], shielded: false }];
+    let { energy } = reel[0], taken = [], gone = [], shielded = false, stop = null;
+    for (const ev of this.events.slice(0, this.i)) {
+      if (ev.t === 'shield') shielded = ev.shielded;
+      else if (ev.t === 'variable' && ev.name === 'energy') energy = ev.value;
+      else if (ev.t === 'move' && !ev.exit) {
+        if (ev.collect) taken = [...taken, ev.to];
+        if (ev.blocked) gone = [...gone, ev.to];
+        shielded = !!ev.shielded; energy = ev.energy;
+        reel.push({ cell: ev.to, mark: [{ id: ev.id, cls: 'now' }], energy, taken, gone, shielded });
+      } else if (ev.t === 'crash' || ev.t === 'fail') stop = ev;
+    }
+    if (stop && stop.id) reel.push({ ...reel[reel.length - 1], mark: [{ id: stop.id, cls: 'err' }], last: true });
+    this.reel = reel;
+    const range = $('scrubRange'), on = reel.length > 2;
+    $('scrub').hidden = !on;
+    if (!on) return;
+    range.max = reel.length - 1; range.value = reel.length - 1;
+    $('scrubLab').textContent = `${reel.length - 1} / ${reel.length - 1}`;
+  }
+
+  scrubTo(k) {
+    const fr = this.reel?.[k];
+    if (!fr) return;
+    this.hideCall();
+    this.view.pose(fr.cell, fr);
+    this.markBlocks(fr.mark);
+    Object.assign(this.flight, { energy: fr.energy, shielded: fr.shielded, gems: fr.taken.length, message: fr.last ? 'Hata bu adımda oldu' : k ? `${k}. adımdan sonra` : 'Kalkıştan önce' });
+    this.renderTelemetry(); this.renderGems();
+    $('scrubLab').textContent = `${k} / ${this.reel.length - 1}`;
+  }
+
+  // ---------- tahmin turu ----------
+  /** Sorunun seçeneklerini sahneye (harfli kareler) ve panele (düğmeler) koyar. */
+  askRound() {
+    const q = this.quiz;
+    q.picked = null; q.done = false;
+    Object.assign(q, choicesFor(this.level.rounds[this.wave].lines, this.editor.program, this.wave));
+    $('quizAsk').innerHTML = `Soru ${this.wave + 1} / ${this.fields.length}: program bitince gemi <b>hangi karede</b> olur?`;
+    this.renderPicks();
+  }
+
+  renderPicks() {
+    const q = this.quiz, right = (i) => q.choices[i].lane === q.answer.lane && q.choices[i].y === q.answer.y;
+    const cls = (i) => (!q.done ? (q.picked === i ? 'on' : q.picked === null ? '' : 'off') : right(i) ? 'ok' : q.picked === i ? 'bad' : 'off');
+    $('quizBtns').innerHTML = q.choices.map((_, i) => `<button class="${cls(i)}" data-pick="${i}" aria-label="${LETTERS[i]} karesi">${LETTERS[i]}</button>`).join('');
+    $('picks').innerHTML = q.choices.map((c, i) => { const b = this.view.cellBox(c); return `<button class="${cls(i)}" data-pick="${i}" style="left:${(b.left + b.right) / 2}px;top:${b.y}px">${LETTERS[i]}</button>`; }).join('');
+  }
+
+  showRound(i) {
+    this.loopId++; this.wave = i;
+    this.setScene(i, { rain: true });
+    this.editor.load(this.level, this.level.rounds[i].program(), [], true);
+    this.hideToast(); this.hideCall(); this.markBlocks([]); this.resetTelemetry(); this.setStatus('idle');
+    this.askRound();
+  }
+
+  /** Çocuk bir kare seçti: program çalışır ve cevap ortaya çıkar. */
+  pickAnswer(i) {
+    const q = this.quiz;
+    if (!q || q.picked !== null || this.status !== 'idle') return;
+    this.sfx.click(); q.picked = i; this.renderPicks(); this.hideToast();
+    this.stepMode = false; this.results = [];
+    this.simulateWave(); this.setStatus('running');
+    this.view.launch(); this.sfx.launch();
+    this.loop(++this.loopId);
+  }
+
+  quizEnd(reason) {
+    const q = this.quiz, at = q.choices.findIndex((c) => c.lane === q.answer.lane && c.y === q.answer.y), right = q.picked === at;
+    const last = this.wave === this.fields.length - 1;
+    q.score[this.wave] = right; q.done = true;
+    this.status = 'idle'; this.renderWaves(); this.renderPicks();
+    if (right) this.sfx.star(1); else this.sfx.bad();
+    this.showToast(right ? 'good' : 'bad', right ? 'Doğru tahmin!' : `Bu kez olmadı: gemi **${LETTERS[at]}** karesinde durdu.`, {
+      sub: reason === 'energy' ? 'Enerji bitince gemi olduğu yerde kalır.' : right ? '' : 'Programı blok blok oku: her blok gemiyi hangi kareye götürüyor?',
+      buttons: [{ label: last ? 'Sonucu gör' : 'Sıradaki soru', cls: 'nudge', onClick: () => (last ? this.quizFinish() : this.showRound(this.wave + 1)) }],
+    });
+  }
+
+  quizFinish() {
+    const { level, store } = this, got = this.quiz.score.filter(Boolean).length, before = store.stars(level.id), totalBefore = store.total();
+    this.hideToast(); $('picks').replaceChildren();
+    if (got) { store.setStars(level.id, got); store.addLog({ kind: 'win', id: level.id, stars: got, gain: Math.max(0, got - before) }); }
+    store.attempt(level.id, { won: got > 0, reason: got ? null : 'tahmin', ms: this.lap() });
+    const card = makeCard(`<div class="who">${robot(got === 3 ? 'wow' : got ? 'happy' : 'think')}<span class="tag">${EXTRA_LABEL.tahmin}</span></div>
+      <h1>${got === this.fields.length ? 'Hepsi doğru!' : got ? `${got} doğru tahmin` : 'Bu tur olmadı'}</h1>
+      <div class="bigstars">${[1, 2, 3].map((i) => svg('i-star', i <= got ? 'lit' : '')).join('')}</div>
+      <p>${got === this.fields.length ? 'Programı çalıştırmadan okuyabiliyorsun: tam bir pilot gözü!' : 'Kod okumak da bir beceri. Programı blok blok, geminin yolunu parmağınla izleyerek oku ve yeniden dene.'}</p>
+      <div class="btns"><button class="btn" data-act="again">${svg('i-undo')}Tekrar</button><button class="btn primary" data-act="map">Rota</button></div>`, (act) => {
+      this.sfx.click(); this.hideOverlay();
+      if (act === 'again') this.open(level); else this.close();
+    });
+    const reveal = () => {
+      this.showOverlay(card);
+      for (let i = 0; i < got; i++) setTimeout(() => this.sfx.star(i), 250 + i * 180);
+      if (got === this.fields.length) confetti();
+    };
+    if (!this.promoted(totalBefore, reveal)) reveal();
   }
 
   /** Son denemeden bu yana geçen süre (ms); sayaç yeniden başlar. */
@@ -507,7 +656,7 @@ export class Game {
     // Kitaplık: bu uçuşta çağrılan her manevra tanımı saklanır; ileride tanımlamadan çağrılabilir.
     const called = new Set(this.results.flatMap((r) => r.events.filter((e) => e.t === 'call').map((e) => e.name))), kept = [];
     for (const b of this.editor.program) {
-      if (b.type !== 'define' || !b.body.length || !called.has(b.name)) continue;
+      if (b.type !== 'define' || b.param || !b.body.length || !called.has(b.name)) continue;
       const old = store.library()[b.name];
       if (!old || !sameBlocks(old, b.body)) { store.keepFunction(b.name, clone(b.body)); kept.push(FUNCTIONS[b.name].label); }
     }
@@ -635,6 +784,7 @@ export class Game {
       if (ev.cond === 'ahead') { mark(ev, ahead.cell, blocked); return blocked; }
       if (ev.cond === 'rightFree' || ev.cond === 'leftFree') { const t = ev.result ? 'ok' : 'bad'; mark(ev, ev.cell, t); return t; }
       if (ev.cond === 'energyLow') return ev.result ? 'bad' : 'ok';   // sayaca bakar, kareye değil
+      if (ev.cond === 'counter3') return ev.result ? 'ok' : 'info';
       if (ev.cond === 'aheadAndRightFree' || ev.cond === 'aheadOrRightBlocked') {
         // Bileşik sensör iki kareye bakar; ikisi de gösterilir.
         const right = look('rightFree');

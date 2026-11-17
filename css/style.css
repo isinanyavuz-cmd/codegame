@@ -113,7 +113,13 @@ button.node:not(.locked):active { transform: scale(.92); }
 .ws { background-image: radial-gradient(rgba(255, 255, 255, .09) 1.2px, transparent 1.3px); background-size: 20px 20px; position: relative; }
 .ws.over { border-color: rgba(255, 213, 61, .5); }
 .py { margin: 0; font: 600 15px/1.6 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; color: #cfe0ff; white-space: pre; -webkit-user-select: text; user-select: text; }
-.py .k { color: #ffb26b; } .py .f { color: #7fd8ff; } .py .n { color: #ffd53d; } .py .c { color: var(--soft); }
+.py .k { color: #ffb26b; } .py .f { color: #7fd8ff; } .py .pn { color: #ffd53d; } .py .c { color: var(--soft); }
+/* Python görünümünde her satır bir bloktur; uçuşta çalışan satır vurgulanır. */
+.py .ln { display: block; min-height: 1.6em; margin: 0 -8px; padding: 0 8px; border-radius: 7px; }
+.py .ln.now { background: rgba(255, 213, 61, .2); box-shadow: inset 3px 0 0 var(--now) !important; animation: none; }
+.py .ln.now::before, .py .ln.now::after, .py .ln.err::after { content: none; }
+.py .ln.sensing { background: rgba(94, 242, 255, .14); box-shadow: inset 3px 0 0 #5ef2ff !important; }
+.py .ln.err { background: rgba(255, 77, 106, .2); box-shadow: inset 3px 0 0 var(--bad) !important; animation: none; }
 
 .stack { display: flex; flex-direction: column; gap: 4px; zoom: var(--bz); min-height: 60px; padding-bottom: 16px; }
 .blk { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border-radius: 10px; color: #fff; font-weight: 700; font-size: 16px;
@@ -125,7 +131,8 @@ button.node:not(.locked):active { transform: scale(.92); }
 .blk.lib { box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .2), 0 0 0 2px rgba(255, 233, 163, .75); }
 .blk.hole { --col: rgba(255, 255, 255, .1); border: 2px dashed rgba(255, 233, 163, .6); box-shadow: none; color: #ffe9a3; min-width: 70px; justify-content: center; cursor: default; }
 .ctl { --col: var(--ctl); } .mov { --col: var(--mov); }
-.fun { --col: #9154ce; } .variable { --col: #217c60; }
+.fun { --col: #9154ce; } .variable { --col: #217c60; } .variable.counter { --col: #b0487a; }
+.param { padding: 2px 9px; border-radius: 10px; background: #fff; color: #5a2a8f; font-size: 14px; font-weight: 800; font-style: italic; }
 .choice { padding: 3px 8px; border-radius: 8px; background: rgba(0, 0, 0, .18); cursor: pointer; }
 .choice::after { content: ' ▾'; }
 .c { display: flex; flex-direction: column; width: max-content; position: relative; touch-action: none; }
@@ -183,7 +190,26 @@ button.node:not(.locked):active { transform: scale(.92); }
 .sq:active { transform: scale(.94); }
 .sq:disabled { opacity: .4; }
 
+/* tahmin turu: program okunur, harfli karelerden biri seçilir */
+#game[data-mode="tahmin"] .pal, #game[data-mode="tahmin"] .ctrl, #game[data-mode="tahmin"] .tabrow .meta { display: none; }
+#game[data-mode="tahmin"] .ws .blk, #game[data-mode="tahmin"] .ws .c { cursor: default; }
+.quizbar { flex: none; padding: 12px 14px 14px; border-radius: 16px; background: rgba(255, 213, 61, .08); border: 1px solid rgba(255, 213, 61, .32); text-align: center; }
+.quizbar p { margin: 0 0 10px; font-size: 16px; font-weight: 600; color: #ffe9a3; }
+.quizbar p b { color: #fff; }
+.qbtns { display: flex; justify-content: center; gap: 12px; }
+.qbtns button, #picks button { width: 58px; height: 58px; border-radius: 18px; font-size: 24px; font-weight: 800; color: #3b2a00; background: linear-gradient(180deg, #ffe066, #ffc21a); box-shadow: inset 0 -5px 0 rgba(0, 0, 0, .18); }
+.qbtns button:active { transform: translateY(2px); }
+#picks button { position: absolute; z-index: 4; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; font-size: 18px; box-shadow: 0 0 0 3px rgba(7, 11, 34, .7), 0 0 18px rgba(255, 213, 61, .8); animation: pulse 1.6s infinite; }
+.qbtns button.on, #picks button.on { background: #fff; color: #27344f; animation: none; }
+.qbtns button.ok, #picks button.ok { background: var(--ok); color: #06301d; animation: none; box-shadow: 0 0 0 3px rgba(7, 11, 34, .7), 0 0 20px rgba(55, 227, 154, .9); }
+.qbtns button.bad, #picks button.bad { background: var(--bad); color: #fff; animation: none; }
+.qbtns button.off, #picks button.off { opacity: .35; animation: none; }
+
 /* ───────── sahne üstü katmanlar ───────── */
+/* Geri sarma: başarısız uçuşun adımları arasında gezinen kaydırıcı */
+.scrub { position: absolute; z-index: 4; height: 44px; padding: 0 14px; border-radius: 14px; display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; color: var(--soft); box-shadow: none; }
+.scrub b { min-width: 46px; text-align: right; font-size: 14px; font-weight: 800; color: #fff; }
+.scrub input { width: 190px; accent-color: var(--now); cursor: pointer; }
 .call { position: absolute; transform: translate(-100%, -50%); display: flex; align-items: center; gap: 9px; padding: 8px 12px 8px 9px; border-radius: 14px; font-weight: 800; font-size: 15px;
         background: rgba(12, 18, 44, .92); border: 1.5px solid var(--c, var(--bad)); box-shadow: 0 0 24px color-mix(in srgb, var(--c, var(--bad)) 40%, transparent); white-space: nowrap; pointer-events: none; z-index: 5; }
 .call.right { transform: translate(0, -50%); }
@@ -227,6 +253,7 @@ button.node:not(.locked):active { transform: scale(.92); }
 .gauge .cells i.on { background: #4cffa4; box-shadow: 0 0 8px rgba(76, 255, 164, .7); }
 .gauge.energy.low { color: var(--now); } .gauge.energy.low .cells i.on { background: var(--now); box-shadow: 0 0 8px rgba(255, 213, 61, .7); }
 .gauge.shield { color: var(--soft); }
+.gauge.counter { color: #ff9ac8; } .gauge.counter.off { color: var(--soft); }
 .gauge.shield.on { color: #7fe9ff; text-shadow: 0 0 12px rgba(94, 242, 255, .7); }
 .field-key { display: flex; gap: 4px 14px; flex-wrap: wrap; font-size: 12px; font-weight: 600; line-height: 1.5; }
 .field-key:empty { display: none; }
@@ -425,6 +452,8 @@ button.node:not(.locked):active { transform: scale(.92); }
 .mn.side .node { width: 38px; height: 38px; font-size: 19px; border-style: dashed; border-color: #ffe9a3; color: #ffe9a3; background: #1a1f47; }
 .mn.side.acil .node { border-color: #ff8d9f; color: #ff8d9f; animation: pulse-red 1.4s infinite; }
 .mn.side.catal .node { border-color: #9fe9ff; color: #9fe9ff; }
+.mn.side.tahmin .node { border-color: #d3b1ff; color: #d3b1ff; }
+.code[data-extra="tahmin"] .brief .lab { color: #d3b1ff; }
 .mn .node.via { border: 2px dashed var(--ok); color: var(--ok); }
 .code[data-extra="catal"] .brief .lab { color: #9fe9ff; }
 .mn.side .node.done { border-style: solid; border-color: var(--ok); color: #06301d; background: var(--ok); animation: none; }
@@ -475,6 +504,7 @@ button.node:not(.locked):active { transform: scale(.92); }
   .top { left: 12px; top: 12px; } .ttl b { font-size: 20px; }
   .iconbtn.gsnd { left: auto; right: 12px; top: 12px; }
   .hud { left: auto; right: 64px; top: 16px; } .record { display: none; }
+  .scrub { height: 36px; padding: 0 10px; } .scrub span { display: none; } .scrub input { width: 150px; }
   .tbtns { flex-direction: column; }
   .toast { top: 72px; }
   .rank { display: none; }
