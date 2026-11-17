@@ -1,16 +1,53 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { LEVELS } from '../src/content/levels.js';
+import { ALL_LEVELS } from '../src/content/extras.js';
 
 let n = 0;
 /** Boş (ya da verilen) kayıtla taze bir store yükler. */
-async function load(saved = null) {
+async function load(saved = null, address = {}) {
   const box = new Map();
   if (saved) box.set('kodpilotu.v1', JSON.stringify(saved));
   globalThis.localStorage = { getItem: (k) => box.get(k) ?? null, setItem: (k, v) => box.set(k, v) };
+  globalThis.location = { search: '', hash: '', ...address };
   const { store, dayOf } = await import(`../src/storage.js?storage-test-${++n}`);
   return { store, dayOf, raw: () => JSON.parse(box.get('kodpilotu.v1') || 'null') };
 }
+
+test('çözüm adresi tüm ana ve yan görevleri açar; hepsi modu yalnız kilitleri kaldırır', async () => {
+  for (const [search, hash, unlockAll, showSolutions] of [
+    ['', '', false, false],
+    ['?hepsi', '', true, false],
+    ['', '#hepsi', true, false],
+    ['?cozum', '#8-8', true, true],
+    ['?kalite=dusuk&cozum', '', true, true],
+    ['?hepsi&cozum', '', true, true],
+    ['?foo=cozum', '', false, false],
+    ['?cozumluk', '', false, false],
+  ]) {
+    const { store } = await load(null, { search, hash });
+    assert.equal(store.unlockAll, unlockAll, search + hash);
+    assert.equal(store.showSolutions, showSolutions, search + hash);
+    if (unlockAll) for (const level of ALL_LEVELS) assert.equal(store.isUnlocked(level, LEVELS), true, level.id);
+    else assert.equal(store.isUnlocked(LEVELS.at(-1), LEVELS), false);
+    assert.equal(store.total(), 0, 'kilit açmak yıldız kazandırmaz');
+  }
+});
+
+test('çözüm modunda düzenlemek kayıtlı programları korur; normal modda kaydetme sürer', async () => {
+  const saved = { stars: { '1-1': 1 }, programs: { '1-2': [{ id: 'old', type: 'left' }] } };
+  const { store, raw } = await load(saved, { search: '?cozum' });
+  store.setProgram('1-2', [{ id: 'demo', type: 'right' }]);
+  store.setProgram('8-8', [{ id: 'demo', type: 'fwd' }]);
+  assert.deepEqual(store.program('1-2'), saved.programs['1-2']);
+  assert.equal(store.program('8-8'), null);
+  assert.deepEqual(raw(), saved, 'çözümler kalıcı kayda yazılmaz');
+  const normal = await load(raw());
+  assert.equal(normal.store.showSolutions, false);
+  assert.equal(normal.store.unlockAll, false);
+  normal.store.setProgram('1-2', [{ id: 'new', type: 'fwd' }]);
+  assert.deepEqual(normal.raw().programs['1-2'], [{ id: 'new', type: 'fwd' }]);
+});
 
 test('eski kayıt yeni alanlarla açılır; hiçbir şey kaybolmaz', async () => {
   const { store } = await load({ stars: { '1-1': 3 }, programs: { '1-1': [{ id: 'a', type: 'fwd' }] }, intros: { 1: true }, sound: false, speed: 2 });

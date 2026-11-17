@@ -84,7 +84,8 @@ export class Game {
     $('waveNote').innerHTML = this.quiz ? `${this.fields.length} soru: her birinde geminin duracağı kareyi tahmin et.`
       : `Aynı program ${this.fields.length} dalgayı da geçmeli.<span class="more"> Görmek için sayıya dokun.</span>`;
     const saved = this.store.program(level.saveKey);
-    const program = this.quiz ? level.rounds[0].program() : saved && saved.length ? clone(saved) : level.initial ? level.initial() : [];
+    const solution = this.store.showSolutions && level.solution ? level.solution() : null;
+    const program = this.quiz ? level.rounds[0].program() : solution ?? (saved && saved.length ? clone(saved) : level.initial ? level.initial() : []);
     this.lib = this.libraryFor(level);
     this.editor.load(level, program, Object.keys(this.lib || {}), !!this.quiz);
     this.setTab('blocks'); this.hideToast(); this.hideCall(); this.setStatus('idle');
@@ -563,7 +564,7 @@ export class Game {
 
   renderPicks() {
     const q = this.quiz, right = (i) => q.choices[i].lane === q.answer.lane && q.choices[i].y === q.answer.y;
-    const cls = (i) => (!q.done ? (q.picked === i ? 'on' : q.picked === null ? '' : 'off') : right(i) ? 'ok' : q.picked === i ? 'bad' : 'off');
+    const cls = (i) => (this.store.showSolutions && right(i) ? 'ok' : !q.done ? (q.picked === i ? 'on' : q.picked === null ? '' : 'off') : right(i) ? 'ok' : q.picked === i ? 'bad' : 'off');
     $('quizBtns').innerHTML = q.choices.map((_, i) => `<button class="${cls(i)}" data-pick="${i}" aria-label="${LETTERS[i]} karesi">${LETTERS[i]}</button>`).join('');
     $('picks').innerHTML = q.choices.map((c, i) => { const b = this.view.cellBox(c); return `<button class="${cls(i)}" data-pick="${i}" style="left:${(b.left + b.right) / 2}px;top:${b.y}px">${LETTERS[i]}</button>`; }).join('');
   }

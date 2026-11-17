@@ -1,6 +1,7 @@
 // İlerleme kaydı: yıldızlar, çocuğun programları, ayarlar ve oyunun biriktirdiği her şey
 // (denemeler, mürettebat, gemi görünümü, otopilot kitaplığı, günlük). Tarayıcıda saklanır.
 const KEY = 'kodpilotu.v1';
+const query = new URLSearchParams(typeof location === 'undefined' ? '' : location.search);
 const fresh = () => ({
   stars: {}, programs: {}, intros: {}, sound: true, music: true, speed: 1,
   voice: false,     // sesli okuma
@@ -28,13 +29,14 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } ca
 export const dayOf = (t = Date.now()) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
 export const store = {
-  /** Adrese ?hepsi ya da #hepsi eklenirse bütün sahneler açılır (gözden geçirmek için). */
-  unlockAll: typeof location !== 'undefined' && (new URLSearchParams(location.search).has('hepsi') || location.hash === '#hepsi'),
+  /** Gizli inceleme modları yalnızca adresten açılır; ilerleme kaydına yazılmaz. */
+  showSolutions: query.has('cozum'),
+  unlockAll: query.has('hepsi') || query.has('cozum') || (typeof location !== 'undefined' && location.hash === '#hepsi'),
   stars: (id) => data.stars[id] || 0,
   setStars(id, n) { if (n > (data.stars[id] || 0)) { data.stars[id] = n; save(); } },
   total: () => Object.values(data.stars).reduce((a, b) => a + b, 0),
   program: (id) => data.programs[id] || null,
-  setProgram(id, program) { data.programs[id] = program; save(); },
+  setProgram(id, program) { if (!this.showSolutions) { data.programs[id] = program; save(); } },
   introSeen: (sector) => !!data.intros[sector],
   markIntro(sector) { data.intros[sector] = true; save(); },
   get sound() { return data.sound; },

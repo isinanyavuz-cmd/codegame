@@ -69,6 +69,10 @@ Sonra tarayıcıda `http://localhost:8080` adresini aç. Fare ve dokunmatik ekra
 çalışır; tablet (yatay) ve bilgisayar için tasarlandı.
 
 - Adresin sonuna `?hepsi` (ya da `#hepsi`) eklersen bütün sahneler açılır (gözden geçirmek için).
+- Gizli çözüm modu: `?cozum` bütün sahneleri açar ve her görevin kod alanına örnek çözümünü yükler
+  (Python sekmesinde kod karşılığı da görünür). Örneğin `?cozum#8-8` doğrudan son görevin çözümünü açar.
+  Tahmin turlarında doğru kare işaretlenir. Bu modda programı değiştirmek kayıtlı programlarının üzerine yazmaz;
+  parametreyi kaldırınca normal oyuna dönersin. Atölyede oluşturulan görevlerin hazır çözümü yoktur.
 - `#3-4` gibi bir ek doğrudan o sahneyi açar: `http://localhost:8080/?hepsi#3-4`.
   Yan görevlerin kimlikleri: `3-t` tahmin turu, `3-g` gizli görev, `2-a` acil durum, `1-5-b` öteki yol.
 - `?kalite=yuksek|orta|dusuk` görüntü kalitesini sabitler (yazılmazsa cihaz yavaşsa kendiliğinden düşer).
