@@ -4,6 +4,7 @@ import { Game } from './ui/game.js';
 import { MapScreen } from './ui/map.js';
 import { Hangar } from './ui/hangar.js';
 import { Workshop } from './ui/workshop.js';
+import { ParentPanel } from './ui/parent.js';
 import { decodeField, customLevel } from './content/custom.js';
 import { sfx, music } from './ui/sfx.js';
 import { voice } from './ui/voice.js';
@@ -25,7 +26,8 @@ async function boot() {
   view.setLook(hangar.look());
   const play = (level) => { map.hide(); music.mood('game'); game.open(level); };
   const workshop = new Workshop({ store, sfx, onPlay: play });
-  const map = new MapScreen({ store, sfx, music, voice, hangar, workshop, onOpen: play });
+  const parent = new ParentPanel({ store, sfx });
+  const map = new MapScreen({ store, sfx, music, voice, hangar, workshop, parent, onOpen: play });
   const game = new Game({ view, store, sfx, music, voice, hangar, workshop, onExit: () => { music.mood('map'); map.show(); } });
 
   let timer = 0;
@@ -46,7 +48,15 @@ async function boot() {
 
   const fromHash = shared() || findLevel(location.hash.slice(1));
   if (fromHash && (fromHash.free || store.isUnlocked(fromHash, LEVELS))) { music.mood('game'); game.open(fromHash); } else map.show();
-  window.__kp = { view, game, map, store, hangar, workshop };
+  // İlerleme aktarma bağlantısı (#aktar=...): bu cihazdaki kaydın yerini alacağı için önce sorulur.
+  const moved = /^#aktar=(.+)$/.exec(location.hash);
+  if (moved) parent.offer(moved[1]);
+  window.__kp = { view, game, map, store, hangar, workshop, parent };
+
+  // Çevrimdışı çalışma: servis çalışanı dosyaları önbelleğe alır. Geliştirme sırasında (localhost)
+  // eski dosya sunmasın diye yalnızca adrese ?sw eklenirse kurulur.
+  const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+  if ('serviceWorker' in navigator && (!local || new URLSearchParams(location.search).has('sw'))) navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
 boot();

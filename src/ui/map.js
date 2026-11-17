@@ -20,8 +20,8 @@ const rich = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace
 const NS = 'http://www.w3.org/2000/svg';
 
 export class MapScreen {
-  constructor({ store, sfx, music, voice, hangar, workshop, onOpen }) {
-    Object.assign(this, { store, sfx, music, voice, hangar, workshop, onOpen });
+  constructor({ store, sfx, music, voice, hangar, workshop, parent, onOpen }) {
+    Object.assign(this, { store, sfx, music, voice, hangar, workshop, parent, onOpen });
     this.segs = []; this.shipLen = null; this.raf = 0;
     $('route').addEventListener('click', (e) => {
       const b = e.target.closest('[data-level]');
@@ -44,6 +44,7 @@ export class MapScreen {
       { id: 'daily', icon: 'i-sun', label: 'Günün Dalgası', run: () => this.openDaily(), badge: () => (store.daily(dayOf()) ? '' : '!') },
       { id: 'workshop', icon: 'i-tool', label: 'Atölye', run: () => workshop.open() },
       { id: 'log', icon: 'i-book', label: 'Günlük', run: () => this.showLog() },
+      { id: 'parent', icon: 'i-lock', label: 'Veli', run: () => parent.open() },
     ];
     $('dock').addEventListener('click', (e) => {
       const b = e.target.closest('[data-dock]'), item = b && this.dock.find((d) => d.id === b.dataset.dock);
