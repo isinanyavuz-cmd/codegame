@@ -17,12 +17,45 @@ adımıdır. Bir sahne geçilince sıradaki açılır.
 | 7. Manevra Okulu | Fonksiyonlar | oynanabilir (8 sahne) |
 | 8. Ana Gemi | Bütün kavramlarla büyük final | oynanabilir (8 sahne) |
 
-Toplam **64 görev**, bütün yıldızlar toplandığında **192 yıldız**. İlk üç
-sektördeki ilerleme ve kayıtlı programlar korunur.
+Ana yolda **64 görev**, yanında **24 yan görev** var; bütün yıldızlar toplandığında
+**264 yıldız**. İlerleme ve yazılan programlar tarayıcıda saklanır.
 
 Her sektörün sahneleri aynı sırayı izler: **tanış** (hazır programı çalıştır,
 küçük bir şeyi değiştir) → **dene** ×2 (yarım programı tamamla) → **pekiştir** ×3
 (sıfırdan yaz) → **hata avı** (hatalı programı düzelt) → **final**.
+
+### Hikâye
+
+Ana Gemi **Atlas**, yeni yuva gezegeni Nova'ya giderken **Kızıl Kanca**'nın korsanlarına
+yakalandı; mürettebat kurtarma kapsülleriyle uzaya dağıldı, otopilot bozuldu. Çocuk genç
+bir pilottur: kopilot robotu **Bip** ile otopilotu baştan yazar. Her sektör Bip'in bir
+telsiz mesajıyla açılır, finalinde mürettebattan biri kurtulur; son görevde gemi Atlas'a
+yanaşır. Bip ipuçlarını, hata mesajlarını ve sonuçları da söyler.
+
+### Ana yolun dışında
+
+Yan görevler rota ekranında ana görevlerin yanında, kesik çizgili düğümler olarak durur;
+ana yolu kilitlemezler.
+
+| Tür | Ne zaman açılır | Ne yapar |
+|---|---|---|
+| **Tahmin turu** (göz) | sektörün 3. görevinden sonra | Program hazırdır, yazılmaz: çocuk okur ve geminin hangi karede duracağını tahmin eder. Üç soru, doğru sayısı kadar yıldız |
+| **Öteki yol** (çatal) | ana görevle birlikte | Aynı kavramın başka bir görevi. İkisinden hangisi geçilirse sıradaki açılır (1-5, 2-6, 3-5, 4-5, 6-5) |
+| **Acil durum** (!) | bir görev bitince bir kez haber verilir | Araya giren hikâyeli görev (2-5, 5-4 ve 6-6'dan sonra) |
+| **Gizli görev** (?) | sektörde 24 yıldızın 20'si toplanınca | Daha zor bir görev; ödülü Bip'in bir arkadaşıdır. 2, 4, 6 ve 7. sektörlerinki yeni bir fikir tanıtır: iç içe döngü, döngü içinde "olana kadar", **sayaç değişkeni**, **sayı alan manevra** |
+
+Rota ekranının altındaki **köprü** çubuğu:
+
+- **Mürettebat**: kurtarılanlar ve gizli görevlerde bulunan robotlar.
+- **Hangar**: yıldızlarla açılan gövde, şerit ve alev renkleri, gövde biçimleri; rütbe,
+  sektör armaları, otopilot kitaplığı ve yazdırılabilir sertifika.
+- **Günün Dalgası**: tarihten üretilen, her gün değişen tek görev. Zorluğu çocuğun vardığı
+  yere göre seçilir. Yıldızları ayrı sayılır; seri yoktur, gün atlamak bir şey kaybettirmez.
+- **Atölye**: çocuk kareleri doldurarak kendi görevini kurar. Görevi kendisi çözünce
+  bağlantıyla paylaşabilir; bağlantıyı açan herkes o görevi oynar.
+- **Günlük**: son günlerde geçilen görevler. Oyuna başka bir gün dönülünce Bip kısa bir
+  özetle karşılar.
+- **Veli**: şifreyle açılan veli paneli (aşağıda).
 
 ## Çalıştırmak
 
@@ -37,6 +70,9 @@ Sonra tarayıcıda `http://localhost:8080` adresini aç. Fare ve dokunmatik ekra
 
 - Adresin sonuna `?hepsi` (ya da `#hepsi`) eklersen bütün sahneler açılır (gözden geçirmek için).
 - `#3-4` gibi bir ek doğrudan o sahneyi açar: `http://localhost:8080/?hepsi#3-4`.
+  Yan görevlerin kimlikleri: `3-t` tahmin turu, `3-g` gizli görev, `2-a` acil durum, `1-5-b` öteki yol.
+- `?kalite=yuksek|orta|dusuk` görüntü kalitesini sabitler (yazılmazsa cihaz yavaşsa kendiliğinden düşer).
+- `#oyna=...` atölyede kurulmuş bir görevi, `#aktar=...` başka cihazdan gelen ilerlemeyi açar.
 
 ## Nasıl oynanır
 
@@ -70,8 +106,51 @@ Sonra tarayıcıda `http://localhost:8080` adresini aç. Fare ve dokunmatik ekra
 - **Manevra tanımla** içine bir hareket grubu yaz. **Manevra çağır** aynı adlı
   tanımı çalıştırır; adlara dokunarak eşleştir. Tanımı çağrıdan önce yerleştir.
   Fonksiyonlar koşullar, döngüler ve olayların içinde de kullanılabilir.
-- Blok ve Python sekmeleri aynı programı gösterir. Python görünümü, sensör ve
-  olay API'lerini anlatan salt okunur bir örnektir.
+- Blok ve Python sekmeleri aynı programı gösterir. Python görünümü salt okunurdur;
+  uçuş sırasında çalışan satır vurgulanır.
+- **Otopilot kitaplığı**: kazanılan bir uçuşta çağrılan her manevra tanımı kitaplığa
+  girer. Final görevlerinde, günün dalgasında ve atölyede bu manevralar yeniden
+  tanımlanmadan çağrılabilir (palette kitap işaretli blok).
+- **Sayaç** (6. sektörün gizli görevi) çocuğun kendi değişkenidir: önce bir değere
+  ayarlanır, sonra artırılır; ayarlanmadan artırılırsa uçuş biter.
+- **Sayı alan manevra** (7. sektörün gizli görevi): tanım bir sayı (n) alır, içindeki
+  döngü "n kez" döner; sayı çağrıda verilir.
+
+### Takılınca
+
+- Başarısız uçuştan sonra Bip ne olduğunu söyler. **İpucu** düğmesi basamak basamak
+  derinleşir: önce yön gösteren bir cümle, sonra programda eksik olan şey, en sonda
+  örnek çözümün iskeleti (komutların yarısı soru işareti). Cevabın kendisi verilmez.
+- Kaydırıcıyla uçuş **geri sarılır**: gemi adım adım geri gider, o adımı üreten blok
+  vurgulanır.
+- Aynı görevde beş kez üst üste başarısız olunursa görev **sonraya bırakılabilir**:
+  sıradaki açılır, bırakılan görev rota ekranında kesik çerçeveyle bekler.
+- **Sesli okuma** (rota ekranındaki konuşma balonu düğmesi) görev metnini, ipuçlarını
+  ve Bip'in söylediklerini tarayıcının Türkçe sesiyle okur.
+- Görev ekranındaki kamera düğmesi **pilot kamerasına** geçer; kazanılan uçuş sonuç
+  kartındaki **İzle** ile öteki kameradan yeniden oynatılır.
+
+## Veli paneli
+
+Köprüdeki **Veli** düğmesi şifreyle açılır: **321321** (BİLSEM uygulamasıyla aynı). Şifre
+yalnızca çocuğun kaydı kazara silmesini önlemek içindir; gerçek bir güvenlik önlemi değildir.
+
+- **Rapor**: toplam yıldız, geçilen görev, oyun süresi, oynanan gün; sektör sektör geçilen
+  görev, yıldız, süre ve kavramın ne kadar uğraştırdığı; takıldığı görevler, en sık
+  başarısızlık nedenleri ve veliye öneriler.
+- **İlerlemeyi aktar**: kayıt bir koda (ya da bağlantıya) çevrilir; öteki cihazda kod
+  yapıştırılınca kayıt oraya yüklenir.
+- **Sıfırla**: bütün kaydı siler.
+
+Kayıt yalnızca o cihazın tarayıcısında tutulur; hiçbir yere gönderilmez.
+
+## Çevrimdışı ve ana ekran
+
+Oyun bir kez açıldıktan sonra internetsiz de çalışır ve telefonda/tablette ana ekrana
+uygulama gibi eklenebilir (`manifest.webmanifest`, `sw.js`). Servis çalışanı sayfayı her
+açılışta önce ağdan ister, bu yüzden yeni sürüm yayımlanınca hemen görülür; aynı adresteki
+öteki uygulamalara (`bilsem/`, `kodrobot-eski/`) dokunmaz. Geliştirme sırasında eski dosya
+sunmasın diye `localhost`ta kurulmaz; denemek için adrese `?sw` ekle.
 
 ## Yayın
 
@@ -92,27 +171,53 @@ olmazsa tarayıcı on dakikaya kadar eski dosyaları göstermeye devam edebilir.
 Rota ekranının altındaki sürüm kodu, yayında hangi sürümün açık olduğunu gösterir.
 Damgalar eskiyse testler hata verir.
 
+Her PR'da ve ana dala giren her değişiklikte `.github/workflows/test.yml` testleri ve
+görev denetçisini çalıştırır; damga unutulduysa ya da bir görev bozulduysa orada görünür.
+
 ## Geliştirme
 
 ```bash
-npm test
+npm test          # motor, görevler, kayıt, rapor, üreteçler
+npm run denetle   # görev denetçisi (aşağıda)
 ```
 
 | Dosya | Görev |
 |---|---|
 | `src/engine/world.js` | Alan, sensörler ve program yürütücü. Saf mantık; olay listesi üretir |
 | `src/engine/blocks.js` | Blok modeli, ağaç işlemleri, Python görünümü |
-| `src/content/levels.js` | Sektörler ve sahneler |
-| `src/content/advanced.js` | Sektör 4–8 için 40 görev ve yeni sektör girişleri |
-| `src/content/gen.js` | Sektör 3 için tohumlu rastgele dalga üreteci |
-| `src/render/view.js`, `models.js` | 3B sahne, efektler ve animasyonlar (three.js) |
+| `src/content/levels.js` | Sektörler ve ilk üç sektörün sahneleri |
+| `src/content/advanced.js` | Sektör 4–8 için 40 görev; `route()` ve `mission()` yardımcıları |
+| `src/content/extras.js` | Yan görevler: gizli, acil durum, öteki yol, tahmin turu |
+| `src/content/predict.js` | Tahmin turunun soruları ve seçenek üretimi |
+| `src/content/gen.js` | Tohumlu rastgele dalga üreteci |
+| `src/content/daily.js` | Günün Dalgası: tarihten görev üretimi |
+| `src/content/custom.js` | Atölye: alan kodu, bağlantı, alandan görev kurma |
+| `src/content/story.js` | Hikâye metinleri, mürettebat, robotlar |
+| `src/content/hints.js` | Kademeli ipucu: eksik blok cümlesi, çözüm iskeleti |
+| `src/content/hangar.js`, `ranks.js` | Gemi parçaları ve açılma koşulları, rütbeler |
+| `src/content/logbook.js`, `report.js` | Kaptan günlüğü ve veli raporu (kayıttan özet) |
+| `src/render/view.js`, `models.js` | 3B sahne, kameralar, efektler ve animasyonlar (three.js) |
 | `src/render/themes.js` | Sektör görünümleri: gökyüzü, gezegen, ızgara rengi, ışık |
 | `src/ui/editor.js` | Blok düzenleyici: sürükle-bırak, seçim, geri alma |
-| `src/ui/game.js` | Görev ekranı: çalıştırma, dalgalar, sonuç |
-| `src/ui/map.js` | Rota ekranı: yıldız haritası |
-| `src/ui/sfx.js` | Ses efektleri ve arka plan müziği (Web Audio) |
+| `src/ui/game.js` | Görev ekranı: çalıştırma, dalgalar, ipuçları, tahmin turu, sonuç |
+| `src/ui/map.js` | Rota ekranı: yıldız haritası, yan görev düğümleri, köprü |
+| `src/ui/hangar.js`, `workshop.js`, `parent.js` | Hangar, atölye ve veli paneli ekranları |
+| `src/ui/copilot.js`, `shipart.js`, `overlay.js` | Bip ve yüz çizimleri, gemi çizimi, kartlar ve konfeti |
+| `src/ui/sfx.js`, `voice.js` | Ses efektleri, sektör müzikleri (Web Audio), sesli okuma |
 | `src/storage.js` | İlerleme kaydı (tarayıcıda) |
-| `tests/` | Motor ve sahne testleri |
+| `sw.js`, `manifest.webmanifest`, `icons/` | Çevrimdışı çalışma ve ana ekran simgesi |
+| `tools/denetle.js` | Görev denetçisi |
+| `tests/` | Motor, görev, üreteç, kayıt ve rapor testleri |
+
+### Görev denetçisi
+
+`npm run denetle` her görevi "kestirme" programlarla dener: örnek çözümün geçmesi yetmez,
+görevin öğrettiği kavram o görevde gerçekten gerekli mi, ona bakar (rotayı elle yazmak,
+tek yöne kaçmak, olayın işini döngüye yaptırmak, hiç şarj etmemek, fonksiyonsuz yazmak,
+"olana kadar" yerine "sürekli tekrarla" koymak, bir dalgayı ezberlemek…). Kavramı atlayıp
+tam yıldız alan her yol bir **uyarı**dır; bilerek bırakılanlar nedenleriyle `KABUL`
+listesinde durur. Listede olmayan yeni bir uyarı testleri kırar. Tek görev:
+`npm run denetle -- 7-8`.
 
 ### Yeni sahne eklemek
 
@@ -149,6 +254,14 @@ mantık da tam yıldız alır, kalkanı olaya bağlamayan program Sektör 5'i ge
 dönüştür (sensörlerin göremediği, mor halkanın haber verdiği dönüş). Bir görevi
 baştan tasarlarsan `rev` değerini artır: eski tasarım için kaydedilmiş program
 yeniden açılmaz, kazanılan yıldızlar kalır.
+
+Yan görevler `src/content/extras.js` içindedir: `secret(sektör, …)`, `alarm(sektör,
+yanındakiGörev, …)`, `fork(sektör, anaGörev, …)`. Alanları ana görevlerle aynıdır;
+denetçi ve testler onları da kapsar. Tahmin turunun soruları `src/content/predict.js`
+içindeki `ROUNDS` tablosundadır: her soru bir alan, bir program ve programın bittiği
+karedir (testler doğrular); program çıkışa varmamalı, alanın içinde bitmelidir.
+Görev bayrakları: `boss` (son korsan kaptandır), `dock` (çıkışta Atlas'ın kapısı),
+`library` (kitaplıktaki manevralar çağrılabilir), `params` (manevralar sayı alır).
 
 ## Üçüncü taraf
 
