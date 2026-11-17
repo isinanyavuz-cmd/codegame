@@ -385,6 +385,33 @@ button.node:not(.locked):active { transform: scale(.92); }
   .printsheet .certificate .cship svg { width: 96px; height: 96px; }
 }
 
+/* atölye: kareleri doldurarak görev kurma */
+.wk { display: flex; gap: 16px; justify-content: center; align-items: flex-start; margin: 4px 0 14px; text-align: left; }
+.wkgrid { --cell: max(20px, min(40px, calc((100vh - 350px) / var(--rows)))); flex: none; display: grid; grid-template-columns: repeat(var(--lanes), var(--cell)); gap: 3px; padding: 8px; border-radius: 14px; background: rgba(10, 16, 44, .7); border: 1px solid var(--line); }
+.wkc { width: var(--cell, 30px); height: var(--cell, 30px); border-radius: 8px; display: grid; place-items: center; background: rgba(255, 255, 255, .06); color: #cfd9ff; }
+.wkgrid .wkc:active { transform: scale(.9); }
+.wkc.base { background: rgba(55, 227, 154, .12); }
+.wkc svg { width: 62%; height: 62%; }
+.wkc .rock { width: 66%; height: 62%; border-radius: 42% 58% 50% 46% / 55% 45% 60% 40%; background: radial-gradient(circle at 35% 30%, #c3a48e, #7d6c68 70%); }
+.wkc .ring { width: 62%; height: 62%; border-radius: 50%; border: 3px solid #b786ff; box-shadow: 0 0 8px rgba(183, 134, 255, .8); }
+.wkc.pK { color: #58e6ff; } .wkc.pE { color: #4cffa4; } .wkc.pS { color: #fff; background: rgba(255, 213, 61, .2); }
+.wkc .foe { color: #ff4d6a; transform: rotate(180deg); }
+.wkside { width: 190px; display: flex; flex-direction: column; gap: 9px; }
+.wktools { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.wktools button { display: flex; align-items: center; gap: 6px; padding: 5px 7px; border-radius: 11px; font-size: 12.5px; font-weight: 700; background: rgba(255, 255, 255, .06); border: 2px solid transparent; }
+.wktools button.on { border-color: var(--now); background: rgba(255, 213, 61, .14); }
+.wktools .wkc { --cell: 28px; flex: none; }
+.wksize { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--soft); }
+.wksize span { flex: 1; } .wksize b { min-width: 22px; text-align: center; font-size: 16px; color: #fff; }
+.wksize button { width: 34px; height: 34px; border-radius: 10px; font-size: 20px; font-weight: 800; background: rgba(255, 255, 255, .1); }
+.wksize button:disabled { opacity: .3; }
+.wkmsg { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 1.3; color: #d7e0ff; }
+.wkmsg .robot { width: 38px; height: 38px; flex: none; animation: none; }
+.wklink { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.wklink input { width: 100%; height: 38px; padding: 0 9px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, .08); color: #fff; font: 600 12px ui-monospace, Menlo, monospace; -webkit-user-select: text; user-select: text; }
+.wklink .btn { height: 40px; font-size: 14px; justify-content: center; }
+.btn:disabled { opacity: .4; cursor: default; }
+
 /* ───────── rota ekranı: yıldız haritası ───────── */
 /* Hafif bir perde: arka plandaki büyük gezegen geri planda kalır, rota öne çıkar. */
 #map { overflow: auto; padding: 0 12px 104px; -webkit-overflow-scrolling: touch; background: rgba(7, 11, 34, .52); }
@@ -516,6 +543,7 @@ button.node:not(.locked):active { transform: scale(.92); }
   .pal { max-height: 105px; padding: 7px; }
   .crew { grid-template-columns: 1fr; } .dock button { min-width: 64px; font-size: 11px; }
   .hangar { flex-direction: column; } .hangar .preview { width: 130px; height: 130px; } .hangar .preview svg { width: 86px; height: 86px; }
+  .wk { flex-direction: column; align-items: center; } .wkside { width: 100%; max-width: 320px; } .wkgrid { --cell: max(20px, min(34px, calc((100vh - 520px) / var(--rows)))); }
   .palrow .blk { height: 30px; font-size: 12px; padding: 0 9px; }
   .brief .row { flex-wrap: wrap; }
 }

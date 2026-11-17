@@ -92,3 +92,20 @@ test('ilerleme kodu başka cihazda aynı kaydı kurar; bozuk kod kaydı değişt
   assert.equal(b.store.name, 'Çağrı');
   assert.deepEqual(b.store.crew(), ['ada']);
 });
+
+test('günün dalgası kayıtları: eski günler silinir, bugünkü ve ana görevler kalır; atölye tasarımı saklanır', async () => {
+  const { store, raw } = await load();
+  store.setProgram('gun-2026-11-16@1', [{ id: 'a', type: 'fwd' }]); store.setProgram('gun-2026-11-17@2', [{ id: 'b', type: 'fwd' }]); store.setProgram('1-1', [{ id: 'c', type: 'fwd' }]);
+  store.attempt('gun-2026-11-16', { won: true }); store.setBest('gun-2026-11-16', { blocks: 3 });
+  store.prune('gun-', 'gun-2026-11-17');
+  assert.deepEqual(Object.keys(raw().programs).sort(), ['1-1', 'gun-2026-11-17@2']);
+  assert.equal(store.tries('gun-2026-11-16'), null);
+  assert.equal(store.best('gun-2026-11-16'), null);
+  store.setDaily('2026-11-17', 2); store.setDaily('2026-11-17', 1); store.setDaily('2026-11-16', 3);
+  assert.equal(store.daily('2026-11-17'), 2);
+  assert.equal(store.dailyDays(), 2);
+  assert.equal(store.total(), 0, 'günlük yıldızlar ana toplama eklenmez');
+  assert.equal(store.workshop, null);
+  store.workshop = { lines: ['..S..'], par: 4, solved: true };
+  assert.deepEqual(raw().workshop, { lines: ['..S..'], par: 4, solved: true });
+});

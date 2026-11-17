@@ -14,7 +14,7 @@ import { ROUNDS } from './predict.js';
 
 /** Gizli görevin açılması için sektörde toplanması gereken yıldız (24 üzerinden). */
 export const SECRET_STARS = 20;
-export const EXTRA_LABEL = { gizli: 'GİZLİ GÖREV', acil: 'ACİL DURUM', catal: 'ÖTEKİ YOL', tahmin: 'TAHMİN TURU' };
+export const EXTRA_LABEL = { gizli: 'GİZLİ GÖREV', acil: 'ACİL DURUM', catal: 'ÖTEKİ YOL', tahmin: 'TAHMİN TURU', gunluk: 'GÜNÜN DALGASI', atolye: 'ATÖLYE' };
 const SUFFIX = { gizli: 'g', acil: 'a', tahmin: 't' };
 export const sectorStars = (store, sector) => levelsOf(sector).reduce((a, l) => a + store.stars(l.id), 0);
 

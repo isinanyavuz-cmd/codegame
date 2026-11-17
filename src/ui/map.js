@@ -9,6 +9,8 @@ import { CREW, BOTS, SHIP } from '../content/story.js';
 import { robot, face, miniBot } from './copilot.js';
 import { showCard, hideCard, makeCard } from './overlay.js';
 import { shipSvg } from './shipart.js';
+import { dailyLevel, dailyTier } from '../content/daily.js';
+import { dayOf } from '../storage.js';
 
 const $ = (id) => document.getElementById(id);
 const svg = (id, cls = '') => `<svg viewBox="0 0 32 32" class="${cls}"><use href="#${id}"/></svg>`;
@@ -18,8 +20,8 @@ const rich = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace
 const NS = 'http://www.w3.org/2000/svg';
 
 export class MapScreen {
-  constructor({ store, sfx, music, voice, hangar, onOpen }) {
-    Object.assign(this, { store, sfx, music, voice, hangar, onOpen });
+  constructor({ store, sfx, music, voice, hangar, workshop, onOpen }) {
+    Object.assign(this, { store, sfx, music, voice, hangar, workshop, onOpen });
     this.segs = []; this.shipLen = null; this.raf = 0;
     $('route').addEventListener('click', (e) => {
       const b = e.target.closest('[data-level]');
@@ -39,6 +41,8 @@ export class MapScreen {
     this.dock = [
       { id: 'crew', icon: 'i-crew', label: 'Mürettebat', run: () => this.showCrew() },
       { id: 'hangar', icon: 'i-ship', label: 'Hangar', run: () => { hangar.open(); this.renderDock(); }, badge: () => hangar.fresh() },
+      { id: 'daily', icon: 'i-sun', label: 'Günün Dalgası', run: () => this.openDaily(), badge: () => (store.daily(dayOf()) ? '' : '!') },
+      { id: 'workshop', icon: 'i-tool', label: 'Atölye', run: () => workshop.open() },
       { id: 'log', icon: 'i-book', label: 'Günlük', run: () => this.showLog() },
     ];
     $('dock').addEventListener('click', (e) => {
@@ -72,6 +76,13 @@ export class MapScreen {
       <ul class="crew">${people}</ul>
       <div class="bots"><small>BİP'İN ARKADAŞLARI · gizli görevlerde saklanıyorlar</small><div>${bots}</div></div>
       <div class="btns"><button class="btn primary" data-act="close">Tamam</button></div>`, () => { this.sfx.click(); hideCard(); }, 'wide'));
+  }
+
+  /** Günün dalgası: bugünün görevi, çocuğun vardığı yere uygun zorlukta. */
+  openDaily() {
+    const { store } = this, level = dailyLevel(dayOf(), dailyTier((id) => wonEither(store, findLevel(id))));
+    store.prune('gun-', level.id);
+    this.onOpen(level);
   }
 
   /** Kilitli gizli görev: nasıl açılacağını söyler. */

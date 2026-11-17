@@ -5,13 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#070b22">
 <title>Kod Pilotu</title>
-<link rel="stylesheet" href="css/style.css?v=476c8169">
-<meta name="surum" content="33721fb">
+<link rel="stylesheet" href="css/style.css?v=438c4719">
+<meta name="surum" content="4900a31">
 <script type="importmap">
 {
  "imports": {
   "./src/content/advanced.js": "./src/content/advanced.js?v=23f10a04",
-  "./src/content/extras.js": "./src/content/extras.js?v=1031b56a",
+  "./src/content/custom.js": "./src/content/custom.js?v=9d70aa19",
+  "./src/content/daily.js": "./src/content/daily.js?v=27823a56",
+  "./src/content/extras.js": "./src/content/extras.js?v=86dd2c0c",
   "./src/content/gen.js": "./src/content/gen.js?v=368a1598",
   "./src/content/hangar.js": "./src/content/hangar.js?v=a0240ee7",
   "./src/content/hints.js": "./src/content/hints.js?v=d989e36c",
@@ -23,20 +25,21 @@
   "./src/engine/blocks.js": "./src/engine/blocks.js?v=b74f7525",
   "./src/engine/rng.js": "./src/engine/rng.js?v=09b50631",
   "./src/engine/world.js": "./src/engine/world.js?v=bf63e0b0",
-  "./src/main.js": "./src/main.js?v=ce35601b",
+  "./src/main.js": "./src/main.js?v=89bb81f2",
   "./src/render/models.js": "./src/render/models.js?v=61728efe",
   "./src/render/themes.js": "./src/render/themes.js?v=285d926a",
   "./src/render/view.js": "./src/render/view.js?v=c4880048",
-  "./src/storage.js": "./src/storage.js?v=34ad32dd",
+  "./src/storage.js": "./src/storage.js?v=68ee13b4",
   "./src/ui/copilot.js": "./src/ui/copilot.js?v=514243d9",
   "./src/ui/editor.js": "./src/ui/editor.js?v=7a2120b4",
-  "./src/ui/game.js": "./src/ui/game.js?v=98d5cd82",
+  "./src/ui/game.js": "./src/ui/game.js?v=3e6ba6f9",
   "./src/ui/hangar.js": "./src/ui/hangar.js?v=0dd951e3",
-  "./src/ui/map.js": "./src/ui/map.js?v=5516ba7e",
+  "./src/ui/map.js": "./src/ui/map.js?v=2673d1ee",
   "./src/ui/overlay.js": "./src/ui/overlay.js?v=ab98ef4f",
   "./src/ui/sfx.js": "./src/ui/sfx.js?v=1e0d5a56",
   "./src/ui/shipart.js": "./src/ui/shipart.js?v=4c8f3755",
   "./src/ui/voice.js": "./src/ui/voice.js?v=d72eaa04",
+  "./src/ui/workshop.js": "./src/ui/workshop.js?v=bd59bd12",
   "./vendor/three.bundle.min.js": "./vendor/three.bundle.min.js?v=0622f3b8"
  }
 }
@@ -135,12 +138,14 @@
   <symbol id="i-crew" viewBox="0 0 32 32"><circle cx="11.500" cy="11" r="5" fill="none" stroke="currentColor" stroke-width="3.200"/><path d="M3 27c0-5 3.500-8 8.500-8s8.500 3 8.500 8" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linecap="round"/><circle cx="23" cy="9" r="3.600" fill="none" stroke="currentColor" stroke-width="2.800"/><path d="M24 17c3.500.500 5.500 3 5.500 7" fill="none" stroke="currentColor" stroke-width="2.800" stroke-linecap="round"/></symbol>
   <symbol id="i-ship" viewBox="0 0 32 32"><path d="M16 3c3.500 4 5 8.500 5 14v5H11v-5c0-5.500 1.500-10 5-14z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M11 15l-6 6v4l6-2M21 15l6 6v4l-6-2M13.500 26.500l2.500 3 2.500-3" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-count" viewBox="0 0 32 32"><path d="M12 5l-3 22M23 5l-3 22M5 12h23M4 20h23" fill="none" stroke="currentColor" stroke-width="3.400" stroke-linecap="round"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 32 32"><circle cx="16" cy="16" r="6" fill="none" stroke="currentColor" stroke-width="3.200"/><path d="M16 3v4M16 25v4M3 16h4M25 16h4M6.800 6.800l2.800 2.800M22.400 22.400l2.800 2.800M6.800 25.200l2.800-2.800M22.400 9.600l2.800-2.800" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></symbol>
+  <symbol id="i-tool" viewBox="0 0 32 32"><path d="M20 5l7 7-13 13H7v-7z" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linejoin="round"/><path d="M16.500 8.500l7 7M5 28h22" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linecap="round"/></symbol>
   <symbol id="i-eye" viewBox="0 0 32 32"><path d="M3 16c3.500-6 8-9 13-9s9.500 3 13 9c-3.500 6-8 9-13 9s-9.500-3-13-9z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><circle cx="16" cy="16" r="4.200" fill="currentColor"/></symbol>
   <symbol id="i-fork" viewBox="0 0 32 32"><path d="M16 28V17M16 17c0-6-7-5-7-12M16 17c0-6 7-5 7-12M5.500 9L9 5l3.500 4M19.500 9L23 5l3.500 4" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-radio" viewBox="0 0 32 32"><path d="M9 22a10 10 0 0 1 0-12M23 10a10 10 0 0 1 0 12M4.500 26a16 16 0 0 1 0-20M27.500 6a16 16 0 0 1 0 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="16" cy="16" r="3.500" fill="currentColor"/></symbol>
   <symbol id="i-trash" viewBox="0 0 32 32"><path d="M7 9h18M13 9V6h6v3M9.500 9l1 17h11l1-17" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
 
-<script type="module" src="src/main.js?v=ce35601b"></script>
+<script type="module" src="src/main.js?v=89bb81f2"></script>
 </body>
 </html>

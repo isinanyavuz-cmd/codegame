@@ -15,6 +15,7 @@ const fresh = () => ({
   log: [],          // kaptan günlüğü
   daily: {},        // günün dalgası: { 'YYYY-AA-GG': yıldız }
   name: '',         // pilotun adı (sertifika için)
+  workshop: null,   // atölyedeki tasarım: { lines, par, solved }
 });
 let data = fresh();
 try {
@@ -95,6 +96,16 @@ export const store = {
   daily: (day) => data.daily[day] || 0,
   dailyDays: () => Object.keys(data.daily).length,
   setDaily(day, n) { if (n > (data.daily[day] || 0)) { data.daily[day] = n; save(); } },
+
+  // ---------- atölye ----------
+  get workshop() { return data.workshop; },
+  set workshop(v) { data.workshop = v; save(); },
+  /** Günün dalgası her gün yeni bir kimlik alır; eski günlerin program, deneme ve rekor kayıtları silinir. */
+  prune(prefix, keep) {
+    let changed = false;
+    for (const bag of [data.programs, data.tries, data.best]) for (const k of Object.keys(bag)) if (k.startsWith(prefix) && k !== keep && !k.startsWith(`${keep}@`)) { delete bag[k]; changed = true; }
+    if (changed) save();
+  },
 
   // ---------- aktarma ----------
   /** İlerlemeyi başka cihaza taşımak için metin kodu. */

@@ -4,7 +4,8 @@ import { parseField, simulate, sense, hasMeteor, stars as calcStars, FAIL_TEXT }
 import { count, clone, pythonLines, sameBlocks, CONDS, EVENTS, FUNCTIONS } from '../engine/blocks.js';
 import { LEVELS, SECTORS, KINDS, levelsOf } from '../content/levels.js';
 import { EXTRAS, EXTRA_LABEL, SECRET_STARS, sectorStars, extrasOf } from '../content/extras.js';
-import { missing, skeleton, hintSteps } from '../content/hints.js';
+import { missing, skeleton } from '../content/hints.js';
+import { dayTitle } from '../content/daily.js';
 import { teaser, nearGoal, STORY, VILLAIN, crewOf, botOf } from '../content/story.js';
 import { rankOf } from '../content/ranks.js';
 import { choicesFor, LETTERS } from '../content/predict.js';
@@ -22,8 +23,8 @@ const IN_FLIGHT = ['meteor', 'wall', 'pirate', 'shield', 'energy', 'overflow', '
 const TONE = { bad: 'var(--bad)', ok: 'var(--ok)', info: '#8fa6e8' };
 
 export class Game {
-  constructor({ view, store, sfx, music, voice, hangar, onExit }) {
-    Object.assign(this, { view, store, sfx, music, voice, hangar, onExit });
+  constructor({ view, store, sfx, music, voice, hangar, workshop, onExit }) {
+    Object.assign(this, { view, store, sfx, music, voice, hangar, workshop, onExit });
     this.status = 'idle'; this.loopId = 0; this.current = Promise.resolve(); this.level = null; this.tab = 'blocks';
     this.editor = new Editor({
       ws: $('ws'), pal: $('pal'), pop: $('pop'),
@@ -68,8 +69,11 @@ export class Game {
     $('game').dataset.mode = level.tahmin ? 'tahmin' : '';
     $('quizBar').hidden = !this.quiz; $('picks').replaceChildren();
     $('game').hidden = false;
-    $('sectorNo').textContent = `SEKTÖR ${sector.id}`; $('sectorName').textContent = sector.name;
-    $('missionNo').textContent = level.extra ? EXTRA_LABEL[level.extra] : `GÖREV ${level.n} / 8`; $('conceptChip').textContent = sector.concept;
+    // Serbest görevler (günün dalgası, atölye) bir sektöre bağlı değildir: şerit gizlenir, başlık görevin adıdır.
+    $('sectorNo').textContent = level.free ? EXTRA_LABEL[level.extra] : `SEKTÖR ${sector.id}`;
+    $('sectorName').textContent = level.extra === 'gunluk' ? dayTitle(level.day) : level.free ? level.title : sector.name;
+    $('track').hidden = !!level.free;
+    $('missionNo').textContent = level.extra ? EXTRA_LABEL[level.extra] : `GÖREV ${level.n} / 8`; $('conceptChip').textContent = level.chip || sector.concept;
     $('panel').dataset.extra = level.extra || '';
     $('missionTitle').textContent = level.title; $('missionText').innerHTML = rich(level.brief);
     this.renderTrack();
@@ -90,11 +94,12 @@ export class Game {
     this.view.enter();
     this.renderRecord();
     if (this.quiz) this.askRound();
-    history.replaceState(null, '', `#${level.id}`);
+    history.replaceState(null, '', `#${level.hash ?? level.id}`);
     if (level.n === 1 && !this.store.introSeen(sector.id)) this.showStory(sector, () => this.showIntro(sector));
     else {
       this.voice.say(`${level.title}. ${level.brief}`);
-      if (this.lib) this.showToast('', `Kitaplığında **${Object.keys(this.lib).map((n) => FUNCTIONS[n].label).join(', ')}** var.`, { sub: 'Tanımlamadan çağırabilirsin: paletteki kitap işaretli bloğa dokun.', mood: 'happy', quiet: true });
+      if (level.extra === 'gunluk' && !this.store.daily(level.day)) this.showToast('', 'Her gün yeni bir dalga!', { sub: 'Bugünün yıldızları ayrı sayılır; yarın yenisi gelir.', mood: 'happy', quiet: true });
+      else if (this.lib) this.showToast('', `Kitaplığında **${Object.keys(this.lib).map((n) => FUNCTIONS[n].label).join(', ')}** var.`, { sub: 'Tanımlamadan çağırabilirsin: paletteki kitap işaretli bloğa dokun.', mood: 'happy', quiet: true });
     }
   }
 
@@ -109,12 +114,12 @@ export class Game {
   /** Dalganın alanını sahneye kurar; görev daha önce geçildiyse rekor uçuşun izi de çizilir. */
   setScene(i, extra = {}) {
     this.view.setField(this.fields[i], this.stage(extra));
-    this.view.setTrail(this.store.best(this.level.id)?.paths?.[i] || null);
+    this.view.setTrail(this.level.free ? null : this.store.best(this.level.id)?.paths?.[i] || null);
   }
 
   /** Rekor rozeti: bu görevi en az kaç blokla geçtin. */
   renderRecord() {
-    const el = $('record'), best = this.store.best(this.level.id);
+    const el = $('record'), best = this.level.free ? null : this.store.best(this.level.id);
     el.hidden = !best;
     if (best) el.innerHTML = `<i></i>rekor <b>${best.blocks}</b> blok`;
   }
@@ -191,7 +196,7 @@ export class Game {
     const n = count(this.editor.program), { maxBlocks, par } = this.level;
     const el = $('counter');
     el.classList.toggle('full', n >= maxBlocks);
-    el.innerHTML = `<span><b>${n}</b> / ${maxBlocks} blok</span><span class="goal ${n > 0 && n <= par ? 'lit' : ''}">${svg('i-star')}en çok ${par}</span>`;
+    el.innerHTML = `<span><b>${n}</b> / ${maxBlocks} blok</span>${par ? `<span class="goal ${n > 0 && n <= par ? 'lit' : ''}">${svg('i-star')}en çok ${par}</span>` : ''}`;
     $('undoBtn').disabled = !this.editor.history.length;
     if (this.tab === 'python') this.renderPython();
   }
@@ -585,7 +590,7 @@ export class Game {
   lap() { const now = performance.now(), ms = now - this.clock; this.clock = now; return ms; }
 
   /** Bu görevin ipucu cümleleri; son basamak (iskelet) ayrı bir kartta gösterilir. */
-  hintLines() { return [this.level.hint, missing(this.level, this.editor.program)].filter(Boolean); }
+  hintLines() { return [this.level.hint, this.level.solution ? missing(this.level, this.editor.program) : null].filter(Boolean); }
 
   /**
    * Başarısızlık balonu. Bip önce ne olduğunu söyler; düğmeye basıldıkça ipucu bir basamak
@@ -593,17 +598,17 @@ export class Game {
    * sonraya bırakmayı da.
    */
   showFailure() {
-    const { level } = this, streak = this.store.tries(level.id)?.streak || 0, lines = this.hintLines(), steps = hintSteps(level);
+    const { level } = this, streak = this.store.tries(level.id)?.streak || 0, lines = this.hintLines();
     const sub = this.hintStep > 0 ? lines[Math.min(this.hintStep, lines.length) - 1] : this.failure.sub || (streak >= 3 ? 'Birkaç kez denedin. İstersen bir ipucu vereyim.' : '');
-    const label = this.hintStep === 0 ? 'İpucu' : this.hintStep >= steps - 1 ? 'İskeleti göster' : 'Bir ipucu daha';
-    const buttons = [{ label, cls: streak >= 3 && this.hintStep === 0 ? 'nudge' : '', onClick: () => this.nextHint() }];
+    // Sıradaki basamak: önce cümleler, en sonda (örnek çözüm varsa) iskelet. Basamak kalmadıysa düğme de yoktur.
+    const label = this.hintStep < lines.length ? (this.hintStep === 0 ? 'İpucu' : 'Bir ipucu daha') : level.solution ? 'İskeleti göster' : null;
+    const buttons = label ? [{ label, cls: streak >= 3 && this.hintStep === 0 ? 'nudge' : '', onClick: () => this.nextHint() }] : [];
     if (streak >= 5 && this.canSkip()) buttons.push({ label: 'Sonraya bırak', onClick: () => this.skip() });
     this.showToast('bad', this.failure.text, { sub, buttons, mood: this.hintStep ? 'think' : 'sad' });
   }
 
   nextHint() {
-    const steps = hintSteps(this.level);
-    if (this.hintStep >= steps - 1) { this.hintStep = steps; this.showSkeleton(); return; }
+    if (this.hintStep >= this.hintLines().length) { this.showSkeleton(); return; }
     this.hintStep++; this.showFailure();
   }
 
@@ -642,7 +647,49 @@ export class Game {
     setTimeout(() => el.remove(), 1000);
   }
 
+  /**
+   * Serbest görevin (günün dalgası, atölye) sonucu. Yıldızlar ana toplama eklenmez:
+   * günün dalgası kendi sayacına yazılır, atölyede çözüm görevi paylaşılabilir kılar.
+   */
+  finishFree() {
+    const { level, store } = this, blocks = count(this.editor.program), daily = level.extra === 'gunluk';
+    // Kuranın henüz çözmediği görevde blok hedefi yoktur: yıldızlar geçiş ve kristallerdir.
+    const got = level.par ? calcStars(this.results, blocks, level.par) : Math.min(2, calcStars(this.results, blocks, Infinity));
+    store.attempt(level.id, { won: true, ms: this.lap() });
+    this.setStatus('won');
+    const total = this.results.reduce((a, r) => a + r.total, 0), collected = this.results.reduce((a, r) => a + r.collected, 0);
+    const checks = [
+      ['Çıkışa ulaştın', true],
+      total ? [`Kristaller: ${collected} / ${total}`, collected === total] : null,
+      level.par ? [blocks <= level.par ? `En çok ${level.par} blok kullandın` : `${blocks} blok kullandın (hedef ${level.par})`, blocks <= level.par] : [`${blocks} blokla çözdün`, true],
+    ].filter(Boolean);
+    let title = got === 3 ? 'Kusursuz uçuş!' : 'Görev tamam!', hooks = [];
+    if (daily) {
+      store.setDaily(level.day, got);
+      hooks = [`Bugüne kadar **${store.dailyDays()}** günün dalgasını geçtin.`, 'Yarın yeni bir dalga seni bekliyor.'];
+    } else if (level.own) {
+      this.workshop.solved(level.waves[0], blocks);
+      title = 'Görevin çözülüyor!'; hooks = ['Artık atölyeden **paylaşabilirsin**: bağlantıyı alan herkes görevini oynar.'];
+    } else { title = 'Arkadaşının görevini geçtin!'; hooks = ['Sen de atölyede kendi görevini kurabilirsin.']; }
+    const card = makeCard(`
+      <div class="who">${robot(got === 3 ? 'wow' : 'happy')}<span class="tag">${EXTRA_LABEL[level.extra]}</span></div><h1>${title}</h1>
+      <div class="bigstars">${[1, 2, 3].map((i) => svg('i-star', i <= got ? 'lit' : '')).join('')}</div>
+      <ul class="checks">${checks.map(([t, ok]) => `<li class="${ok ? '' : 'no'}">${svg(ok ? 'i-check' : 'i-cross')}${t}</li>`).join('')}</ul>
+      <div class="hooks">${hooks.map((h) => `<p>${rich(h)}</p>`).join('')}</div>
+      <div class="btns"><button class="btn" data-act="again">${svg('i-undo')}Tekrar</button>${daily ? '' : `<button class="btn" data-act="workshop">${level.own ? 'Atölyeye dön' : 'Ben de kurayım'}</button>`}<button class="btn primary" data-act="map">Rota</button></div>`, (act) => {
+      this.sfx.click(); this.hideOverlay();
+      if (act === 'again') { this.showWave(0); return; }
+      this.close();
+      if (act === 'workshop') this.workshop.open();
+    });
+    this.showOverlay(card);
+    for (let i = 0; i < got; i++) setTimeout(() => this.sfx.star(i), 250 + i * 180);
+    if (got === 3) confetti();
+    this.voice.say(`${title} ${hooks.join(' ')}`);
+  }
+
   finish() {
+    if (this.level.free) return this.finishFree();
     const { level, store } = this, blocks = count(this.editor.program);
     const got = calcStars(this.results, blocks, level.par);
     const before = store.stars(level.id), first = before === 0;
@@ -725,7 +772,7 @@ export class Game {
 
   /** Bu görevden sonra gidilecek ana görev (acil durumda: yanında durduğu görevin sonraki). Gizli görevden rotaya dönülür. */
   nextOf(level) {
-    if (level.extra === 'gizli') return null;
+    if (level.extra === 'gizli' || level.free) return null;
     const main = level.extra ? LEVELS.find((l) => l.id === level.after) : level;
     return LEVELS[main.index + 1] || null;
   }
