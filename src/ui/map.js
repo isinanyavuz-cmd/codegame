@@ -2,9 +2,11 @@
 // görevler gezegenler arasındaki yolun üstünde düğümdür. Gemi sıradaki görevin
 // önünde durur; bir görev geçilince yol boyunca yeni yerine uçar.
 import { LEVELS, SECTORS, levelsOf, levelById } from '../content/levels.js';
+import { ALL_LEVELS, EXTRA_LABEL, SECRET_STARS, extrasOf, findLevel, sectorStars } from '../content/extras.js';
 import { rankOf } from '../content/ranks.js';
 import { groupLog, welcome } from '../content/logbook.js';
-import { robot } from './copilot.js';
+import { CREW, BOTS, SHIP } from '../content/story.js';
+import { robot, face, miniBot } from './copilot.js';
 import { showCard, hideCard, makeCard } from './overlay.js';
 
 const $ = (id) => document.getElementById(id);
@@ -13,7 +15,7 @@ const svg = (id, cls = '') => `<svg viewBox="0 0 32 32" class="${cls}"><use href
 const SURUM = document.querySelector('meta[name="surum"]')?.content || '';
 const rich = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 const NS = 'http://www.w3.org/2000/svg';
-const SHIP = `<svg viewBox="-24 -24 48 48"><path class="flame" d="M-7 13L-4.500 27-2 13zM2 13l2.500 14L7 13z"/><path d="M0-21C3.500-15 5-7 5 3v9h-10V3c0-10 1.500-18 5-24z" fill="#e6ecf7"/><path d="M-5-2L-21 11v5l16-3zM5-2l16 13v5L5 13z" fill="#dfe6f3"/><path d="M-21 11v5l6-1.200V7zM21 11v5l-6-1.200V7z" fill="#ff6a2b"/><ellipse cx="0" cy="-6" rx="2.300" ry="5.500" fill="#2fc8ff"/></svg>`;
+const SHIP_ICON = `<svg viewBox="-24 -24 48 48"><path class="flame" d="M-7 13L-4.500 27-2 13zM2 13l2.500 14L7 13z"/><path d="M0-21C3.500-15 5-7 5 3v9h-10V3c0-10 1.500-18 5-24z" fill="#e6ecf7"/><path d="M-5-2L-21 11v5l16-3zM5-2l16 13v5L5 13z" fill="#dfe6f3"/><path d="M-21 11v5l6-1.200V7zM21 11v5l-6-1.200V7z" fill="#ff6a2b"/><ellipse cx="0" cy="-6" rx="2.300" ry="5.500" fill="#2fc8ff"/></svg>`;
 
 export class MapScreen {
   constructor({ store, sfx, music, voice, onOpen }) {
@@ -21,8 +23,10 @@ export class MapScreen {
     this.segs = []; this.shipLen = null; this.raf = 0;
     $('route').addEventListener('click', (e) => {
       const b = e.target.closest('[data-level]');
-      if (!b || b.classList.contains('locked')) return;
-      sfx.click(); onOpen(LEVELS.find((l) => l.id === b.dataset.level));
+      if (!b) return;
+      const level = findLevel(b.dataset.level);
+      if (b.classList.contains('locked')) { if (level.extra === 'gizli') { sfx.click(); this.showSecret(level); } return; }
+      sfx.click(); onOpen(level);
     });
     $('soundBtn').addEventListener('click', () => { store.sound = !store.sound; sfx.enabled = store.sound; this.renderToggles(); sfx.click(); });
     $('musicBtn').addEventListener('click', () => { store.music = !store.music; music.enabled = store.music; this.renderToggles(); sfx.click(); });
@@ -31,7 +35,15 @@ export class MapScreen {
       store.voice = !store.voice; voice.enabled = store.voice; this.renderToggles(); sfx.click();
       if (store.voice) voice.say('Sesli okuma açık. Görevleri sana ben okuyacağım.');
     });
-    $('logBtn').addEventListener('click', () => { sfx.click(); this.showLog(); });
+    // Köprü: rota ekranının altındaki çubuk. Yeni ekranlar buraya eklenir.
+    this.dock = [
+      { id: 'crew', icon: 'i-crew', label: 'Mürettebat', run: () => this.showCrew() },
+      { id: 'log', icon: 'i-book', label: 'Günlük', run: () => this.showLog() },
+    ];
+    $('dock').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-dock]'), item = b && this.dock.find((d) => d.id === b.dataset.dock);
+      if (item) { sfx.click(); item.run(); }
+    });
     let timer = 0;
     window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(() => { if (!$('map').hidden) this.render(false); }, 150); });
     this.renderToggles();
@@ -41,6 +53,32 @@ export class MapScreen {
     $('soundBtn').classList.toggle('off', !this.store.sound);
     $('musicBtn').classList.toggle('off', !this.store.music);
     $('voiceBtn').classList.toggle('off', !this.store.voice);
+  }
+
+  renderDock() {
+    $('dock').innerHTML = this.dock.map((d) => `<button data-dock="${d.id}">${svg(d.icon)}<span>${d.label}</span>${d.badge?.() ? `<i>${d.badge()}</i>` : ''}</button>`).join('');
+  }
+
+  /** Mürettebat: kurtarılanlar yüzleri ve sözleriyle, ötekiler siluet olarak. */
+  showCrew() {
+    const { store } = this;
+    const people = CREW.map((c) => (store.hasCrew(c.id)
+      ? `<li>${face(c.hue)}<div><b>${c.name}</b><small>${c.role}</small><p>“${c.line}”</p></div></li>`
+      : `<li class="lost">${face(c.hue, { lost: true })}<div><b>Kayıp</b><small>${c.sector}. sektörün finalinde</small></div></li>`)).join('');
+    const bots = BOTS.map((b) => (store.hasCrew(b.id) ? `<span>${miniBot(b.hue)}<b>${b.name}</b></span>` : `<span class="lost">${miniBot(0, { lost: true })}<b>?</b></span>`)).join('');
+    const found = CREW.filter((c) => store.hasCrew(c.id)).length;
+    showCard(makeCard(`<span class="tag">${SHIP.toLocaleUpperCase('tr')} MÜRETTEBATI · ${found} / ${CREW.length}</span><h1>Köprü</h1>
+      <ul class="crew">${people}</ul>
+      <div class="bots"><small>BİP'İN ARKADAŞLARI · gizli görevlerde saklanıyorlar</small><div>${bots}</div></div>
+      <div class="btns"><button class="btn primary" data-act="close">Tamam</button></div>`, () => { this.sfx.click(); hideCard(); }, 'wide'));
+  }
+
+  /** Kilitli gizli görev: nasıl açılacağını söyler. */
+  showSecret(level) {
+    const got = sectorStars(this.store, level.sector), name = SECTORS.find((x) => x.id === level.sector).name;
+    showCard(makeCard(`<div class="who">${robot('think')}<span class="tag">${EXTRA_LABEL.gizli}</span></div><h1>Burada bir şey saklı…</h1>
+      <p><b>${name}</b> sektöründe <b>${SECRET_STARS} yıldız</b> toplarsan bu gizli görev açılır. Şu an ${got} yıldızın var.</p>
+      <div class="btns"><button class="btn primary" data-act="close">Tamam</button></div>`, () => { this.sfx.click(); hideCard(); }));
   }
 
   show() {
@@ -91,7 +129,8 @@ export class MapScreen {
   // ---------- yerleşim ----------
   render(travel) {
     const { store } = this, route = $('route'), total = store.total();
-    $('totalStars').textContent = total; $('maxStars').textContent = `/ ${LEVELS.length * 3}`;
+    $('totalStars').textContent = total; $('maxStars').textContent = `/ ${ALL_LEVELS.length * 3}`;
+    this.renderDock();
     $('rank').textContent = rankOf(total);
 
     const W = Math.min(1040, $('map').clientWidth - 24), narrow = W < 660;
@@ -145,10 +184,29 @@ export class MapScreen {
         const stars = locked ? '' : [1, 2, 3].map((n) => svg('i-star', n <= st ? 'lit' : '')).join('');
         html.push(`<div class="mn" style="left:${p.x}px;top:${p.y}px"><button class="${cls}" data-level="${l.id}" title="${l.title}" aria-label="Görev ${l.id}: ${l.title}">${inner}</button><div class="mstars">${stars}</div></div>`);
       });
+      // Yan görevler: bağlı oldukları ana görevin yanında, yoldan dışarıda durur.
+      for (const x of extrasOf(s.id)) {
+        const at = lenOf.get(x.after), unlocked = store.isUnlocked(x, LEVELS);
+        // Gizli görev sektör açılınca kilitli görünür (hedef olsun); acil durum açılmadan görünmez.
+        if (at === undefined || !open || (x.extra === 'acil' && !unlocked)) continue;
+        const p = this.pointAt(at), q = this.pointAt(at + 3), len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+        const tx = (q.x - p.x) / len, ty = (q.y - p.y) / len, toCentre = Math.sign(W / 2 - p.x) || 1;
+        // Yola dik iki yönden yukarı ve haritanın ortasına bakanı seçilir: gezegen etiketlerine değmesin.
+        const score = (nx, ny) => ny - toCentre * nx * 0.6;
+        const [nx, ny] = score(-ty, tx) < score(ty, -tx) ? [-ty, tx] : [ty, -tx], D = narrow ? 54 : 66;
+        const sx = p.x + nx * D, sy = p.y + ny * D, st = store.stars(x.id);
+        const line = document.createElementNS(NS, 'line');
+        line.setAttribute('class', 'rside'); line.setAttribute('x1', p.x); line.setAttribute('y1', p.y); line.setAttribute('x2', sx); line.setAttribute('y2', sy);
+        root.append(line);
+        const cls = ['node', st ? 'done' : '', unlocked ? '' : 'locked'].join(' ');
+        const inner = !unlocked ? svg('i-lock') : x.extra === 'gizli' ? '?' : '!';
+        const under = unlocked ? `<div class="mstars">${[1, 2, 3].map((n) => svg('i-star', n <= st ? 'lit' : '')).join('')}</div>` : `<small>${SECRET_STARS}${svg('i-star')}</small>`;
+        html.push(`<div class="mn side ${x.extra}" style="left:${sx}px;top:${sy}px"><button class="${cls}" data-level="${x.id}" title="${x.title}" aria-label="${EXTRA_LABEL[x.extra]}: ${x.title}">${inner}</button>${under}</div>`);
+      }
     });
     const last = sectors.length;
     html.push(`<div class="nova" style="left:${xs(last)}px;top:${ys[last]}px"><i></i><div><small>HEDEF GEZEGEN</small><b>NOVA</b></div></div>`);
-    html.push(`<div class="shipmark" id="shipmark">${SHIP}${cur ? `<span>Sıradaki: <b>${cur.title}</b></span>` : ''}</div>`);
+    html.push(`<div class="shipmark" id="shipmark">${SHIP_ICON}${cur ? `<span>Sıradaki: <b>${cur.title}</b></span>` : ''}</div>`);
     html.push(`<p class="mapfoot" style="top:${H - 46}px">Her sektör yeni bir kodlama kavramı öğretir. Bir görevi geçince sıradaki açılır.${SURUM ? ` · sürüm ${SURUM}` : ''}</p>`);
     route.insertAdjacentHTML('beforeend', html.join(''));
 

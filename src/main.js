@@ -5,7 +5,9 @@ import { MapScreen } from './ui/map.js';
 import { sfx, music } from './ui/sfx.js';
 import { voice } from './ui/voice.js';
 import { store } from './storage.js';
-import { LEVELS, levelById } from './content/levels.js';
+import { LEVELS } from './content/levels.js';
+import { findLevel } from './content/extras.js';
+import { CREW, BOTS } from './content/story.js';
 
 async function boot() {
   try { await Promise.all(['500', '700', '800'].map((w) => document.fonts.load(`${w} 20px "Exo 2"`, 'ÇIKIŞ ğşı'))); } catch (e) { /* yedek yazı tipiyle devam */ }
@@ -21,7 +23,11 @@ async function boot() {
   let timer = 0;
   window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(() => { view.resize(); game.layout(); }, 120); });
 
-  const fromHash = levelById(location.hash.slice(1));
+  // Bu özellikten önce geçilmiş finallerin mürettebatı da gemide sayılır.
+  for (const c of CREW) if (store.stars(`${c.sector}-8`) > 0) store.rescue(c.id);
+  for (const b of BOTS) if (store.stars(`${b.sector}-g`) > 0) store.rescue(b.id);
+
+  const fromHash = findLevel(location.hash.slice(1));
   if (fromHash && store.isUnlocked(fromHash, LEVELS)) { music.mood('game'); game.open(fromHash); } else map.show();
   window.__kp = { view, game, map, store };
 }

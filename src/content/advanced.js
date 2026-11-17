@@ -1,14 +1,14 @@
 // Sektör 4–8: her görevde yeni kavramı kullanan, oynanarak doğrulanan rotalar.
 import { F, L, R, rep, forever, ifelse, until, on, shield, setEnergy, addEnergy, define, call, count, CONTAINERS } from '../engine/blocks.js';
 
-const MOVES = ['fwd', 'left', 'right'];
-const LOOPS = [...MOVES, 'repeat', 'forever', 'ifelse', 'until'];
-const EVENT_TOOLS = [...LOOPS, 'on', 'shield'];
-const ENERGY_TOOLS = [...EVENT_TOOLS, 'setEnergy', 'addEnergy'];
-const ALL_TOOLS = [...ENERGY_TOOLS, 'define', 'call'];
-const SENSORS = ['ahead', 'rightFree', 'leftFree'];
-const cruise = () => forever(F());
-const steer = () => ifelse('ahead', [ifelse('rightFree', [R()], [L()])], [F()]);
+export const MOVES = ['fwd', 'left', 'right'];
+export const LOOPS = [...MOVES, 'repeat', 'forever', 'ifelse', 'until'];
+export const EVENT_TOOLS = [...LOOPS, 'on', 'shield'];
+export const ENERGY_TOOLS = [...EVENT_TOOLS, 'setEnergy', 'addEnergy'];
+export const ALL_TOOLS = [...ENERGY_TOOLS, 'define', 'call'];
+export const SENSORS = ['ahead', 'rightFree', 'leftFree'];
+export const cruise = () => forever(F());
+export const steer = () => ifelse('ahead', [ifelse('rightFree', [R()], [L()])], [F()]);
 const steerAnd = () => ifelse('aheadAndRightFree', [R()], [F()]);
 // İki ayrı sebep, tek hareket: mor halkada da meteor görünce de sağa kaç.
 const steerOr = () => ifelse('atBeaconOrAhead', [R()], [F()]);
@@ -17,7 +17,7 @@ const steerOr = () => ifelse('atBeaconOrAhead', [R()], [F()]);
 // Büyük harfli kaçışın (L, R) önüne meteor konur; böylece sensör gözle görünen engeli okur.
 // Kaçılmayan yan da kapatılır: tek yöne kaçan program geçemez, iki yana da bakan geçer.
 // Küçük harf (l, r) meteorsuz dönüştür: sensörlerin göremediği, mor halkanın haber verdiği dönüş.
-function route(path, { start = 2, lanes = 5, beacons = [], pirates = [], energy = [], crystals = [], extra = [] } = {}) {
+export function route(path, { start = 2, lanes = 5, beacons = [], pirates = [], energy = [], crystals = [], extra = [] } = {}) {
   const board = Array.from({ length: path.length }, () => Array(lanes).fill('.'));
   const positions = [start];
   for (let y = 1; y < path.length; y++) {
@@ -61,14 +61,14 @@ const GATE = [[0, 5], [2, 5], [3, 5], [4, 5], [0, 7]];
 // Son dalgada geçitten çıkınca sol yan kapalı, sağ yan çıkmaz sokaktır: meteor yokken de
 // kaçan (hep çapraz giden ya da boş buldukça sağa kayan) program orada çarpar.
 const wallRoutes = [['FRLFFrRRLFFF', []], ['FLRFFrRLFRFF', []], ['RFLFFrRFLRFF', [[2, 8]]]];
-const wallWaves = (options = {}) => wallRoutes.map(([p, sides]) => route(p, { start: 1, beacons: [5], extra: [...GATE, ...sides], ...options }));
+export const wallWaves = (options = {}) => wallRoutes.map(([p, sides]) => route(p, { start: 1, beacons: [5], extra: [...GATE, ...sides], ...options }));
 
 /**
  * Görev tanımını tamamlar: hedef blok sayısı örnek çözümden, palet çözümde ve hazır programda
  * geçen bloklardan çıkar. `rev`, görev baştan tasarlandığında artırılır; eski tasarım için
  * kaydedilmiş program yeniden açılmaz (bkz. levels.js, saveKey).
  */
-function mission(options) {
+export function mission(options) {
   const solution = options.solution(), par = count(solution), types = new Set(MOVES);
   const visit = (list) => { for (const b of list) { types.add(b.type); for (const key of CONTAINERS[b.type] || []) visit(b[key]); } };
   visit(solution);

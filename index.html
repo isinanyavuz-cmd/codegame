@@ -5,33 +5,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#070b22">
 <title>Kod Pilotu</title>
-<link rel="stylesheet" href="css/style.css?v=b7c0517c">
-<meta name="surum" content="978834b">
+<link rel="stylesheet" href="css/style.css?v=3af83b70">
+<meta name="surum" content="ab85c3a">
 <script type="importmap">
 {
  "imports": {
-  "./src/content/advanced.js": "./src/content/advanced.js?v=13869f73",
-  "./src/content/extras.js": "./src/content/extras.js?v=4ebd2df9",
+  "./src/content/advanced.js": "./src/content/advanced.js?v=532f3eab",
+  "./src/content/extras.js": "./src/content/extras.js?v=817cb9e0",
   "./src/content/gen.js": "./src/content/gen.js?v=368a1598",
   "./src/content/hints.js": "./src/content/hints.js?v=d989e36c",
   "./src/content/levels.js": "./src/content/levels.js?v=5ef62d20",
   "./src/content/logbook.js": "./src/content/logbook.js?v=6b617bdb",
   "./src/content/ranks.js": "./src/content/ranks.js?v=4a7c597a",
-  "./src/content/story.js": "./src/content/story.js?v=4d68c599",
+  "./src/content/story.js": "./src/content/story.js?v=8ee94c79",
   "./src/engine/blocks.js": "./src/engine/blocks.js?v=80fb3aef",
   "./src/engine/rng.js": "./src/engine/rng.js?v=09b50631",
   "./src/engine/world.js": "./src/engine/world.js?v=0fe9400e",
-  "./src/main.js": "./src/main.js?v=1cda4c08",
+  "./src/main.js": "./src/main.js?v=76780532",
   "./src/render/models.js": "./src/render/models.js?v=95aa8aed",
   "./src/render/themes.js": "./src/render/themes.js?v=285d926a",
   "./src/render/view.js": "./src/render/view.js?v=ac074942",
   "./src/storage.js": "./src/storage.js?v=34ad32dd",
-  "./src/ui/copilot.js": "./src/ui/copilot.js?v=a3d8cf6a",
+  "./src/ui/copilot.js": "./src/ui/copilot.js?v=514243d9",
   "./src/ui/editor.js": "./src/ui/editor.js?v=99dff86c",
-  "./src/ui/game.js": "./src/ui/game.js?v=f5e62c57",
-  "./src/ui/map.js": "./src/ui/map.js?v=9f873812",
+  "./src/ui/game.js": "./src/ui/game.js?v=0bdaa57a",
+  "./src/ui/map.js": "./src/ui/map.js?v=08ff38fe",
   "./src/ui/overlay.js": "./src/ui/overlay.js?v=ab98ef4f",
-  "./src/ui/sfx.js": "./src/ui/sfx.js?v=01495db3",
+  "./src/ui/sfx.js": "./src/ui/sfx.js?v=10f788df",
   "./src/ui/voice.js": "./src/ui/voice.js?v=d72eaa04",
   "./vendor/three.bundle.min.js": "./vendor/three.bundle.min.js?v=0622f3b8"
  }
@@ -48,13 +48,13 @@
     <div class="mapstats">
       <div class="rank glass"><small>RÜTBE</small><b id="rank">Çaylak Pilot</b></div>
       <div class="total glass"><svg viewBox="0 0 32 32"><use href="#i-star"/></svg><b id="totalStars">0</b><span id="maxStars">/ 72</span></div>
-      <button class="iconbtn" id="logBtn" aria-label="Kaptan günlüğü"><svg viewBox="0 0 32 32"><use href="#i-book"/></svg></button>
       <button class="iconbtn" id="voiceBtn" aria-label="Sesli okuma"><svg viewBox="0 0 32 32"><use href="#i-speak"/></svg></button>
       <button class="iconbtn" id="musicBtn" aria-label="Müzik"><svg viewBox="0 0 32 32"><use href="#i-music"/></svg></button>
       <button class="iconbtn" id="soundBtn" aria-label="Ses efektleri"><svg viewBox="0 0 32 32"><use href="#i-sound"/></svg></button>
     </div>
   </header>
   <div class="route" id="route"></div>
+  <nav class="dock glass" id="dock" aria-label="Köprü"></nav>
 </section>
 
 <!-- Görev ekranı -->
@@ -125,9 +125,11 @@
   <symbol id="i-gem" viewBox="0 0 32 32"><path d="M16 3l9.500 11L16 29 6.500 14z" fill="currentColor"/></symbol>
   <symbol id="i-speak" viewBox="0 0 32 32"><path d="M5 6h22v15H16l-6.500 5.500V21H5z" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linejoin="round"/><path d="M11 12h10M11 16.500h6" fill="none" stroke="currentColor" stroke-width="2.800" stroke-linecap="round"/></symbol>
   <symbol id="i-book" viewBox="0 0 32 32"><path d="M16 9c-2.500-2-6-3-11-3v18c5 0 8.500 1 11 3 2.500-2 6-3 11-3V6c-5 0-8.500 1-11 3zM16 9v18" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linejoin="round"/></symbol>
+  <symbol id="i-crew" viewBox="0 0 32 32"><circle cx="11.500" cy="11" r="5" fill="none" stroke="currentColor" stroke-width="3.200"/><path d="M3 27c0-5 3.500-8 8.500-8s8.500 3 8.500 8" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linecap="round"/><circle cx="23" cy="9" r="3.600" fill="none" stroke="currentColor" stroke-width="2.800"/><path d="M24 17c3.500.500 5.500 3 5.500 7" fill="none" stroke="currentColor" stroke-width="2.800" stroke-linecap="round"/></symbol>
+  <symbol id="i-radio" viewBox="0 0 32 32"><path d="M9 22a10 10 0 0 1 0-12M23 10a10 10 0 0 1 0 12M4.500 26a16 16 0 0 1 0-20M27.500 6a16 16 0 0 1 0 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="16" cy="16" r="3.500" fill="currentColor"/></symbol>
   <symbol id="i-trash" viewBox="0 0 32 32"><path d="M7 9h18M13 9V6h6v3M9.500 9l1 17h11l1-17" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
 
-<script type="module" src="src/main.js?v=1cda4c08"></script>
+<script type="module" src="src/main.js?v=76780532"></script>
 </body>
 </html>

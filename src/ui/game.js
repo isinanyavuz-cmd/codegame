@@ -3,10 +3,11 @@
 import { parseField, simulate, sense, hasMeteor, stars as calcStars, FAIL_TEXT } from '../engine/world.js';
 import { count, clone, toPython, CONDS, EVENTS, FUNCTIONS } from '../engine/blocks.js';
 import { LEVELS, SECTORS, KINDS, levelsOf } from '../content/levels.js';
+import { EXTRAS, EXTRA_LABEL, SECRET_STARS, sectorStars, extrasOf } from '../content/extras.js';
 import { missing, skeleton, hintSteps } from '../content/hints.js';
-import { teaser, nearGoal } from '../content/story.js';
+import { teaser, nearGoal, STORY, VILLAIN, crewOf, botOf } from '../content/story.js';
 import { Editor, renderBlock, hatBlock } from './editor.js';
-import { robot, COPILOT } from './copilot.js';
+import { robot, face, miniBot, COPILOT } from './copilot.js';
 import { showCard, hideCard, makeCard, confetti } from './overlay.js';
 
 const $ = (id) => document.getElementById(id);
@@ -59,7 +60,8 @@ export class Game {
     this.hintStep = 0; this.clock = performance.now();
     $('game').hidden = false;
     $('sectorNo').textContent = `SEKTÖR ${sector.id}`; $('sectorName').textContent = sector.name;
-    $('missionNo').textContent = `GÖREV ${level.n} / 8`; $('conceptChip').textContent = sector.concept;
+    $('missionNo').textContent = level.extra ? EXTRA_LABEL[level.extra] : `GÖREV ${level.n} / 8`; $('conceptChip').textContent = sector.concept;
+    $('panel').dataset.extra = level.extra || '';
     $('missionTitle').textContent = level.title; $('missionText').innerHTML = rich(level.brief);
     this.renderTrack();
     $('waveNote').innerHTML = `Aynı program ${this.fields.length} dalgayı da geçmeli.<span class="more"> Görmek için sayıya dokun.</span>`;
@@ -75,7 +77,7 @@ export class Game {
     this.view.setField(this.fields[0]);
     this.view.enter();
     history.replaceState(null, '', `#${level.id}`);
-    if (level.n === 1 && !this.store.introSeen(sector.id)) this.showIntro(sector);
+    if (level.n === 1 && !this.store.introSeen(sector.id)) this.showStory(sector, () => this.showIntro(sector));
     else this.voice.say(`${level.title}. ${level.brief}`);
   }
 
@@ -454,13 +456,14 @@ export class Game {
     const { level, store } = this, blocks = count(this.editor.program);
     const got = calcStars(this.results, blocks, level.par);
     const before = store.stars(level.id), first = before === 0;
+    const sectorBefore = sectorStars(store, level.sector);
     store.setStars(level.id, got);
     store.attempt(level.id, { won: true, ms: this.lap() });
     store.addLog({ kind: 'win', id: level.id, stars: got, gain: Math.max(0, got - before) });
     this.setStatus('won'); this.renderTrack();
     const total = this.results.reduce((a, r) => a + r.total, 0), collected = this.results.reduce((a, r) => a + r.collected, 0);
-    const next = LEVELS[level.index + 1];
-    const lastOfSector = level.n === 8;
+    const next = this.nextOf(level);
+    const lastOfSector = !level.extra && level.n === 8;
     const checks = [
       ['Çıkışa ulaştın', true],
       total ? [`Kristaller: ${collected} / ${total}`, collected === total] : null,
@@ -468,9 +471,11 @@ export class Game {
     ].filter(Boolean);
     // Kanca: sırada ne var ve en yakın hedef ne? Çocuk kartı kapatmadan bir sonraki adımı görsün.
     const leftInSector = levelsOf(level.sector).filter((l) => !store.passed(l)).length;
-    const hooks = [teaser(next), nearGoal({ total: store.total(), leftInSector, sectorName: this.sector.name })].filter(Boolean);
+    const secret = extrasOf(level.sector).find((x) => x.extra === 'gizli');
+    const opened = secret && !level.extra && sectorBefore < SECRET_STARS && sectorStars(store, level.sector) >= SECRET_STARS;
+    const hooks = [opened ? `Gizli görev açıldı: **${secret.title}**! Rota ekranında soru işaretini ara.` : '', teaser(next), nearGoal({ total: store.total(), leftInSector, sectorName: this.sector.name })].filter(Boolean);
     const card = makeCard(`
-      <div class="who">${robot(got === 3 ? 'wow' : 'happy')}<span class="tag">${lastOfSector ? `SEKTÖR ${level.sector} TAMAMLANDI` : `GÖREV ${level.n} / 8`}</span></div>
+      <div class="who">${robot(got === 3 ? 'wow' : 'happy')}<span class="tag">${lastOfSector ? `SEKTÖR ${level.sector} TAMAMLANDI` : level.extra ? EXTRA_LABEL[level.extra] : `GÖREV ${level.n} / 8`}</span></div>
       <h1>${lastOfSector ? `${this.sector.name} geçildi!` : got === 3 ? 'Kusursuz uçuş!' : 'Görev tamam!'}</h1>
       <div class="bigstars">${[1, 2, 3].map((i) => svg('i-star', i <= got ? 'lit' : '')).join('')}</div>
       <ul class="checks">${checks.map(([t, ok]) => `<li class="${ok ? '' : 'no'}">${svg(ok ? 'i-check' : 'i-cross')}${t}</li>`).join('')}</ul>
@@ -484,13 +489,59 @@ export class Game {
       this.sfx.click(); this.hideOverlay();
       if (act === 'again') this.showWave(0);
       else if (act === 'map') this.close();
-      else this.open(next);
+      else this.advance(level, next);
     });
-    this.showOverlay(card);
-    for (let i = 0; i < got; i++) setTimeout(() => this.sfx.star(i), 250 + i * 180);
-    if (got === 3) confetti();
-    this.voice.say(`${got === 3 ? 'Kusursuz uçuş!' : 'Görev tamam!'} ${hooks.join(' ')}`);
+    const reveal = () => {
+      this.showOverlay(card);
+      for (let i = 0; i < got; i++) setTimeout(() => this.sfx.star(i), 250 + i * 180);
+      if (got === 3) confetti();
+      this.voice.say(`${got === 3 ? 'Kusursuz uçuş!' : 'Görev tamam!'} ${hooks.join(' ')}`);
+    };
+    // Kurtarma sahnesi sonuç kartından önce gelir: sektörün ödülü yıldızlardan önce o kişidir.
+    if (!this.rescued(level, reveal)) reveal();
     return first;
+  }
+
+  /** Bu görevden sonra gidilecek ana görev (acil durumda: yanında durduğu görevin sonraki). Gizli görevden rotaya dönülür. */
+  nextOf(level) {
+    if (level.extra === 'gizli') return null;
+    const main = level.extra ? LEVELS.find((l) => l.id === level.after) : level;
+    return LEVELS[main.index + 1] || null;
+  }
+
+  /** Sıradaki göreve geçer; araya girecek bir acil durum varsa önce onu haber verir (bir kez). */
+  advance(level, next) {
+    const alarm = EXTRAS.find((x) => x.extra === 'acil' && x.after === level.id && !this.store.seen(`acil:${x.id}`) && !this.store.stars(x.id));
+    if (!alarm) { this.open(next); return; }
+    this.store.markSeen(`acil:${alarm.id}`);
+    const card = makeCard(`<div class="who">${robot('alarm')}<span class="tag alarm">${EXTRA_LABEL.acil}</span></div><h1>${alarm.title}</h1><p>${alarm.alarm}</p>
+      <p class="fine">Bu bir yan görev. Şimdi gitmezsen rota ekranında seni bekler.</p>
+      <div class="btns"><button class="btn" data-act="later">Şimdi değil</button><button class="btn primary" data-act="go">Yardıma git${svg('i-play')}</button></div>`, (act) => {
+      this.sfx.click(); this.hideOverlay(); this.voice.stop();
+      this.open(act === 'go' ? alarm : next);
+    }, 'alarm');
+    this.showOverlay(card); this.sfx.alarm();
+    this.voice.say(`Acil durum! ${alarm.alarm}`);
+  }
+
+  /**
+   * Sektör finali ilk kez geçilince mürettebattan biri, gizli görevde Bip'in bir arkadaşı
+   * kurtulur. Kart gösterildiyse true döner; kart kapatılınca `then` çağrılır.
+   */
+  rescued(level, then) {
+    const bot = level.extra === 'gizli';
+    const who = bot ? botOf(level.sector) : !level.extra && level.n === 8 ? crewOf(level.sector) : null;
+    if (!who || !this.store.rescue(who.id)) return false;
+    const story = STORY[level.sector];
+    const body = bot
+      ? `<p>${COPILOT}'in arkadaşı <b>${who.name}</b> bu sektörde saklanıyormuş. Artık o da köprüde!</p>`
+      : `<p class="role">${who.role}</p><p class="quote">“${who.line}”</p><p>${story.close}</p>${story.villain ? `<p class="villain"><b>${VILLAIN}:</b> “${story.villain}”</p>` : ''}`;
+    const card = makeCard(`<div class="who">${bot ? miniBot(who.hue) : face(who.hue)}<span class="tag">${bot ? 'GİZLİ GÖREV TAMAM' : 'KURTARMA KAPSÜLÜ BULUNDU'}</span></div>
+      <h1>${who.name} gemide!</h1>${body}
+      <div class="btns"><button class="btn primary" data-act="ok">Devam${svg('i-play')}</button></div>`, () => { this.sfx.click(); this.voice.stop(); then(); }, 'rescue');
+    this.showOverlay(card); confetti(34); this.sfx.star(2);
+    this.voice.say(bot ? `${who.name} gemide!` : `${who.name} gemide! ${who.line} ${story.close}`);
+    return true;
   }
 
   // ---------- katmanlar ----------
@@ -585,6 +636,17 @@ export class Game {
 
   showOverlay(card) { showCard(card); }
   hideOverlay() { hideCard(); }
+
+  /** Sektöre ilk girişte Bip'in telsiz mesajı: hikâye bir adım ilerler. Ardından `then` çalışır. */
+  showStory(sector, then) {
+    const story = STORY[sector.id];
+    if (!story || this.store.seen(`story:${sector.id}`)) { then(); return; }
+    const card = makeCard(`<div class="who">${robot('idle')}<span class="tag radio">${svg('i-radio')}TELSİZ · SEKTÖR ${sector.id}</span></div>
+      <h1>${sector.name}</h1><p>${story.open}</p>
+      <div class="btns"><button class="btn primary" data-act="ok">Devam${svg('i-play')}</button></div>`, () => { this.sfx.click(); this.store.markSeen(`story:${sector.id}`); then(); });
+    this.showOverlay(card);
+    this.voice.say(story.open);
+  }
 
   showIntro(sector) {
     const card = document.createElement('div'); card.className = 'card glass';

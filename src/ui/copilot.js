@@ -18,3 +18,23 @@ export function robot(mood = 'idle', cls = '') {
     + '<rect x="6" y="12" width="38" height="32" rx="12" fill="#3d8ef7" stroke="#1d2b4a" stroke-width="3.4"/>'
     + `<rect x="11.5" y="18" width="27" height="16" rx="8" fill="#1d2b4a"/>${EYES[mood] || EYES.idle}</g></svg>`;
 }
+
+/** Mürettebatın kasklı yüzü. `hue` kask rengi; `lost` henüz kurtarılmamış (gri siluet). */
+export function face(hue, { lost = false, cls = '' } = {}) {
+  const shell = lost ? '#3a4468' : `hsl(${hue} 72% 56%)`, glass = lost ? '#262f52' : '#1d2b4a';
+  return `<svg class="face ${lost ? 'lost' : ''} ${cls}" viewBox="0 0 56 56" aria-hidden="true">`
+    + `<circle cx="28" cy="28" r="23" fill="${shell}" stroke="#1d2b4a" stroke-width="3.4"/><rect x="12" y="17" width="32" height="22" rx="11" fill="${glass}"/>`
+    + (lost ? '<path d="M24.500 24.500a3.800 3.800 0 1 1 5.500 3.400c-1.400.800-2 1.500-2 3M28 34.500v.200" fill="none" stroke="#6b78a8" stroke-width="2.800" stroke-linecap="round"/>'
+      : '<circle cx="22" cy="27" r="3" fill="#fff"/><circle cx="34" cy="27" r="3" fill="#fff"/><path d="M23 32.500q5 3.600 10 0" fill="none" stroke="#fff" stroke-width="2.400" stroke-linecap="round"/><path d="M16.500 22q4-3.600 9-3" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2.200" stroke-linecap="round"/>')
+    + '</svg>';
+}
+
+/** Gizli görevlerde bulunan küçük robot. */
+export function miniBot(hue, { lost = false, cls = '' } = {}) {
+  const body = lost ? '#3a4468' : `hsl(${hue} 78% 58%)`, eye = lost ? '#55618f' : '#eaffff';
+  return `<svg class="face mini ${lost ? 'lost' : ''} ${cls}" viewBox="0 0 56 56" aria-hidden="true">`
+    + `<path d="M28 8v7" stroke="#1d2b4a" stroke-width="3.400" stroke-linecap="round"/><circle cx="28" cy="7" r="3.600" fill="${lost ? '#55618f' : '#ffc93c'}" stroke="#1d2b4a" stroke-width="2.400"/>`
+    + `<rect x="11" y="15" width="34" height="30" rx="13" fill="${body}" stroke="#1d2b4a" stroke-width="3.400"/><circle cx="21.500" cy="29" r="4.200" fill="${eye}"/><circle cx="34.500" cy="29" r="4.200" fill="${eye}"/>`
+    + (lost ? '' : '<circle cx="22.500" cy="29.500" r="1.900" fill="#1d2b4a"/><circle cx="35.500" cy="29.500" r="1.900" fill="#1d2b4a"/><path d="M24 37.500h8" stroke="#1d2b4a" stroke-width="2.400" stroke-linecap="round"/>')
+    + '</svg>';
+}
