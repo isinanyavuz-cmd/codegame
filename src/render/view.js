@@ -262,8 +262,8 @@ export class View {
       const mesh = buildMeteor(0.4 + rand() * 0.13, rand, this.theme.rocks);
       mesh.userData.own = true;
       mesh.position.set(this.gx(lane) + (rand() - 0.5) * 0.18, 0.45, this.gz(y) + (rand() - 0.5) * 0.18);
-      g.add(mesh); this.meteors.set(k, mesh);
-      const st = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 1.9), new THREE.MeshBasicMaterial({ map: this.streakTex, color: 0x9fc4ff, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false }));
+      g.add(mesh); this.meteors.set(k, mesh); mesh.userData.size = 1;
+      const st = mesh.userData.streak = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 1.9), new THREE.MeshBasicMaterial({ map: this.streakTex, color: 0x9fc4ff, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false }));
       st.userData.own = true; st.rotation.x = -Math.PI / 2; st.position.set(mesh.position.x, 0.2, mesh.position.z - 1.1); g.add(st);
     }
     for (const k of field.crystals) {
@@ -376,8 +376,11 @@ export class View {
     }
     this.lightGate(0);
     for (const c of this.crystals.values()) { c.visible = true; c.scale.setScalar(1); }
-    for (const m of this.meteors.values()) m.material.emissiveIntensity = 0;
+    for (const m of this.meteors.values()) { m.material.emissiveIntensity = 0; this.restoreRock(m); }
   }
+
+  /** Işınla parçalanmış kayayı yerine koyar (yeni uçuş ya da geri sarma). */
+  restoreRock(m) { m.visible = true; m.scale.setScalar(1); if (m.userData.streak) m.userData.streak.visible = true; }
 
   setShield(visible) { this.shieldBubble.visible = !!visible; }
 
@@ -385,9 +388,10 @@ export class View {
    * Geri sarma: gemiyi animasyonsuz bir kareye koyar. O ana kadar toplanan kristaller (`taken`)
    * ve savuşturulan korsanlar (`gone`) gizlenir, öteki her şey yerindedir.
    */
-  pose(cell, { taken = [], gone = [], shielded = false } = {}) {
+  pose(cell, { taken = [], gone = [], broken = [], shielded = false } = {}) {
     this.resetShip();
     this.ship.position.copy(this.cellPos(cell));
+    for (const c of broken) { const m = this.meteors.get(`${c.lane},${c.y}`); if (m) { m.visible = false; m.userData.streak.visible = false; } }
     for (const c of taken) { const m = this.crystals.get(`${c.lane},${c.y}`); if (m) m.visible = false; }
     for (const c of gone) { const p = this.pirates.get(`${c.lane},${c.y}`); if (p) { p.visible = false; p.userData.gone = true; } }
     this.setShield(shielded);
@@ -659,6 +663,48 @@ export class View {
     const mark = this.landmarks.get(`${ev.to.lane},${ev.to.y}`);
     if (mark) this.burst(this.cellPos(ev.to, 0.3), { color: mark.userData.core.material.color.getHex(), n: 22, speed: 2.6, life: 0.55, size: 0.3, up: 0.9 });
     this.setShield(ev.shielded);
+  }
+
+  /**
+   * Işın silahı: iki kanadın ucundaki namlulardan kırmızı ışınlar fırlar ve önlerindeki ilk
+   * kayada birleşir; kaya parçalanır. Kaya yoksa ışınlar alanın sonuna kadar gider, gemi yerinde kalır.
+   */
+  async fire(ev) {
+    const gen = this.gen, rock = ev.hit ? this.meteors.get(`${ev.hit.lane},${ev.hit.y}`) : null;
+    const from = this.cellPos(ev.from), end = rock ? rock.position.clone() : this.cellPos({ lane: ev.from.lane, y: this.field.rows });
+    const wing = 0.52 * SHIP_SCALE, beams = [];
+    for (const s of [-1, 1]) {
+      const x0 = from.x + s * wing, z0 = from.z - 0.25, x1 = end.x + s * 0.08, z1 = end.z + (rock ? 0.25 : 0);
+      const len = Math.hypot(x1 - x0, z1 - z0), mat = glow(bright(0xff3b5c, 2.8), 1);
+      const geo = new THREE.PlaneGeometry(1, 0.1); geo.translate(0.5, 0, 0);
+      const m = new THREE.Mesh(geo, mat);
+      m.rotation.x = -Math.PI / 2; m.rotation.z = -Math.atan2(z1 - z0, x1 - x0); m.position.set(x0, SHIP_Y, z0); m.scale.x = 0.001;
+      this.scene.add(m); beams.push({ m, mat, len });
+      this.burst(new THREE.Vector3(x0, SHIP_Y, z0), { color: 0xff6b80, n: 10, speed: 1.6, life: 0.25, size: 0.24 });
+    }
+    const cleanup = () => { for (const b of beams) { this.scene.remove(b.m); b.m.geometry.dispose(); b.mat.dispose(); } };
+    // Işınlar uzar; gemi geri tepmeyle hafifçe sarsılır.
+    await this.tween(200, (k) => {
+      for (const b of beams) b.m.scale.x = Math.max(0.001, b.len * k);
+      if (gen === this.gen) this.ship.position.z = from.z + Math.sin(Math.PI * k) * 0.12;
+    });
+    if (gen !== this.gen) { cleanup(); return; }
+    this.ship.position.z = from.z;
+    if (rock) {
+      const p = rock.position.clone();
+      this.flash(1.5, 260);
+      this.burst(p, { color: 0xff8a3d, n: 46, speed: 4.6, life: 0.7, size: 0.42, up: 0.8 });
+      this.burst(p, { color: 0xffe0b0, n: 18, speed: 2.4, life: 0.4, size: 0.6 });
+      this.burst(p, { color: 0x9a8f86, n: 30, speed: 3.2, life: 0.9, size: 0.3, up: 0.6 });
+      if (rock.userData.streak) rock.userData.streak.visible = false;
+      this.shake = 5;
+    }
+    await this.tween(220, (k) => {
+      for (const b of beams) b.mat.opacity = 1 - k;
+      if (rock && gen === this.gen) { rock.scale.setScalar(Math.max(0.001, 1 + 0.5 * k - 1.5 * k * k)); if (k >= 1) rock.visible = false; }
+    });
+    cleanup();
+    if (rock && gen === this.gen) { rock.visible = false; this.shake = 0.001; }
   }
 
   collect(cell) {

@@ -6,6 +6,8 @@ export const ACTIONS = {
   left: { label: 'sola kaç', py: 'sola_kac()' },
   right: { label: 'sağa kaç', py: 'saga_kac()' },
   shield: { label: 'kalkan aç', py: 'kalkan_ac()' },
+  // Kanatlardan ışın: gemiyi ilerletmez, kendi şeridinde önündeki ilk kayayı parçalar.
+  fire: { label: 'ateş et', py: 'ates_et()' },
   setEnergy: { label: 'enerjiyi ayarla', py: 'enerji' },
   addEnergy: { label: 'enerjiyi artır', py: 'enerji' },
   // Sayaç: çocuğun kendi değişkeni. Önce ayarlanır, sonra artırılır; koşullar ona bakabilir.
@@ -72,6 +74,7 @@ export const ifelse = (cond, thenList = [], elseList = []) => ({ id: uid(), type
 export const until = (cond, ...body) => ({ id: uid(), type: 'until', cond, body });
 export const on = (event, ...body) => ({ id: uid(), type: 'on', event, body });
 export const shield = () => ({ id: uid(), type: 'shield' });
+export const fire = () => ({ id: uid(), type: 'fire' });
 export const setEnergy = (value) => ({ id: uid(), type: 'setEnergy', value });
 export const addEnergy = (value) => ({ id: uid(), type: 'addEnergy', value });
 export const setCounter = (value) => ({ id: uid(), type: 'setCounter', value });

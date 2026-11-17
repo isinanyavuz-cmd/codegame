@@ -4,9 +4,10 @@
 //   acil    bir ana görev bitince araya giren beklenmedik görev (bir kez haber verilir)
 //   catal   bir ana görevin öteki yolu: ikisinden hangisi geçilirse sıradaki görev açılır
 //   tahmin  program yazılmaz, hazır program okunur: gemi nerede durur? (bkz. predict.js)
+//   silah   ışın silahının deneme görevi: baştan açıktır, kayalar ateş edilerek parçalanır
 // Alanları ana görevlerle aynıdır; ek olarak `extra` (tür), `after` (haritada yanında
 // durduğu ana görev) ve `open(store, levels)` (açık mı) taşırlar. Ana yolu kilitlemezler.
-import { F, L, R, rep, forever, ifelse, until, on, shield, setEnergy, addEnergy, setCounter, addCounter, define, call, defineN, callN } from '../engine/blocks.js';
+import { F, L, R, fire, rep, forever, ifelse, until, on, shield, setEnergy, addEnergy, setCounter, addCounter, define, call, defineN, callN } from '../engine/blocks.js';
 import { genWaves } from './gen.js';
 import { route, mission, wallWaves, steer, cruise, MOVES, LOOPS, EVENT_TOOLS, ENERGY_TOOLS, ALL_TOOLS, SENSORS } from './advanced.js';
 import { LEVELS, SECTORS, levelById, levelsOf } from './levels.js';
@@ -14,8 +15,8 @@ import { ROUNDS } from './predict.js';
 
 /** Gizli görevin açılması için sektörde toplanması gereken yıldız (24 üzerinden). */
 export const SECRET_STARS = 20;
-export const EXTRA_LABEL = { gizli: 'GİZLİ GÖREV', acil: 'ACİL DURUM', catal: 'ÖTEKİ YOL', tahmin: 'TAHMİN TURU', gunluk: 'GÜNÜN DALGASI', atolye: 'ATÖLYE' };
-const SUFFIX = { gizli: 'g', acil: 'a', tahmin: 't' };
+export const EXTRA_LABEL = { gizli: 'GİZLİ GÖREV', acil: 'ACİL DURUM', catal: 'ÖTEKİ YOL', tahmin: 'TAHMİN TURU', silah: 'SİLAH DENEMESİ', gunluk: 'GÜNÜN DALGASI', atolye: 'ATÖLYE' };
+const SUFFIX = { gizli: 'g', acil: 'a', tahmin: 't', silah: 's' };
 export const sectorStars = (store, sector) => levelsOf(sector).reduce((a, l) => a + store.stars(l.id), 0);
 
 const OPEN = {
@@ -23,6 +24,7 @@ const OPEN = {
   acil: (l) => (store) => store.passed(levelById(l.after)),
   catal: (l) => (store, levels) => store.isUnlocked(levelById(l.after), levels),
   tahmin: (l) => (store) => store.passed(levelById(l.after)),
+  silah: () => () => true,
 };
 
 /** @param after  haritada yanında duracağı ana görevin sırası (1–8) */
@@ -173,6 +175,17 @@ export const EXTRAS = [
     solution: () => [setEnergy(6), forever(ifelse('energyLow', [addEnergy(6)], []), F())],
     hint: 'İstasyona değil enerjiye bak: "enerji 3\'ten az mı?" sensörünü seç. Düz uç, eğer bloğunun dışında olsun.',
   })),
+
+  // ───────────── silah denemesi ─────────────
+  extra('silah', 1, 1, {
+    title: 'Kaya Duvarı',
+    brief: 'Gemine **ışın silahı** takıldı! **Ateş et** bloğu kanatlardan ışın yollar ve şeridindeki ilk kayayı parçalar; gemi yerinde kalır. İki kaya duvarını del, iki kristali topla.',
+    // İki duvar bütün şeritleri kapatır: kaçarak geçilemez, ateş etmek gerekir.
+    waves: [['.....', '...K.', 'MMMMM', '..M..', '..K..', 'MMMMM', '.....', '..S..']],
+    tools: [...MOVES, 'fire'], maxBlocks: 13, par: 10,
+    solution: () => [fire(), F(), F(), F(), R(), fire(), F(), F(), F(), F()],
+    hint: 'Önce ateş et, sonra açılan delikten geç. İkinci kristal sağda: kayanın yanından sağa kaç, sonra yine ateş et.',
+  }),
 
   // ───────────── tahmin turları ─────────────
   ...SECTORS.filter((s) => ROUNDS[s.id]).map(quiz),

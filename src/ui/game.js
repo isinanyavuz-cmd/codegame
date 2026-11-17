@@ -371,7 +371,7 @@ export class Game {
 
   resetTelemetry() {
     const f = this.fields[this.wave];
-    this.flight = { energy: f.energyCells.size ? 0 : null, counter: null, shielded: false, message: '', gems: 0, dodged: false };
+    this.flight = { energy: f.energyCells.size ? 0 : null, counter: null, shielded: false, message: '', gems: 0, dodged: false, broken: new Set() };
     this.shipCell = null;
     this.renderTelemetry(); this.renderGems();
   }
@@ -434,7 +434,7 @@ export class Game {
   async play({ senses, ev }, alive) {
     const { view, sfx, editor } = this;
     const marks = senses.map((s) => ({ id: s.id, cls: 'sensing' }));
-    if (['move', 'event', 'variable', 'shield', 'call'].includes(ev.t)) marks.push({ id: ev.id, cls: 'now' });
+    if (['move', 'fire', 'event', 'variable', 'shield', 'call'].includes(ev.t)) marks.push({ id: ev.id, cls: 'now' });
     else if (ev.t === 'crash' || ev.t === 'fail') marks.push({ id: ev.id, cls: 'err' });
     this.markBlocks(marks);
     if (senses.length) { this.showCalls(senses); sfx.sense(senses[senses.length - 1].result); } else this.hideCall();
@@ -448,11 +448,23 @@ export class Game {
       await view.wait(130);
       return !alive();
     }
+    if (ev.t === 'fire') {
+      sfx.laser(!!ev.hit);
+      if (ev.hit) this.flight.broken.add(`${ev.hit.lane},${ev.hit.y}`);
+      this.flight.message = ev.hit ? 'Kaya parçalandı!' : 'Işın boşa gitti';
+      this.renderTelemetry();
+      await view.fire(ev);
+      if (!alive()) return true;
+      if (ev.hit) this.floaty(ev.hit, 'Kaya parçalandı!');
+      // Kırılan kaya artık engel değil: sıradaki hedef silüeti yeniden gösterilir.
+      this.showTarget(this.events.slice(this.i).find((e) => e.t === 'move' || e.t === 'crash'));
+      return false;
+    }
     if (ev.t === 'move') {
       if (ev.kind === 'fwd') sfx.move(); else sfx.dodge();
       this.showTarget(ev);
       // Önündeki meteordan kaçış tam tur dönüşle yapılır; art arda kaçışlarda (zikzak) baş döndürmesin diye yalnız ilkinde.
-      const field = this.fields[this.wave], dodge = ev.kind !== 'fwd' && hasMeteor(field, ev.from.lane, ev.from.y + 1);
+      const field = this.fields[this.wave], dodge = ev.kind !== 'fwd' && this.rockAt(field, ev.from.lane, ev.from.y + 1);
       const roll = dodge && !this.flight.dodged;
       this.flight.dodged = ev.kind !== 'fwd';
       await view.move({ ...ev, roll });
@@ -523,16 +535,21 @@ export class Game {
    * olduğu adım). Kaydırıcı çekilince gemi o kareye, vurgu o kareyi üreten bloğa gider.
    */
   showScrub() {
-    const f = this.fields[this.wave], reel = [{ cell: { lane: f.start, y: 0 }, mark: [], energy: f.energyCells.size ? 0 : null, taken: [], gone: [], shielded: false }];
-    let { energy } = reel[0], taken = [], gone = [], shielded = false, stop = null;
+    const f = this.fields[this.wave], reel = [{ cell: { lane: f.start, y: 0 }, mark: [], energy: f.energyCells.size ? 0 : null, taken: [], gone: [], broken: [], shielded: false }];
+    let { energy } = reel[0], taken = [], gone = [], broken = [], shielded = false, stop = null;
     for (const ev of this.events.slice(0, this.i)) {
       if (ev.t === 'shield') shielded = ev.shielded;
+      else if (ev.t === 'fire' && ev.hit) {
+        // Atış da bir kare sayılır: geri sarınca kayanın hangi blokla kırıldığı görülür.
+        broken = [...broken, ev.hit];
+        reel.push({ ...reel[reel.length - 1], mark: [{ id: ev.id, cls: 'now' }], broken });
+      }
       else if (ev.t === 'variable' && ev.name === 'energy') energy = ev.value;
       else if (ev.t === 'move' && !ev.exit) {
         if (ev.collect) taken = [...taken, ev.to];
         if (ev.blocked) gone = [...gone, ev.to];
         shielded = !!ev.shielded; energy = ev.energy;
-        reel.push({ cell: ev.to, mark: [{ id: ev.id, cls: 'now' }], energy, taken, gone, shielded });
+        reel.push({ cell: ev.to, mark: [{ id: ev.id, cls: 'now' }], energy, taken, gone, broken, shielded });
       } else if (ev.t === 'crash' || ev.t === 'fail') stop = ev;
     }
     if (stop && stop.id) reel.push({ ...reel[reel.length - 1], mark: [{ id: stop.id, cls: 'err' }], last: true });
@@ -670,9 +687,12 @@ export class Game {
   }
 
   /** İki yanı da kapalı bir aralıktan geçildiyse küçük bir kutlama. */
+  /** Bu uçuşta ışınla kırılmamış bir kaya var mı? */
+  rockAt(field, lane, y) { return hasMeteor(field, lane, y) && !this.flight.broken.has(`${lane},${y}`); }
+
   nearMiss(field, cell) {
-    const blocked = (lane) => lane < 0 || lane >= field.lanes || hasMeteor(field, lane, cell.y);
-    if (!blocked(cell.lane - 1) || !blocked(cell.lane + 1) || !(hasMeteor(field, cell.lane - 1, cell.y) || hasMeteor(field, cell.lane + 1, cell.y))) return;
+    const blocked = (lane) => lane < 0 || lane >= field.lanes || this.rockAt(field, lane, cell.y);
+    if (!blocked(cell.lane - 1) || !blocked(cell.lane + 1) || !(this.rockAt(field, cell.lane - 1, cell.y) || this.rockAt(field, cell.lane + 1, cell.y))) return;
     this.floaty(cell, 'Kıl payı!'); this.sfx.whoosh();
   }
 

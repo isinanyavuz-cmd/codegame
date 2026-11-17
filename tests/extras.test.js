@@ -24,7 +24,7 @@ test('yan görevler: kimlikler benzersiz, her biri kendi sektöründeki bir ana 
     const main = levelById(x.after);
     assert.ok(main, `${x.id}: ${x.after} yok`);
     assert.equal(main.sector, x.sector);
-    assert.ok(['gizli', 'acil', 'catal', 'tahmin'].includes(x.extra));
+    assert.ok(['gizli', 'acil', 'catal', 'tahmin', 'silah'].includes(x.extra));
     assert.ok(x.title && x.brief && x.hint, x.id);
     assert.equal(findLevel(x.id), x);
     if (x.extra === 'acil') assert.ok(x.alarm, `${x.id}: acil durum haberi yok`);
@@ -93,5 +93,16 @@ test('6-5-b: her istasyonda şarj eden taşar, enerjiye bakan geçer', () => {
   const everyStation = [setEnergy(6), forever(ifelse('atEnergy', [addEnergy(6)], []), F())];
   const results = level.waves.map((w) => simulate(parseField(w), everyStation));
   assert.equal(results[0].reason, 'overflow');
+  assert.equal(starsOf(level, level.solution()), 3);
+});
+
+test('1-s silah denemesi: baştan açıktır; ateş etmeden kaya duvarı geçilemez', async () => {
+  const store = await freshStore();
+  const level = findLevel('1-s');
+  assert.equal(store.isUnlocked(level, LEVELS), true);
+  assert.ok(level.tools.includes('fire'));
+  // Duvar bütün şeritleri kapatır: yalnızca hareket bloklarıyla yazılmış hiçbir yol geçemez.
+  const field = parseField(level.waves[0]);
+  for (let lane = 0; lane < field.lanes; lane++) assert.ok(field.meteors.has(`${lane},2`) && field.meteors.has(`${lane},5`));
   assert.equal(starsOf(level, level.solution()), 3);
 });

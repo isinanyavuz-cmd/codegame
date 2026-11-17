@@ -152,3 +152,27 @@ test('Python satırları: her satır kendi bloğunu bilir; sayaç ve parametre y
   assert.equal(lines[5].id, prog[2].id);
   assert.equal(toPython(prog), lines.map((l) => l.text).join('\n'));
 });
+
+test('ateş et: gemi yerinde kalır, şeridindeki ilk kaya parçalanır ve yol açılır', async () => {
+  const { fire } = await import('../src/engine/blocks.js');
+  const f = field(['.M.', '.M.', '...', '.S.']);
+  // Ateş etmeden duvara çarpar.
+  assert.equal(simulate(f, [F(), F()]).reason, 'meteor');
+  const res = simulate(f, [fire(), fire(), F(), F(), F(), F()]);
+  assert.equal(res.outcome, 'win');
+  assert.equal(res.broken, 2);
+  const shots = res.events.filter((e) => e.t === 'fire');
+  assert.deepEqual(shots.map((e) => e.hit), [{ lane: 1, y: 2 }, { lane: 1, y: 3 }]);
+  assert.deepEqual(shots[0].from, { lane: 1, y: 0 });
+  // Asıl alan değişmez: aynı alanda yeni uçuş kayaları yerinde bulur.
+  assert.ok(f.meteors.has('1,2'));
+  // Boşa atış hata değildir; sensör kırılan kayayı görmez.
+  const miss = simulate(field(['...', '.S.']), [fire(), F(), F()]);
+  assert.equal(miss.outcome, 'win'); assert.equal(miss.events.find((e) => e.t === 'fire').hit, null);
+  const sensed = simulate(field(['...', '.M.', '.S.']), [fire(), forever(ifelse('ahead', [R()], [F()]))]);
+  assert.equal(sensed.outcome, 'win');
+  assert.ok(!sensed.events.some((e) => e.t === 'move' && e.kind === 'right'));
+  // Hiç uçmadan sürekli ateş eden program durdurulur.
+  assert.equal(simulate(f, [forever(fire())]).reason, 'idle');
+  assert.match(toPython([fire()]), /ates_et\(\)/);
+});
