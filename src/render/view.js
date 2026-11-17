@@ -88,6 +88,9 @@ export class View {
     this.mats = { line: glow(0x4fd2ff, 0.34), edge: glow(0x7fe2ff, 0.7), floor: glow(0x2a6bff, 0.07), exit: glow(bright(GREEN, 2.2), 1) };
     this.tweens = new Set(); this.bursts = []; this.meteors = new Map(); this.crystals = new Map();
     this.pirates = new Map(); this.landmarks = new Map(); this.gate = null; this.progress = 0;
+    // Kamera: 'ust' bütün alanı gösterir, 'pilot' geminin arkasından bakar ve onu izler.
+    this.camMode = 'ust'; this.camPos = null; this.camLook = new THREE.Vector3();
+    this.ambient = null; this.buildAmbient(); this.comet = null; this.cometAt = 6;
     this.speed = 1; this.time = 0; this.last = performance.now(); this.shake = 0; this.thrust = 1;
     this.field = null; this.rect = null; this.offset = { x: 0, y: 0 };
     // Kalite: 2 = keskin + parlama, 1 = parlama, 0 = sade. Adrese ?kalite=yuksek|orta|dusuk
@@ -135,6 +138,7 @@ export class View {
     const same = t === this.theme;
     this.theme = t; this.progress = progress;
     if (same) { this.paint(); return; }
+    this.buildAmbient();
     this.mats.line.color.set(t.grid[0]); this.mats.edge.color.set(t.grid[1]); this.mats.floor.color.set(t.grid[2]);
     this.hemi.color.set(t.light[0]); this.hemi.groundColor.set(t.light[1]); this.rim.color.set(t.light[2]);
     this.paint();
@@ -143,11 +147,32 @@ export class View {
   /** Alanın sığdırılacağı ekran bölgesi (CSS pikseli). */
   setRect(rect) { this.rect = rect; this.fit(); }
 
+  /** Kamerayı seçer: 'ust' ya da 'pilot'. */
+  setCamera(mode) { this.camMode = mode === 'pilot' ? 'pilot' : 'ust'; this.camPos = null; this.fit(); }
+
+  /** Pilot kamerası: geminin arkasında ve biraz üstünde durur, ileriye bakar. */
+  chase(snap = false) {
+    const s = this.ship.position, half = this.field ? (this.field.lanes * C) / 2 : 4;
+    // Yana kayışta kamera gemiyi biraz geriden izler; alanın dışına taşmaz.
+    const x = Math.max(-half, Math.min(half, s.x)) * 0.8;
+    const want = new THREE.Vector3(x, 4.6, s.z + 3.9), look = new THREE.Vector3(x * 1.1, 0, s.z - 4.2);
+    if (snap || !this.camPos) { this.camPos = want; this.camLook.copy(look); }
+    else { this.camPos.lerp(want, 0.09); this.camLook.lerp(look, 0.09); }
+    this.cam.position.copy(this.camPos); this.cam.lookAt(this.camLook);
+  }
+
   fit() {
     const f = this.field, cam = this.cam, W = this.W, H = this.H;
+    cam.fov = this.camMode === 'pilot' && f ? 54 : 27; cam.zoom = 1;
     cam.clearViewOffset(); cam.updateProjectionMatrix();
     if (!f) return;
     const rect = this.rect || { x: 0, y: 0, w: W, h: H };
+    if (this.camMode === 'pilot') {
+      // Görüş merkezi sahne bölgesinin ortasına, biraz aşağısına gelir: gemi altta, yol önünde.
+      this.offset = { x: W / 2 - (rect.x + rect.w / 2), y: H / 2 - (rect.y + rect.h * 0.5) };
+      this.chase(true); this.applyOffset(0, 0);
+      return;
+    }
     const hw = (f.lanes * C) / 2, zb = this.gz(-0.5), zt = this.gz(f.rows - 0.5);
     // Atlas'ın kapısı çıkışın ötesinde durur; o da ekrana sığmalı.
     const far = this.gate ? GATE_GAP + 0.4 : 1.7, top = this.gate ? 3.2 : 1.1, side = this.gate ? 2.2 : 0;
@@ -343,6 +368,7 @@ export class View {
     this.ship.visible = true; this.ship.scale.setScalar(SHIP_SCALE);
     this.ship.position.copy(this.cellPos({ lane: this.field.start, y: 0 }));
     this.ship.rotation.set(0, 0, 0);
+    if (this.camMode === 'pilot') this.chase(true);
     this.setShield(false);
     for (const p of this.pirates.values()) {
       p.visible = true; p.userData.gone = false;
@@ -446,7 +472,57 @@ export class View {
     for (const tw of [...this.tweens]) { this.tweens.delete(tw); tw.resolve(); }
     for (const b of this.bursts) { this.scene.remove(b.pts); b.pts.geometry.dispose(); b.pts.material.dispose(); }
     this.bursts.length = 0; this.shake = 0; this.thrust = 1;
+    if (this.cam.zoom !== 1) { this.cam.zoom = 1; this.cam.updateProjectionMatrix(); }
     this.hideSense(); this.hideTarget();
+  }
+
+  // ---------- arka plan canlılığı ----------
+  /**
+   * Sektöre özgü hareketli katman (ızgaranın altında ve gerisinde): meteor yağmurunda süzülen
+   * çizgiler, korsan bölgesinde yükselen korlar, kuşakta sürüklenen kayalar; ötekilerde göz kırpan yıldızlar.
+   */
+  buildAmbient() {
+    if (this.ambient) { this.scene.remove(this.ambient.obj); this.ambient.obj.geometry.dispose(); this.ambient.obj.material.dispose(); }
+    const kind = { streaks: 'streaks', embers: 'embers', belt: 'belt' }[this.theme.extra] || 'twinkle', r = rng(909 + kind.length);
+    const N = kind === 'streaks' ? 22 : kind === 'twinkle' ? 46 : 60, lines = kind === 'streaks';
+    const pos = new Float32Array(N * 3 * (lines ? 2 : 1)), seeds = [];
+    for (let i = 0; i < N; i++) seeds.push({ x: (r() - 0.5) * 46, y: -1.6 - r() * 8, z: -26 + r() * 44, k: 0.5 + r() });
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const color = { streaks: 0xffb9a0, embers: 0xff8a4a, belt: 0xc09a70, twinkle: 0xd6e6ff }[kind];
+    const obj = lines
+      ? new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: bright(color, 1.4), transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }))
+      : new THREE.Points(geo, new THREE.PointsMaterial({ map: this.glowTex, color: bright(color, 1.5), size: kind === 'belt' ? 0.5 : kind === 'embers' ? 0.26 : 0.34, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
+    obj.frustumCulled = false; this.scene.add(obj);
+    this.ambient = { kind, obj, seeds };
+    this.driftAmbient(0);
+  }
+
+  driftAmbient(dt) {
+    const { kind, obj, seeds } = this.ambient, p = obj.geometry.attributes.position, t = this.time || 0;
+    seeds.forEach((s, i) => {
+      if (kind === 'streaks') { s.x -= 5 * s.k * dt; s.z += 7 * s.k * dt; if (s.z > 18 || s.x < -24) { s.x = 6 + Math.random() * 20; s.z = -26; } }
+      else if (kind === 'embers') { s.y += 0.5 * s.k * dt; s.x += Math.sin(t * 0.7 + i) * 0.25 * dt; if (s.y > -1.2) s.y = -9.5; }
+      else if (kind === 'belt') { s.x += 0.55 * s.k * dt; if (s.x > 23) s.x = -23; }
+      if (kind === 'streaks') { p.setXYZ(i * 2, s.x, s.y, s.z); p.setXYZ(i * 2 + 1, s.x + 0.75 * s.k, s.y, s.z - 1.05 * s.k); }
+      else p.setXYZ(i, s.x, s.y, s.z);
+    });
+    p.needsUpdate = true;
+    if (kind === 'twinkle') obj.material.opacity = 0.4 + 0.32 * Math.sin(t * 1.3);
+  }
+
+  /** Ara sıra uzaktan geçen kuyruklu yıldız. */
+  driftComet(dt) {
+    this.cometAt -= dt;
+    if (!this.comet && this.cometAt <= 0) {
+      const mat = glow(bright(0xcfeaff, 1.8), 0.9), dir = Math.random() < 0.5 ? 1 : -1;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.06), mat);
+      m.rotation.x = -Math.PI / 2; m.rotation.z = dir * 0.45; m.position.set(-dir * (16 + Math.random() * 6), -5 - Math.random() * 3, -24 + Math.random() * 20);
+      this.scene.add(m); this.comet = { m, mat, dir, age: 0 };
+    }
+    if (!this.comet) return;
+    const c = this.comet; c.age += dt;
+    c.m.position.x += c.dir * 19 * dt; c.m.position.z += 8.5 * dt; c.mat.opacity = 0.9 * Math.sin(Math.PI * Math.min(1, c.age / 1.5));
+    if (c.age >= 1.5) { this.scene.remove(c.m); c.m.geometry.dispose(); c.mat.dispose(); this.comet = null; this.cometAt = 7 + Math.random() * 9; }
   }
 
   frame() {
@@ -490,6 +566,8 @@ export class View {
       p.needsUpdate = true;
       this.dust.material.opacity = 0.45 + this.flow * 0.4;
     }
+    this.driftAmbient(dt); this.driftComet(dt);
+    if (this.camMode === 'pilot' && this.field) this.chase();
     for (let i = this.bursts.length - 1; i >= 0; i--) {
       const b = this.bursts[i]; b.age += dt;
       const p = b.pts.geometry.attributes.position;
@@ -593,10 +671,13 @@ export class View {
   async crash(ev) {
     const a = this.cellPos(ev.from), b = this.cellPos(ev.to), dl = ev.to.lane - ev.from.lane, gen = this.gen;
     const stopAt = ev.reason === 'wall' ? 0.5 : 0.66;
-    await this.tween(MOVE_MS * stopAt, (k) => {
+    // Ağır çekim: gemi çarpışmaya yaklaşırken yavaşlar, kamera hafifçe yaklaşır. Neye çarptığı görülsün.
+    await this.tween(MOVE_MS * stopAt * 2.1, (k) => {
       if (gen !== this.gen) return;
-      this.ship.position.lerpVectors(a, b, k * stopAt);
-      this.ship.rotation.z = -dl * 0.5 * k; this.thrust = 1.25 + k * 0.4;
+      const e = 1 - Math.pow(1 - k, 2.4);
+      this.ship.position.lerpVectors(a, b, e * stopAt);
+      this.ship.rotation.z = -dl * 0.5 * e; this.thrust = 1.25 + e * 0.4;
+      this.cam.zoom = 1 + 0.08 * k; this.cam.updateProjectionMatrix();
     });
     if (gen !== this.gen) return;
     const p = this.ship.position.clone();
@@ -608,8 +689,8 @@ export class View {
     this.burst(p, { color: 0x49c8ff, n: 22, speed: 8, life: 0.7, size: 0.26 });
     const meteor = this.meteors.get(`${ev.to.lane},${ev.to.y}`);
     if (meteor) { meteor.material.emissive.set(0xff2b4f); meteor.material.emissiveIntensity = 0.6; }
-    await this.tween(560, (k) => { if (gen === this.gen) this.shake = (1 - k) * 16; }, false);
-    if (gen === this.gen) this.shake = 0.001;
+    await this.tween(560, (k) => { if (gen === this.gen) { this.shake = (1 - k) * 16; this.cam.zoom = 1.08 - 0.08 * k; } }, false);
+    if (gen === this.gen) { this.shake = 0.001; this.cam.zoom = 1; this.cam.updateProjectionMatrix(); }
   }
 
   /** Atlas'a yanaşma: ışıklar yanar, gemi hangar kapısından içeri süzülür. */

@@ -37,6 +37,10 @@ export class Game {
     $('resetBtn').addEventListener('click', () => { sfx.click(); this.stop(); });
     $('gameSoundBtn').addEventListener('click', () => this.toggleSound());
     this.renderSound();
+    $('camBtn').addEventListener('click', () => {
+      sfx.click(); store.camera = store.camera === 'pilot' ? 'ust' : 'pilot';
+      this.applyCamera();
+    });
     $('speedBtn').addEventListener('click', () => this.cycleSpeed());
     $('undoBtn').addEventListener('click', () => { sfx.click(); if (this.status !== 'idle') this.stop(); this.editor.undo(); });
     $('backBtn').addEventListener('click', () => { sfx.click(); this.close(); });
@@ -89,6 +93,7 @@ export class Game {
     this.layout();
     // Sektörde ilerledikçe arka plandaki gezegen (son sektörde Atlas) yaklaşır.
     this.view.setTheme(sector.id, level.extra ? 0.5 : (level.n - 1) / 7);
+    this.music.theme(sector.id); this.applyCamera();
     document.documentElement.style.setProperty('--sector', this.view.theme.accent);
     this.setScene(0);
     this.view.enter();
@@ -125,12 +130,33 @@ export class Game {
   }
 
   close() {
-    this.loopId++; this.view.setField(null); this.view.setTheme(0);
+    this.loopId++; this.replaying = false; this.view.setField(null); this.view.setTheme(0); this.view.setCamera('ust');
+    this.music.theme(0); this.music.tension(0);
     this.hideCall(); this.hideToast(); this.hideOverlay(); this.editor.closePop(); this.voice.stop();
     $('picks').replaceChildren();
     $('game').hidden = true;
     history.replaceState(null, '', location.pathname + location.search);
     this.onExit(this.level);
+  }
+
+  /** Kamera: çocuğun seçtiği görünüm; tahmin turunda bütün alan görünsün diye hep üstten. */
+  applyCamera() {
+    const pilot = !this.quiz && this.store.camera === 'pilot';
+    this.view.setCamera(pilot ? 'pilot' : 'ust');
+    const b = $('camBtn'); b.classList.toggle('on', pilot); b.setAttribute('aria-pressed', String(pilot));
+    if (this.quiz?.choices) this.renderPicks();
+  }
+
+  /**
+   * Müziğin gerilimi: uçuş başlayınca yükselir; enerji azalınca ya da bir korsan yaklaşınca
+   * daha da artar. Uçuş bitince söner.
+   */
+  tune() {
+    if (this.status !== 'running') { this.music.tension(0); return; }
+    const f = this.fields[this.wave], ship = this.shipCell || { lane: f.start, y: 0 };
+    const low = this.flight.energy !== null && this.flight.energy < 3;
+    const near = [...f.pirates].some((k) => { const [lane, y] = k.split(',').map(Number); return y > ship.y && y - ship.y <= 2 && Math.abs(lane - ship.lane) <= 1; });
+    this.music.tension(low || near ? 0.9 : this.fields.length > 1 && this.wave === this.fields.length - 1 ? 0.6 : 0.4);
   }
 
   /** Sahnenin göreve özel süsleri: finallerdeki kaptan korsan ve Atlas'ın kapısı. */
@@ -275,7 +301,7 @@ export class Game {
     btn.innerHTML = `${svg(label[0])}${label[1]}`;
     btn.classList.toggle('go', s === 'paused');
     $('resetBtn').disabled = s === 'idle';
-    this.renderWaves();
+    this.renderWaves(); this.tune();
   }
 
   setSpeed(v) { this.speed = v; this.view.speed = v; this.store.speed = v; $('speedLab').textContent = v === 0.5 ? '½×' : `${v}×`; }
@@ -283,14 +309,16 @@ export class Game {
 
   onRun() {
     this.sfx.click();
-    if (this.status === 'failed') this.stop();
+    if (this.replaying) this.stop();
+    else if (this.status === 'failed') this.stop();
     else if (this.status === 'idle') this.start(false);
     else if (this.status === 'running') this.setStatus('paused');
     else if (this.status === 'paused') { this.stepMode = false; this.resume(); }
   }
   onStep() {
     this.sfx.click();
-    if (this.status === 'failed') this.stop();
+    if (this.replaying) this.stop();
+    else if (this.status === 'failed') this.stop();
     else if (this.status === 'idle') this.start(true);
     else if (this.status === 'paused') { this.stepMode = true; this.resume(); }
     else if (this.status === 'running') this.stepMode = true;
@@ -324,7 +352,11 @@ export class Game {
    * Uçuşu durdurur ve gemiyi başa alır. Ekrandaki dalga değişmez: program sonraki bir
    * dalgada takıldıysa çocuk onu düzeltirken o dalgayı görmeye devam eder.
    */
-  stop() { this.loopId++; this.reset(); this.setStatus('idle'); }
+  stop() {
+    this.loopId++;
+    if (this.replaying) { this.replaying = false; this.applyCamera(); }
+    this.reset(); this.setStatus('idle');
+  }
 
   reset() {
     this.hideCall(); this.hideToast(); this.markBlocks([]);
@@ -336,6 +368,7 @@ export class Game {
   resetTelemetry() {
     const f = this.fields[this.wave];
     this.flight = { energy: f.energyCells.size ? 0 : null, counter: null, shielded: false, message: '', gems: 0, dodged: false };
+    this.shipCell = null;
     this.renderTelemetry(); this.renderGems();
   }
 
@@ -430,6 +463,7 @@ export class Game {
         if (captain) this.floaty(ev.to, `${VILLAIN} kaçıyor!`, 'red');
       }
       this.renderTelemetry();
+      this.shipCell = ev.to; this.tune();
       // Gemi silüetin olduğu kareye vardı: silüet sıradaki hedefe geçer.
       this.showTarget(this.events.slice(this.i).find((e) => e.t === 'move' || e.t === 'crash'));
       return false;
@@ -449,7 +483,7 @@ export class Game {
     // win
     this.markBlocks([]); sfx.win();
     await view.win(this.wave === this.fields.length - 1);
-    if (!alive()) return true;
+    if (!alive() || this.replaying) return true;
     this.results.push(this.sim);
     if (this.wave < this.fields.length - 1) {
       this.showToast('good', `Dalga ${this.wave + 1} tamam! Sıradaki dalga geliyor…`, { quiet: true });
@@ -676,8 +710,9 @@ export class Game {
       <div class="bigstars">${[1, 2, 3].map((i) => svg('i-star', i <= got ? 'lit' : '')).join('')}</div>
       <ul class="checks">${checks.map(([t, ok]) => `<li class="${ok ? '' : 'no'}">${svg(ok ? 'i-check' : 'i-cross')}${t}</li>`).join('')}</ul>
       <div class="hooks">${hooks.map((h) => `<p>${rich(h)}</p>`).join('')}</div>
-      <div class="btns"><button class="btn" data-act="again">${svg('i-undo')}Tekrar</button>${daily ? '' : `<button class="btn" data-act="workshop">${level.own ? 'Atölyeye dön' : 'Ben de kurayım'}</button>`}<button class="btn primary" data-act="map">Rota</button></div>`, (act) => {
+      <div class="btns"><button class="btn" data-act="again">${svg('i-undo')}Tekrar</button><button class="btn" data-act="watch">${svg('i-cam')}İzle</button>${daily ? '' : `<button class="btn" data-act="workshop">${level.own ? 'Atölyeye dön' : 'Ben de kurayım'}</button>`}<button class="btn primary" data-act="map">Rota</button></div>`, (act) => {
       this.sfx.click(); this.hideOverlay();
+      if (act === 'watch') { this.replay(card); return; }
       if (act === 'again') { this.showWave(0); return; }
       this.close();
       if (act === 'workshop') this.workshop.open();
@@ -737,11 +772,13 @@ export class Game {
       ${hooks.length ? `<div class="hooks">${hooks.map((h) => `<p>${rich(h)}</p>`).join('')}</div>` : ''}
       <div class="btns">
         <button class="btn" data-act="again">${svg('i-undo')}Tekrar</button>
+        <button class="btn" data-act="watch">${svg('i-cam')}İzle</button>
         <button class="btn" data-act="map">Rota</button>
         ${next ? `<button class="btn primary" data-act="next">${lastOfSector ? 'Sonraki sektör' : 'Sonraki görev'}${svg('i-play')}</button>` : ''}
       </div>`, (act) => {
       this.sfx.click(); this.hideOverlay();
-      if (act === 'again') this.showWave(0);
+      if (act === 'watch') this.replay(card);
+      else if (act === 'again') this.showWave(0);
       else if (act === 'map') this.close();
       else this.advance(level, next);
     });
@@ -768,6 +805,28 @@ export class Game {
     this.showOverlay(card); confetti(60); this.sfx.fanfare();
     this.voice.say(`Terfi ettin! Yeni rütben: ${rank}.`);
     return true;
+  }
+
+  /**
+   * Kazanılan uçuşun son dalgasını öteki kameradan yeniden oynatır (üstten bakıyorsan pilot
+   * gözünden); bitince sonuç kartı geri gelir. Kayda hiçbir şey yazılmaz.
+   */
+  async replay(card) {
+    this.voice.stop();
+    const id = ++this.loopId, alive = () => id === this.loopId, back = this.view.camMode;
+    this.replaying = true;
+    this.view.setCamera(back === 'pilot' ? 'ust' : 'pilot');
+    this.view.resetShip(); this.i = 0; this.resetTelemetry();
+    this.status = 'running'; this.tune();   // setStatus çağrılmaz: düğmeler ve dalga şeridi sonuç halinde kalır
+    this.view.launch(); this.sfx.launch();
+    for (let tick = this.nextTick(); tick && alive(); tick = this.nextTick()) {
+      this.current = this.play(tick, alive);
+      if (await this.current) break;
+    }
+    if (!alive()) return;                   // çocuk araya girdi: durdurdu ya da görevden çıktı
+    this.replaying = false; this.status = 'won'; this.tune();
+    this.view.setCamera(back);
+    this.showOverlay(card);
   }
 
   /** Bu görevden sonra gidilecek ana görev (acil durumda: yanında durduğu görevin sonraki). Gizli görevden rotaya dönülür. */

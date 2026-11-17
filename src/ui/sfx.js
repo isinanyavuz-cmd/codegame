@@ -68,19 +68,32 @@ export const sfx = {
 };
 
 // ───────────── arka plan müziği ─────────────
-// Sakin, dönen bir uzay ezgisi: uzun akorlar, bas ve hafif bir arpej. Notalar ses
-// saatine göre biraz önceden sıraya konur; böylece sekme yoğunken bile ritim kaymaz.
-const BPM = 88, SIXTEENTH = 60 / BPM / 4;
-const CHORDS = [[57, 60, 64, 71], [53, 57, 60, 64], [48, 55, 59, 64], [55, 59, 62, 66]];   // Am9, Fmaj7, Cmaj7, Gmaj7
+// Sakin, dönen bir uzay ezgisi: uzun akorlar, bas ve hafif bir arpej. Her sektörün kendi
+// akorları ve temposu vardır; uçuş sırasında tehlike arttıkça üstüne bir gerilim katmanı biner.
+// Notalar ses saatine göre biraz önceden sıraya konur; böylece sekme yoğunken bile ritim kaymaz.
+// Tema: bpm, dört akor (MIDI notaları), ped sesi ve arpej sesi. 0 rota ekranıdır.
+const THEMES = {
+  0: { bpm: 88, pad: 'sawtooth', arp: 'triangle', chords: [[57, 60, 64, 71], [53, 57, 60, 64], [48, 55, 59, 64], [55, 59, 62, 66]] },   // Am9 Fmaj7 Cmaj7 Gmaj7
+  1: { bpm: 92, pad: 'sawtooth', arp: 'triangle', chords: [[48, 55, 60, 64], [53, 57, 60, 65], [55, 59, 62, 67], [57, 60, 64, 69]] },   // Kalkış: aydınlık, do majör
+  2: { bpm: 96, pad: 'sawtooth', arp: 'square', chords: [[50, 57, 60, 65], [48, 55, 60, 64], [46, 53, 58, 62], [45, 52, 57, 60]] },     // Kuşak: re minör, yürüyen bas
+  3: { bpm: 106, pad: 'sawtooth', arp: 'triangle', chords: [[52, 59, 62, 67], [48, 55, 60, 64], [50, 57, 62, 66], [47, 54, 59, 62]] },  // Yağmur: hızlı, mi minör
+  4: { bpm: 76, pad: 'triangle', arp: 'sine', chords: [[45, 52, 57, 60], [41, 48, 53, 57], [43, 50, 55, 58], [40, 47, 52, 56]] },       // Bulutsu: ağır, karanlık
+  5: { bpm: 110, pad: 'sawtooth', arp: 'square', chords: [[52, 59, 64, 67], [53, 60, 65, 68], [50, 57, 62, 65], [52, 59, 63, 66]] },    // Korsanlar: gergin
+  6: { bpm: 100, pad: 'triangle', arp: 'triangle', chords: [[53, 60, 64, 69], [55, 62, 65, 71], [57, 60, 64, 69], [50, 57, 62, 65]] },  // Enerji: parlak, nabız gibi
+  7: { bpm: 112, pad: 'sawtooth', arp: 'triangle', chords: [[55, 62, 67, 71], [52, 59, 64, 67], [48, 55, 60, 64], [50, 57, 62, 66]] },  // Okul: oyuncu, sol majör
+  8: { bpm: 96, pad: 'sawtooth', arp: 'sawtooth', chords: [[57, 64, 69, 72], [53, 60, 65, 69], [55, 62, 67, 71], [52, 59, 64, 68]] },   // Final: geniş, destansı
+};
 const ARP = [0, 2, 1, 3, 2, 1, 3, 2];
 const hz = (midi) => 440 * Math.pow(2, (midi - 69) / 12);
 
 export const music = (() => {
   let wanted = true, started = false, bus = null, echo = null, timer = 0, step = 0, next = 0, mood = 'map';
+  let theme = THEMES[0], tension = 0;
+  const sixteenth = () => 60 / theme.bpm / 4;
 
   function build(c) {
     bus = c.createGain(); bus.gain.value = 0; bus.connect(c.destination);
-    echo = c.createDelay(1); echo.delayTime.value = SIXTEENTH * 3;
+    echo = c.createDelay(1); echo.delayTime.value = sixteenth() * 3;
     const fb = c.createGain(); fb.gain.value = 0.36;
     const wet = c.createGain(); wet.gain.value = 0.3;
     echo.connect(fb).connect(echo); echo.connect(wet).connect(bus);
@@ -102,18 +115,24 @@ export const music = (() => {
     // Tarayıcı sesi henüz açmadıysa (ilk dokunuş yeni işlendiyse) yeniden dene.
     if (c.state !== 'running') { if (c.state === 'suspended') c.resume(); return; }
     if (next < c.currentTime) next = c.currentTime + 0.05;
+    const S = sixteenth();
     while (next < c.currentTime + 0.4) {
-      const bar = Math.floor(step / 16), s = step % 16, chord = CHORDS[Math.floor(bar / 2) % CHORDS.length];
+      const bar = Math.floor(step / 16), s = step % 16, chord = theme.chords[Math.floor(bar / 2) % theme.chords.length];
       if (s === 0 && bar % 2 === 0) {
-        for (const n of chord) for (const d of [-7, 7]) voice(c, next, n, SIXTEENTH * 34, { type: 'sawtooth', vol: 0.02, attack: 1.1, cutoff: 750, detune: d });
+        for (const n of chord) for (const d of [-7, 7]) voice(c, next, n, S * 34, { type: theme.pad, vol: theme.pad === 'sawtooth' ? 0.02 : 0.034, attack: 1.1, cutoff: 750, detune: d });
       }
-      if (s === 0 || (mood === 'game' && s === 8)) voice(c, next, chord[0] - 24, SIXTEENTH * 7, { type: 'sine', vol: 0.11, attack: 0.03, cutoff: 400 });
+      if (s === 0 || (mood === 'game' && s === 8)) voice(c, next, chord[0] - 24, S * 7, { type: 'sine', vol: 0.11, attack: 0.03, cutoff: 400 });
       const every = mood === 'game' ? 2 : 4;
       if (s % every === 0) {
         const i = ARP[(step / every) % ARP.length], up = (Math.floor(step / every / 8) % 2) * 12;
-        voice(c, next, chord[i] + 12 + up, SIXTEENTH * 3.2, { type: 'triangle', vol: mood === 'game' ? 0.05 : 0.04, attack: 0.008, cutoff: 2600, send: true });
+        voice(c, next, chord[i] + 12 + up, S * 3.2, { type: theme.arp, vol: (mood === 'game' ? 0.05 : 0.04) * (theme.arp === 'triangle' || theme.arp === 'sine' ? 1 : 0.5), attack: 0.008, cutoff: 2600, send: true });
       }
-      step++; next += SIXTEENTH;
+      // Gerilim katmanı: önce kalp atışı gibi bir bas, tehlike büyüdükçe üstüne hızlı, tiz bir tıkırtı.
+      if (mood === 'game' && tension > 0.3) {
+        if (s % 4 === 0) voice(c, next, chord[0] - 12, S * 1.8, { type: 'square', vol: 0.03 + tension * 0.03, attack: 0.005, cutoff: 500 });
+        if (tension > 0.7 && s % 2 === 1) voice(c, next, chord[2] + 24, S * 0.7, { type: 'square', vol: 0.014, attack: 0.002, cutoff: 5000 });
+      }
+      step++; next += S;
     }
   }
   function fade(to, secs) {
@@ -138,6 +157,16 @@ export const music = (() => {
     /** Her dokunuşta çağrılabilir; tarayıcı sesi ancak bir kullanıcı hareketinden sonra açar. */
     start() { started = true; run(); },
     /** 'map' daha sakin, 'game' biraz daha hareketli. */
-    mood(m) { mood = m; },
+    mood(m) { mood = m; if (m !== 'game') tension = 0; },
+    /** Sektörün ezgisi (0: rota ekranı). Yeni akorlar bir sonraki ölçüde başlar. */
+    theme(sector) {
+      const t = THEMES[sector] || THEMES[0];
+      if (t === theme) return;
+      theme = t; step = 0;
+      if (echo && ctx) echo.delayTime.setTargetAtTime(sixteenth() * 3, ctx.currentTime, 0.2);
+    },
+    /** Tehlike düzeyi (0–1): uçuş sırasında oyun bildirir. */
+    tension(v) { tension = Math.max(0, Math.min(1, v)); },
+    get state() { return { bpm: theme.bpm, tension, mood, playing: !!timer }; },
   };
 })();

@@ -43,6 +43,10 @@ svg { display: block; }
 @keyframes floaty { from { opacity: 0; transform: translate(-50%, -60%) scale(.7); } 25% { opacity: 1; transform: translate(-50%, -130%) scale(1); } to { opacity: 0; transform: translate(-50%, -230%) scale(1); } }
 /* Ses düğmesi geri düğmesinin altında durur; panele ve görev şeridine değmez. */
 .iconbtn.gsnd { position: absolute; left: 22px; top: 82px; z-index: 2; width: 44px; height: 44px; border-radius: 14px; }
+/* Kamera düğmesi ses düğmesinin altında; pilot kamerası açıkken sarı yanar. */
+.iconbtn.gcam { position: absolute; left: 22px; top: 134px; z-index: 2; width: 44px; height: 44px; border-radius: 14px; }
+.iconbtn.gcam.on { color: var(--now); border-color: rgba(255, 213, 61, .65); }
+#game[data-mode="tahmin"] .gcam { display: none; }
 .back, .iconbtn { width: 50px; height: 50px; border-radius: 16px; display: grid; place-items: center; background: rgba(24, 33, 72, .85); border: 1px solid var(--line); color: #cfd9ff; }
 .back svg, .iconbtn svg { width: 22px; height: 22px; }
 .back:active, .iconbtn:active { transform: scale(.94); }
@@ -529,8 +533,8 @@ button.node:not(.locked):active { transform: scale(.92); }
   .code { left: 10px; right: 10px; top: auto; bottom: 10px; width: auto; height: 52%; padding: 12px; gap: 8px; }
   .brief p { font-size: 14px; } .brief h2 { display: none; } .wavebar { margin-top: 5px; padding: 4px 8px; } .wavebar .note { font-size: 11.5px; }
   .top { left: 12px; top: 12px; } .ttl b { font-size: 20px; }
-  .iconbtn.gsnd { left: auto; right: 12px; top: 12px; }
-  .hud { left: auto; right: 64px; top: 16px; } .record { display: none; }
+  .iconbtn.gsnd { left: auto; right: 12px; top: 12px; } .iconbtn.gcam { left: auto; right: 64px; top: 12px; }
+  .hud { left: auto; right: 116px; top: 16px; } .record { display: none; }
   .scrub { height: 36px; padding: 0 10px; } .scrub span { display: none; } .scrub input { width: 150px; }
   .tbtns { flex-direction: column; }
   .toast { top: 72px; }

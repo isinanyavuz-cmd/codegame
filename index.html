@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#070b22">
 <title>Kod Pilotu</title>
-<link rel="stylesheet" href="css/style.css?v=438c4719">
-<meta name="surum" content="4900a31">
+<link rel="stylesheet" href="css/style.css?v=7ae328bf">
+<meta name="surum" content="179fff2">
 <script type="importmap">
 {
  "imports": {
@@ -28,15 +28,15 @@
   "./src/main.js": "./src/main.js?v=89bb81f2",
   "./src/render/models.js": "./src/render/models.js?v=61728efe",
   "./src/render/themes.js": "./src/render/themes.js?v=285d926a",
-  "./src/render/view.js": "./src/render/view.js?v=c4880048",
+  "./src/render/view.js": "./src/render/view.js?v=36efa7f1",
   "./src/storage.js": "./src/storage.js?v=68ee13b4",
   "./src/ui/copilot.js": "./src/ui/copilot.js?v=514243d9",
   "./src/ui/editor.js": "./src/ui/editor.js?v=7a2120b4",
-  "./src/ui/game.js": "./src/ui/game.js?v=3e6ba6f9",
+  "./src/ui/game.js": "./src/ui/game.js?v=aa6aeed4",
   "./src/ui/hangar.js": "./src/ui/hangar.js?v=0dd951e3",
   "./src/ui/map.js": "./src/ui/map.js?v=2673d1ee",
   "./src/ui/overlay.js": "./src/ui/overlay.js?v=ab98ef4f",
-  "./src/ui/sfx.js": "./src/ui/sfx.js?v=1e0d5a56",
+  "./src/ui/sfx.js": "./src/ui/sfx.js?v=61e4584b",
   "./src/ui/shipart.js": "./src/ui/shipart.js?v=4c8f3755",
   "./src/ui/voice.js": "./src/ui/voice.js?v=d72eaa04",
   "./src/ui/workshop.js": "./src/ui/workshop.js?v=bd59bd12",
@@ -71,6 +71,7 @@
     <div class="ttl"><small id="sectorNo">SEKTÖR 1</small><b id="sectorName">Kalkış</b></div>
   </div>
   <button class="iconbtn gsnd" id="gameSoundBtn" aria-label="Sesi kapat/aç"><svg viewBox="0 0 32 32"><use href="#i-sound"/></svg></button>
+  <button class="iconbtn gcam" id="camBtn" aria-label="Pilot kamerası"><svg viewBox="0 0 32 32"><use href="#i-cam"/></svg></button>
   <div class="hud"><div class="gems glass" id="gems" hidden></div><div class="record glass" id="record" hidden></div></div>
   <div class="track" id="track"></div>
   <div class="telemetry glass" id="telemetry" aria-live="polite" hidden></div>
@@ -138,6 +139,7 @@
   <symbol id="i-crew" viewBox="0 0 32 32"><circle cx="11.500" cy="11" r="5" fill="none" stroke="currentColor" stroke-width="3.200"/><path d="M3 27c0-5 3.500-8 8.500-8s8.500 3 8.500 8" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linecap="round"/><circle cx="23" cy="9" r="3.600" fill="none" stroke="currentColor" stroke-width="2.800"/><path d="M24 17c3.500.500 5.500 3 5.500 7" fill="none" stroke="currentColor" stroke-width="2.800" stroke-linecap="round"/></symbol>
   <symbol id="i-ship" viewBox="0 0 32 32"><path d="M16 3c3.500 4 5 8.500 5 14v5H11v-5c0-5.500 1.500-10 5-14z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M11 15l-6 6v4l6-2M21 15l6 6v4l-6-2M13.500 26.500l2.500 3 2.500-3" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-count" viewBox="0 0 32 32"><path d="M12 5l-3 22M23 5l-3 22M5 12h23M4 20h23" fill="none" stroke="currentColor" stroke-width="3.400" stroke-linecap="round"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 32 32"><rect x="3.500" y="9" width="17" height="14" rx="4" fill="none" stroke="currentColor" stroke-width="3.200"/><path d="M20.500 14l8-4v12l-8-4z" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linejoin="round"/></symbol>
   <symbol id="i-sun" viewBox="0 0 32 32"><circle cx="16" cy="16" r="6" fill="none" stroke="currentColor" stroke-width="3.200"/><path d="M16 3v4M16 25v4M3 16h4M25 16h4M6.800 6.800l2.800 2.800M22.400 22.400l2.800 2.800M6.800 25.200l2.800-2.800M22.400 9.600l2.800-2.800" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></symbol>
   <symbol id="i-tool" viewBox="0 0 32 32"><path d="M20 5l7 7-13 13H7v-7z" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linejoin="round"/><path d="M16.500 8.500l7 7M5 28h22" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linecap="round"/></symbol>
   <symbol id="i-eye" viewBox="0 0 32 32"><path d="M3 16c3.500-6 8-9 13-9s9.500 3 13 9c-3.500 6-8 9-13 9s-9.500-3-13-9z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><circle cx="16" cy="16" r="4.200" fill="currentColor"/></symbol>
