@@ -134,10 +134,26 @@ export function listOf(program, parentId, key) {
   return hit ? hit.block[key] : null;
 }
 
-/** Programı Python benzeri metne çevirir (salt okunur görünüm için). */
-export function toPython(program) {
+/** İki blok listesi aynı mı (kimliklere bakmadan)? */
+export const sameBlocks = (a, b) => { const strip = (p) => JSON.stringify(p, (k, v) => (k === 'id' ? undefined : v)); return strip(a) === strip(b); };
+
+/** Programda çağrılan ama tanımlanmayan manevralar (kitaplıktan gelmesi gerekenler). */
+export function undefinedCalls(program) {
+  const defined = new Set(), called = new Set();
+  const walk = (list) => { for (const b of list) { if (b.type === 'define') defined.add(b.name); if (b.type === 'call') called.add(b.name); for (const k of CONTAINERS[b.type] || []) walk(b[k] || []); } };
+  walk(program);
+  return [...called].filter((n) => !defined.has(n));
+}
+
+/**
+ * Programı Python benzeri metne çevirir (salt okunur görünüm için).
+ * @param o.library  kitaplıktaki manevra adları; tanımsız çağrılanlar "import" satırıyla gösterilir
+ */
+export function toPython(program, { library = [] } = {}) {
   const out = [];
   let handlers = 0;
+  const imported = undefinedCalls(program).filter((n) => library.includes(n));
+  if (imported.length) out.push(`from kitaplik import ${imported.map((n) => FUNCTIONS[n].py).join(', ')}`, '');
   const walk = (list, depth) => {
     const pad = '    '.repeat(depth);
     if (!list.length) { out.push(`${pad}pass`); return; }

@@ -368,6 +368,7 @@ export const ADVANCED_LEVELS = [
   }),
   mission({
     kind: 'final', title: 'Manevra Okulu Finali', tools: ALL_TOOLS, functions: ['safe'], events: ['pirate'], conds: ['atBeacon', ...SENSORS], rev: 2,
+    library: true,   // kitaplıktaki "güvenli uçuş" tanımlanmadan çağrılabilir
     brief: 'Güvenli uçuşu tanımla, halkaya kadar çağır. Halkada **sağa kaç**: öndeki duvarı sensörler aşamaz. Sonra yine güvenli uçuşu çağır. Korsanları unutma!',
     waves: wallWaves({ pirates: [2, 9], crystals: [3, 6, 10] }),
     solution: () => [define('safe', steer()), on('pirate', shield()), until('atBeacon', call('safe')), R(), forever(call('safe'))],
@@ -431,6 +432,7 @@ export const ADVANCED_LEVELS = [
   mission({
     kind: 'final', title: 'Ana Gemiye Dönüş', tools: ALL_TOOLS, functions: ['safe', 'protect'], events: ['pirate', 'energy'], conds: ['atBeacon', 'aheadAndRightFree', 'ahead'], rev: 2,
     boss: true, dock: true,   // son korsan Kızıl Kanca'dır; çıkışın ötesinde Atlas'ın kapısı durur
+    library: true,
     brief: 'Büyük final! Güvenli uçuş: meteor **VE** sağ boşsa sağa, başka meteor varsa sola, yoksa düz. Olaylarla şarj ol ve korun; halkadan sonra iki kez düz uç.',
     waves: finalWaves(), solution: () => finalSolution(3, true),
     hint: 'Önce iki fonksiyon ve iki olay. 3 enerjiyle kalk. Halkaya kadar güvenli uçuşu çağır; sonunda 2 düz uçuş.',

@@ -67,8 +67,10 @@ export const ENERGY_MAX = 9;
  * Programı alanda çalıştırır ve olay listesini döndürür.
  * Olaylar: sense, move, event, shield, variable, call, crash, win, fail.
  * Her olay ilgili bloğun `id`sini taşır.
+ * @param o.library  otopilot kitaplığı: { ad: gövde }. Programda tanımı olmayan bir manevra
+ *                   çağrılırsa gövdesi buradan alınır; programdaki tanım kitaplıktakinin önüne geçer.
  */
-export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOps = 20000 } = {}) {
+export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOps = 20000, library = null } = {}) {
   const events = [];
   const left = new Set(field.crystals);
   let lane = field.start, y = 0, ticks = 0, idle = 0, collected = 0;
@@ -173,7 +175,7 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
         functions.set(b.name, b); return;
       case 'call': {
         spin(b);
-        const fn = functions.get(b.name);
+        const fn = functions.get(b.name) || (library && library[b.name] ? { body: library[b.name] } : null);
         if (!fn) stop('fail', 'function', { t: 'fail', reason: 'function', id: b.id });
         if (++callDepth > 32) stop('fail', 'recursion', { t: 'fail', reason: 'recursion', id: b.id });
         announce({ t: 'call', id: b.id, name: b.name });

@@ -1,11 +1,13 @@
 // Görev ekranı: sahneyi açar, programı çalıştırır, olayları sırayla oynatır,
 // dalgaları ve sonucu yönetir.
 import { parseField, simulate, sense, hasMeteor, stars as calcStars, FAIL_TEXT } from '../engine/world.js';
-import { count, clone, toPython, CONDS, EVENTS, FUNCTIONS } from '../engine/blocks.js';
+import { count, clone, toPython, sameBlocks, CONDS, EVENTS, FUNCTIONS } from '../engine/blocks.js';
 import { LEVELS, SECTORS, KINDS, levelsOf } from '../content/levels.js';
 import { EXTRAS, EXTRA_LABEL, SECRET_STARS, sectorStars, extrasOf } from '../content/extras.js';
 import { missing, skeleton, hintSteps } from '../content/hints.js';
 import { teaser, nearGoal, STORY, VILLAIN, crewOf, botOf } from '../content/story.js';
+import { rankOf } from '../content/ranks.js';
+import { unlockedBetween } from '../content/hangar.js';
 import { Editor, renderBlock, hatBlock } from './editor.js';
 import { robot, face, miniBot, COPILOT } from './copilot.js';
 import { showCard, hideCard, makeCard, confetti } from './overlay.js';
@@ -19,8 +21,8 @@ const IN_FLIGHT = ['meteor', 'wall', 'pirate', 'shield', 'energy', 'overflow', '
 const TONE = { bad: 'var(--bad)', ok: 'var(--ok)', info: '#8fa6e8' };
 
 export class Game {
-  constructor({ view, store, sfx, music, voice, onExit }) {
-    Object.assign(this, { view, store, sfx, music, voice, onExit });
+  constructor({ view, store, sfx, music, voice, hangar, onExit }) {
+    Object.assign(this, { view, store, sfx, music, voice, hangar, onExit });
     this.status = 'idle'; this.loopId = 0; this.current = Promise.resolve(); this.level = null; this.tab = 'blocks';
     this.editor = new Editor({
       ws: $('ws'), pal: $('pal'), pop: $('pop'),
@@ -67,7 +69,8 @@ export class Game {
     $('waveNote').innerHTML = `Aynı program ${this.fields.length} dalgayı da geçmeli.<span class="more"> Görmek için sayıya dokun.</span>`;
     const saved = this.store.program(level.saveKey);
     const program = saved && saved.length ? clone(saved) : level.initial ? level.initial() : [];
-    this.editor.load(level, program);
+    this.lib = this.libraryFor(level);
+    this.editor.load(level, program, Object.keys(this.lib || {}));
     this.setTab('blocks'); this.hideToast(); this.hideCall(); this.setStatus('idle');
     this.refreshMeta(); this.renderWaves();
     this.resetTelemetry();
@@ -75,11 +78,36 @@ export class Game {
     // Sektörde ilerledikçe arka plandaki gezegen (son sektörde Atlas) yaklaşır.
     this.view.setTheme(sector.id, level.extra ? 0.5 : (level.n - 1) / 7);
     document.documentElement.style.setProperty('--sector', this.view.theme.accent);
-    this.view.setField(this.fields[0], this.stage());
+    this.setScene(0);
     this.view.enter();
+    this.renderRecord();
     history.replaceState(null, '', `#${level.id}`);
     if (level.n === 1 && !this.store.introSeen(sector.id)) this.showStory(sector, () => this.showIntro(sector));
-    else this.voice.say(`${level.title}. ${level.brief}`);
+    else {
+      this.voice.say(`${level.title}. ${level.brief}`);
+      if (this.lib) this.showToast('', `Kitaplığında **${Object.keys(this.lib).map((n) => FUNCTIONS[n].label).join(', ')}** var.`, { sub: 'Tanımlamadan çağırabilirsin: paletteki kitap işaretli bloğa dokun.', mood: 'happy', quiet: true });
+    }
+  }
+
+  /** Bu görevde kitaplıktan çağrılabilen manevralar: { ad: gövde }. Kitaplık kapalıysa ya da boşsa null. */
+  libraryFor(level) {
+    if (!level.library) return null;
+    const all = this.store.library(), out = {};
+    for (const name of level.functions || []) if (all[name]?.length) out[name] = all[name];
+    return Object.keys(out).length ? out : null;
+  }
+
+  /** Dalganın alanını sahneye kurar; görev daha önce geçildiyse rekor uçuşun izi de çizilir. */
+  setScene(i, extra = {}) {
+    this.view.setField(this.fields[i], this.stage(extra));
+    this.view.setTrail(this.store.best(this.level.id)?.paths?.[i] || null);
+  }
+
+  /** Rekor rozeti: bu görevi en az kaç blokla geçtin. */
+  renderRecord() {
+    const el = $('record'), best = this.store.best(this.level.id);
+    el.hidden = !best;
+    if (best) el.innerHTML = `<i></i>rekor <b>${best.blocks}</b> blok`;
   }
 
   close() {
@@ -110,7 +138,7 @@ export class Game {
   renderTrack() {
     const levels = levelsOf(this.level.sector), parts = [];
     levels.forEach((l, i) => {
-      const done = this.store.stars(l.id) > 0, cur = l.id === this.level.id, locked = !this.store.isUnlocked(l, LEVELS);
+      const done = this.store.stars(l.id) > 0 || (!!l.alt && this.store.stars(l.alt) > 0), cur = l.id === this.level.id, locked = !this.store.isUnlocked(l, LEVELS);
       const cls = ['node', l.n === 8 ? 'boss' : '', cur ? 'cur' : done ? 'done' : '', locked ? 'locked' : '', this.store.isSkipped(l.id) ? 'skipped' : ''].join(' ');
       const inner = l.n === 8 ? svg('i-star') : done && !cur ? svg('i-check') : l.n;
       parts.push(`<div class="n"><button class="${cls}" data-level="${l.id}" aria-label="Görev ${l.n}">${inner}</button><span class="${cur ? 'on' : ''}">${KINDS[l.kind]}</span></div>`);
@@ -136,7 +164,7 @@ export class Game {
   showWave(i) {
     this.loopId++; this.hideCall(); this.hideToast(); this.editor.mark(null);
     this.results = []; this.wave = i;
-    this.view.setField(this.fields[i], this.stage({ rain: true }));
+    this.setScene(i, { rain: true });
     this.resetTelemetry(); this.setStatus('idle');
   }
 
@@ -156,8 +184,8 @@ export class Game {
     if (tab === 'python') this.renderPython();
   }
   renderPython() {
-    const code = toPython(this.editor.program).replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      .replace(/\b(for|in|while|if|else|pass|True|not|and|or|def)\b/g, '<span class="k">$1</span>')
+    const code = toPython(this.editor.program, { library: Object.keys(this.lib || {}) }).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/\b(for|in|while|if|else|pass|True|not|and|or|def|from|import)\b/g, '<span class="k">$1</span>')
       .replace(/\b([a-z_]+)\(/g, '<span class="f">$1</span>(')
       .replace(/\((\d+)\)/g, '(<span class="n">$1</span>)')
       .replace(/^(#.*)$/gm, '<span class="c">$1</span>');
@@ -227,7 +255,7 @@ export class Game {
   start(step) {
     this.reset();
     // Uçuş hep ilk dalgadan başlar; ekranda başka bir dalga duruyorsa önce ilkine dönülür.
-    if (this.wave !== 0) { this.wave = 0; this.view.setField(this.fields[0], this.stage()); }
+    if (this.wave !== 0) { this.wave = 0; this.setScene(0); }
     this.stepMode = step; this.results = [];
     this.simulateWave();
     this.setStatus('running');
@@ -236,7 +264,7 @@ export class Game {
   }
 
   simulateWave() {
-    this.sim = simulate(this.fields[this.wave], this.editor.program);
+    this.sim = simulate(this.fields[this.wave], this.editor.program, { library: this.lib });
     this.events = this.sim.events; this.i = 0;
     this.resetTelemetry();
   }
@@ -382,7 +410,7 @@ export class Game {
       this.wave++; this.renderWaves();
       await view.wait(500);
       if (!alive()) return true;
-      view.setField(this.fields[this.wave], this.stage({ rain: true }));
+      this.setScene(this.wave, { rain: true });
       await view.enter();
       if (!alive()) return true;
       this.hideToast(); this.simulateWave();
@@ -469,11 +497,21 @@ export class Game {
     const { level, store } = this, blocks = count(this.editor.program);
     const got = calcStars(this.results, blocks, level.par);
     const before = store.stars(level.id), first = before === 0;
-    const sectorBefore = sectorStars(store, level.sector);
+    const sectorBefore = sectorStars(store, level.sector), totalBefore = store.total();
     store.setStars(level.id, got);
     store.attempt(level.id, { won: true, ms: this.lap() });
     store.addLog({ kind: 'win', id: level.id, stars: got, gain: Math.max(0, got - before) });
-    this.setStatus('won'); this.renderTrack();
+    // Rekor: daha çok yıldız ya da aynı yıldızla daha az blok. Uçulan yol da saklanır (rekor izi).
+    const best = store.best(level.id), record = !best || got > best.stars || (got === best.stars && blocks < best.blocks);
+    if (record) store.setBest(level.id, { blocks, stars: got, paths: this.results.map((r, i) => [this.fields[i].start, ...r.events.filter((e) => e.t === 'move' && !e.exit).map((e) => e.to.lane)]) });
+    // Kitaplık: bu uçuşta çağrılan her manevra tanımı saklanır; ileride tanımlamadan çağrılabilir.
+    const called = new Set(this.results.flatMap((r) => r.events.filter((e) => e.t === 'call').map((e) => e.name))), kept = [];
+    for (const b of this.editor.program) {
+      if (b.type !== 'define' || !b.body.length || !called.has(b.name)) continue;
+      const old = store.library()[b.name];
+      if (!old || !sameBlocks(old, b.body)) { store.keepFunction(b.name, clone(b.body)); kept.push(FUNCTIONS[b.name].label); }
+    }
+    this.setStatus('won'); this.renderTrack(); this.renderRecord();
     const total = this.results.reduce((a, r) => a + r.total, 0), collected = this.results.reduce((a, r) => a + r.collected, 0);
     const next = this.nextOf(level);
     const lastOfSector = !level.extra && level.n === 8;
@@ -481,12 +519,19 @@ export class Game {
       ['Çıkışa ulaştın', true],
       total ? [`Kristaller: ${collected} / ${total}`, collected === total] : null,
       [blocks <= level.par ? `En çok ${level.par} blok kullandın` : `${blocks} blok kullandın (hedef ${level.par})`, blocks <= level.par],
+      best && blocks < best.blocks ? [`Yeni rekor: ${blocks} blok (eskisi ${best.blocks})`, true] : null,
     ].filter(Boolean);
     // Kanca: sırada ne var ve en yakın hedef ne? Çocuk kartı kapatmadan bir sonraki adımı görsün.
     const leftInSector = levelsOf(level.sector).filter((l) => !store.passed(l)).length;
     const secret = extrasOf(level.sector).find((x) => x.extra === 'gizli');
     const opened = secret && !level.extra && sectorBefore < SECRET_STARS && sectorStars(store, level.sector) >= SECRET_STARS;
-    const hooks = [opened ? `Gizli görev açıldı: **${secret.title}**! Rota ekranında soru işaretini ara.` : '', teaser(next), nearGoal({ total: store.total(), leftInSector, sectorName: this.sector.name })].filter(Boolean);
+    const parts = unlockedBetween(totalBefore, store.total());
+    const hooks = [
+      opened ? `Gizli görev açıldı: **${secret.title}**! Rota ekranında soru işaretini ara.` : '',
+      parts.length ? `Hangarda yeni parça: **${parts.map((p) => `${p.option.name} ${p.label.toLocaleLowerCase('tr')}`).join(', ')}**.` : '',
+      kept.length ? `Kitaplığına eklendi: **${kept.join(', ')}**.` : '',
+      teaser(next), nearGoal({ total: store.total(), leftInSector, sectorName: this.sector.name }),
+    ].filter(Boolean);
     const card = makeCard(`
       <div class="who">${robot(got === 3 ? 'wow' : 'happy')}<span class="tag">${lastOfSector ? `SEKTÖR ${level.sector} TAMAMLANDI` : level.extra ? EXTRA_LABEL[level.extra] : `GÖREV ${level.n} / 8`}</span></div>
       <h1>${lastOfSector ? `${this.sector.name} geçildi!` : got === 3 ? 'Kusursuz uçuş!' : 'Görev tamam!'}</h1>
@@ -510,9 +555,23 @@ export class Game {
       if (got === 3) confetti();
       this.voice.say(`${got === 3 ? 'Kusursuz uçuş!' : 'Görev tamam!'} ${hooks.join(' ')}`);
     };
-    // Kurtarma sahnesi sonuç kartından önce gelir: sektörün ödülü yıldızlardan önce o kişidir.
-    if (!this.rescued(level, reveal)) reveal();
+    // Kurtarma ve terfi sahneleri sonuç kartından önce gelir: büyük ödüller yıldızlardan önce kutlanır.
+    const scenes = [(then) => this.rescued(level, then), (then) => this.promoted(totalBefore, then)];
+    const play = (i) => { if (i >= scenes.length) reveal(); else if (!scenes[i](() => play(i + 1))) play(i + 1); };
+    play(0);
     return first;
+  }
+
+  /** Terfi töreni: toplam yıldız yeni bir rütbeye yettiyse. Kart gösterildiyse true döner. */
+  promoted(totalBefore, then) {
+    const rank = rankOf(this.store.total());
+    if (rank === rankOf(totalBefore)) return false;
+    const card = makeCard(`<div class="who"><div class="medal">${svg('i-star')}</div><span class="tag">TERFİ</span></div>
+      <h1>${rank}</h1><p>Yeni rütben hayırlı olsun, pilot! Toplam <b>${this.store.total()} yıldız</b> topladın.</p>
+      <div class="btns"><button class="btn primary" data-act="ok">Devam${svg('i-play')}</button></div>`, () => { this.sfx.click(); this.voice.stop(); then(); }, 'rescue');
+    this.showOverlay(card); confetti(60); this.sfx.fanfare();
+    this.voice.say(`Terfi ettin! Yeni rütben: ${rank}.`);
+    return true;
   }
 
   /** Bu görevden sonra gidilecek ana görev (acil durumda: yanında durduğu görevin sonraki). Gizli görevden rotaya dönülür. */
@@ -524,7 +583,8 @@ export class Game {
 
   /** Sıradaki göreve geçer; araya girecek bir acil durum varsa önce onu haber verir (bir kez). */
   advance(level, next) {
-    const alarm = EXTRAS.find((x) => x.extra === 'acil' && x.after === level.id && !this.store.seen(`acil:${x.id}`) && !this.store.stars(x.id));
+    const mainId = level.extra === 'catal' ? level.after : level.id;
+    const alarm = EXTRAS.find((x) => x.extra === 'acil' && x.after === mainId && !this.store.seen(`acil:${x.id}`) && !this.store.stars(x.id));
     if (!alarm) { this.open(next); return; }
     this.store.markSeen(`acil:${alarm.id}`);
     const card = makeCard(`<div class="who">${robot('alarm')}<span class="tag alarm">${EXTRA_LABEL.acil}</span></div><h1>${alarm.title}</h1><p>${alarm.alarm}</p>

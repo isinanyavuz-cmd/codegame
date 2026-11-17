@@ -5,33 +5,36 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#070b22">
 <title>Kod Pilotu</title>
-<link rel="stylesheet" href="css/style.css?v=5b8b6532">
-<meta name="surum" content="015fbf3">
+<link rel="stylesheet" href="css/style.css?v=8772389e">
+<meta name="surum" content="5dae05a">
 <script type="importmap">
 {
  "imports": {
-  "./src/content/advanced.js": "./src/content/advanced.js?v=1c9d8706",
-  "./src/content/extras.js": "./src/content/extras.js?v=817cb9e0",
+  "./src/content/advanced.js": "./src/content/advanced.js?v=23f10a04",
+  "./src/content/extras.js": "./src/content/extras.js?v=83261125",
   "./src/content/gen.js": "./src/content/gen.js?v=368a1598",
+  "./src/content/hangar.js": "./src/content/hangar.js?v=a0240ee7",
   "./src/content/hints.js": "./src/content/hints.js?v=d989e36c",
   "./src/content/levels.js": "./src/content/levels.js?v=5ef62d20",
   "./src/content/logbook.js": "./src/content/logbook.js?v=6b617bdb",
   "./src/content/ranks.js": "./src/content/ranks.js?v=4a7c597a",
   "./src/content/story.js": "./src/content/story.js?v=8ee94c79",
-  "./src/engine/blocks.js": "./src/engine/blocks.js?v=80fb3aef",
+  "./src/engine/blocks.js": "./src/engine/blocks.js?v=17a1ddfd",
   "./src/engine/rng.js": "./src/engine/rng.js?v=09b50631",
-  "./src/engine/world.js": "./src/engine/world.js?v=0fe9400e",
-  "./src/main.js": "./src/main.js?v=76780532",
-  "./src/render/models.js": "./src/render/models.js?v=f1b3666e",
+  "./src/engine/world.js": "./src/engine/world.js?v=156bd7d7",
+  "./src/main.js": "./src/main.js?v=ce35601b",
+  "./src/render/models.js": "./src/render/models.js?v=61728efe",
   "./src/render/themes.js": "./src/render/themes.js?v=285d926a",
-  "./src/render/view.js": "./src/render/view.js?v=44c9bbf8",
+  "./src/render/view.js": "./src/render/view.js?v=2f9d4fc8",
   "./src/storage.js": "./src/storage.js?v=34ad32dd",
   "./src/ui/copilot.js": "./src/ui/copilot.js?v=514243d9",
-  "./src/ui/editor.js": "./src/ui/editor.js?v=99dff86c",
-  "./src/ui/game.js": "./src/ui/game.js?v=c41dbb2f",
-  "./src/ui/map.js": "./src/ui/map.js?v=08ff38fe",
+  "./src/ui/editor.js": "./src/ui/editor.js?v=be71bded",
+  "./src/ui/game.js": "./src/ui/game.js?v=5bfd54c3",
+  "./src/ui/hangar.js": "./src/ui/hangar.js?v=0dd951e3",
+  "./src/ui/map.js": "./src/ui/map.js?v=9a4af6f2",
   "./src/ui/overlay.js": "./src/ui/overlay.js?v=ab98ef4f",
-  "./src/ui/sfx.js": "./src/ui/sfx.js?v=10f788df",
+  "./src/ui/sfx.js": "./src/ui/sfx.js?v=1e0d5a56",
+  "./src/ui/shipart.js": "./src/ui/shipart.js?v=4c8f3755",
   "./src/ui/voice.js": "./src/ui/voice.js?v=d72eaa04",
   "./vendor/three.bundle.min.js": "./vendor/three.bundle.min.js?v=0622f3b8"
  }
@@ -64,7 +67,7 @@
     <div class="ttl"><small id="sectorNo">SEKTÖR 1</small><b id="sectorName">Kalkış</b></div>
   </div>
   <button class="iconbtn gsnd" id="gameSoundBtn" aria-label="Sesi kapat/aç"><svg viewBox="0 0 32 32"><use href="#i-sound"/></svg></button>
-  <div class="gems glass" id="gems" hidden></div>
+  <div class="hud"><div class="gems glass" id="gems" hidden></div><div class="record glass" id="record" hidden></div></div>
   <div class="track" id="track"></div>
   <div class="telemetry glass" id="telemetry" aria-live="polite" hidden></div>
 
@@ -126,10 +129,12 @@
   <symbol id="i-speak" viewBox="0 0 32 32"><path d="M5 6h22v15H16l-6.500 5.500V21H5z" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linejoin="round"/><path d="M11 12h10M11 16.500h6" fill="none" stroke="currentColor" stroke-width="2.800" stroke-linecap="round"/></symbol>
   <symbol id="i-book" viewBox="0 0 32 32"><path d="M16 9c-2.500-2-6-3-11-3v18c5 0 8.500 1 11 3 2.500-2 6-3 11-3V6c-5 0-8.500 1-11 3zM16 9v18" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linejoin="round"/></symbol>
   <symbol id="i-crew" viewBox="0 0 32 32"><circle cx="11.500" cy="11" r="5" fill="none" stroke="currentColor" stroke-width="3.200"/><path d="M3 27c0-5 3.500-8 8.500-8s8.500 3 8.500 8" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linecap="round"/><circle cx="23" cy="9" r="3.600" fill="none" stroke="currentColor" stroke-width="2.800"/><path d="M24 17c3.500.500 5.500 3 5.500 7" fill="none" stroke="currentColor" stroke-width="2.800" stroke-linecap="round"/></symbol>
+  <symbol id="i-ship" viewBox="0 0 32 32"><path d="M16 3c3.500 4 5 8.500 5 14v5H11v-5c0-5.500 1.500-10 5-14z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M11 15l-6 6v4l6-2M21 15l6 6v4l-6-2M13.500 26.500l2.500 3 2.500-3" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-fork" viewBox="0 0 32 32"><path d="M16 28V17M16 17c0-6-7-5-7-12M16 17c0-6 7-5 7-12M5.500 9L9 5l3.500 4M19.500 9L23 5l3.500 4" fill="none" stroke="currentColor" stroke-width="3.200" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-radio" viewBox="0 0 32 32"><path d="M9 22a10 10 0 0 1 0-12M23 10a10 10 0 0 1 0 12M4.500 26a16 16 0 0 1 0-20M27.500 6a16 16 0 0 1 0 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="16" cy="16" r="3.500" fill="currentColor"/></symbol>
   <symbol id="i-trash" viewBox="0 0 32 32"><path d="M7 9h18M13 9V6h6v3M9.500 9l1 17h11l1-17" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
 
-<script type="module" src="src/main.js?v=76780532"></script>
+<script type="module" src="src/main.js?v=ce35601b"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 // 3B sahne: uzay, şerit ızgarası, gemi, meteorlar ve bütün animasyonlar.
 // Oyun mantığını bilmez; yalnızca motorun ürettiği olayları oynatır.
 import * as THREE from '../../vendor/three.bundle.min.js';
-import { buildShip, buildMeteor, buildCrystal, buildPirate, buildAtlasGate, glowTexture, streakTexture, beamTexture, paintBackground } from './models.js';
+import { buildShip, styleShip, buildMeteor, buildCrystal, buildPirate, buildAtlasGate, glowTexture, streakTexture, beamTexture, paintBackground } from './models.js';
 import { rng } from '../engine/rng.js';
 import { themeOf } from './themes.js';
 
@@ -201,7 +201,7 @@ export class View {
       this.level.remove(o);
       o.traverse((n) => { if (n.geometry) n.geometry.dispose(); if (n.userData.own && n.material) n.material.dispose(); });
     }
-    this.meteors.clear(); this.crystals.clear(); this.pirates.clear(); this.landmarks.clear(); this.gate = null;
+    this.meteors.clear(); this.crystals.clear(); this.pirates.clear(); this.landmarks.clear(); this.gate = null; this.trail = null;
     this.field = field;
     this.ship.visible = !!field;
     if (!field) { this.fit(); return; }
@@ -275,6 +275,28 @@ export class View {
     if (rain) this.rain();
   }
 
+  /**
+   * Rekor uçuşun izi: zeminde soluk altın noktalar. `lanes[y]` o sırada geçilen şerittir.
+   * Alanın parçasıdır; alan değişince onunla birlikte silinir.
+   */
+  setTrail(lanes) {
+    if (this.trail) {
+      this.level.remove(this.trail);
+      this.trail.traverse((n) => { if (n.geometry) n.geometry.dispose(); if (n.material) n.material.dispose(); });
+      this.trail = null;
+    }
+    if (!lanes || !this.field) return;
+    const g = new THREE.Group(), dot = glow(bright(0xffd84a, 1.3), 0.55), line = glow(0xffd84a, 0.16), rows = this.field.rows;
+    lanes.slice(0, rows).forEach((lane, y) => {
+      if (y > 0) {
+        const m = new THREE.Mesh(new THREE.CircleGeometry(0.08, 12), dot);
+        m.rotation.x = -Math.PI / 2; m.position.set(this.gx(lane), 0.03, this.gz(y)); m.userData.own = true; g.add(m);
+      }
+      if (y + 1 < Math.min(lanes.length, rows)) strip(g, this.gx(lane), this.gz(y), this.gx(lanes[y + 1]), this.gz(y + 1), 0.04, line, 0.025).userData.own = true;
+    });
+    this.trail = g; this.level.add(g);
+  }
+
   /** Dalga değişimi: meteorlar yukarıdan düşer, öteki nesneler belirir. Alanın değiştiği böylece gözle görülür. */
   rain() {
     const drops = [];
@@ -332,6 +354,9 @@ export class View {
   }
 
   setShield(visible) { this.shieldBubble.visible = !!visible; }
+
+  /** Hangarda seçilen görünüm (renkler ve biçim). */
+  setLook(look) { styleShip(this.ship, look); styleShip(this.ghost, look); }
 
   /** Atlas'ın ışıkları: 0 sönük (otopilotu bozuk), 1 tamamen açık. */
   lightGate(k) {

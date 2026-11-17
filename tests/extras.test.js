@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { LEVELS, SECTORS, levelById } from '../src/content/levels.js';
-import { EXTRAS, ALL_LEVELS, SECRET_STARS, extrasOf, findLevel } from '../src/content/extras.js';
+import { EXTRAS, ALL_LEVELS, SECRET_STARS, extrasOf, findLevel, wonEither } from '../src/content/extras.js';
 import { STORY, CREW, BOTS, crewOf, botOf } from '../src/content/story.js';
 import { parseField, simulate, stars } from '../src/engine/world.js';
-import { count, CONTAINERS, F, R, rep } from '../src/engine/blocks.js';
+import { count, CONTAINERS, F, R, rep, forever, ifelse, setEnergy, addEnergy } from '../src/engine/blocks.js';
 
 const starsOf = (level, program) => stars(level.waves.map((w) => simulate(parseField(w), program)), count(program), level.par);
 function types(program, out = new Set()) {
@@ -24,7 +24,7 @@ test('yan görevler: kimlikler benzersiz, her biri kendi sektöründeki bir ana 
     const main = levelById(x.after);
     assert.ok(main, `${x.id}: ${x.after} yok`);
     assert.equal(main.sector, x.sector);
-    assert.ok(['gizli', 'acil'].includes(x.extra));
+    assert.ok(['gizli', 'acil', 'catal'].includes(x.extra));
     assert.ok(x.title && x.brief && x.hint, x.id);
     assert.equal(findLevel(x.id), x);
     if (x.extra === 'acil') assert.ok(x.alarm, `${x.id}: acil durum haberi yok`);
@@ -71,4 +71,27 @@ test('hikâye: her sektörün telsiz mesajı, kurtarılacak mürettebatı; her g
   }
   assert.equal(new Set([...CREW, ...BOTS].map((c) => c.id)).size, CREW.length + BOTS.length);
   for (const x of EXTRAS.filter((e) => e.extra === 'gizli')) assert.ok(botOf(x.sector), x.id);
+});
+
+test('çatal: öteki yol geçilince ana görev geçilmiş sayılır ve sıradaki açılır', async () => {
+  const store = await freshStore();
+  const forks = EXTRAS.filter((x) => x.extra === 'catal');
+  assert.ok(forks.length >= 4);
+  for (const f of forks) assert.equal(levelById(f.after).alt, f.id, f.id);
+  const f = findLevel('1-5-b'), main = levelById('1-5'), next = levelById('1-6');
+  for (let i = 1; i <= 4; i++) store.setStars(`1-${i}`, 1);
+  assert.equal(store.isUnlocked(f, LEVELS), true, 'çatal, ana görevle birlikte açılır');
+  assert.equal(store.isUnlocked(next, LEVELS), false);
+  store.setStars(f.id, 2);
+  assert.equal(store.isUnlocked(next, LEVELS), true);
+  assert.equal(wonEither(store, main), true);
+  assert.equal(store.stars(main.id), 0, 'ana görevin kendi yıldızları ayrı durur');
+});
+
+test('6-5-b: her istasyonda şarj eden taşar, enerjiye bakan geçer', () => {
+  const level = findLevel('6-5-b');
+  const everyStation = [setEnergy(6), forever(ifelse('atEnergy', [addEnergy(6)], []), F())];
+  const results = level.waves.map((w) => simulate(parseField(w), everyStation));
+  assert.equal(results[0].reason, 'overflow');
+  assert.equal(starsOf(level, level.solution()), 3);
 });

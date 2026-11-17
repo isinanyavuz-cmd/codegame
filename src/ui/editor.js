@@ -81,8 +81,9 @@ export class Editor {
     this.ws.addEventListener('click', (e) => { if (e.target.closest('.del') && this.selected) this.deleteBlock(this.selected); });
   }
 
-  load(level, program) {
-    this.level = level; this.program = program; this.history = []; this.selected = null;
+  /** @param library  bu görevde tanımlamadan çağrılabilen manevraların adları (otopilot kitaplığı) */
+  load(level, program, library = []) {
+    this.level = level; this.program = program; this.history = []; this.selected = null; this.library = library;
     this.ws.classList.toggle('multi', level.conds.length > 1);
     this.closePop(); this.render(); this.renderPalette();
   }
@@ -102,6 +103,11 @@ export class Editor {
       const cls = ['define', 'call'].includes(t) ? 'fun' : t === 'on' ? 'ev' : ['setEnergy', 'addEnergy'].includes(t) ? 'variable' : isAction(t) ? 'mov' : 'ctl';
       const e = h('div', `blk ${cls}`, sign(t), isAction(t) ? ACTIONS[t].label : TOOLS[t]);
       e.dataset.tool = t; this.pal.append(e);
+    }
+    // Kitaplıktaki manevralar: tanımlamadan çağrılır.
+    for (const name of this.library) {
+      const e = h('div', 'blk fun lib', icon('i-book', 'bi'), `${FUNCTIONS[name].label} çağır`);
+      e.dataset.tool = 'call'; e.dataset.name = name; this.pal.append(e);
     }
     // Tek sensör varsa palette gösterilir; birden çoksa "eğer" bloğundaki koşula dokunarak seçilir.
     if (this.level.conds.length === 1) { const e = h('span', 'cond', CONDS[this.level.conds[0]].label); e.dataset.condtool = this.level.conds[0]; this.pal.append(e); }
@@ -154,10 +160,10 @@ export class Editor {
     if (count(this.program) + count([block]) <= this.level.maxBlocks) return true;
     this.notify('full'); return false;
   }
-  newBlock(type) {
+  newBlock(type, name = null) {
     const { conds, events, functions } = this.level;
     // "Olana kadar" çoğunlukla işareti bekler; "eğer" ise yol seçen bir sensörle başlar.
-    return create(type, { cond: conds.find((c) => c !== 'atBeacon') || conds[0] || null, untilCond: conds.includes('atBeacon') ? 'atBeacon' : conds[0], event: events?.[0], name: functions?.[0] });
+    return create(type, { cond: conds.find((c) => c !== 'atBeacon') || conds[0] || null, untilCond: conds.includes('atBeacon') ? 'atBeacon' : conds[0], event: events?.[0], name: name || functions?.[0] });
   }
   deleteBlock(id) { this.snapshot(); remove(this.program, id); this.notify('remove'); this.changed(); }
 
@@ -167,7 +173,7 @@ export class Editor {
     const tool = e.target.closest('[data-tool]'), condTool = e.target.closest('[data-condtool]');
     const blockEl = e.target.closest('[data-id]');
     let src = null;
-    if (tool) src = { kind: 'new', type: tool.dataset.tool, el: tool };
+    if (tool) src = { kind: 'new', type: tool.dataset.tool, name: tool.dataset.name, el: tool };
     else if (condTool) src = { kind: 'cond', cond: condTool.dataset.condtool, el: condTool };
     else if (blockEl && this.ws.contains(blockEl)) src = { kind: 'move', id: blockEl.dataset.id, el: blockEl };
     if (!src) { this.select(null); return; }
@@ -195,7 +201,7 @@ export class Editor {
   beginDrag(d) {
     d.active = true; this.select(null); this.closePop();
     let inner;
-    if (d.src.kind === 'new') { d.block = this.newBlock(d.src.type); inner = renderBlock(d.block); d.dx = 14; d.dy = 19; }
+    if (d.src.kind === 'new') { d.block = this.newBlock(d.src.type, d.src.name); inner = renderBlock(d.block); d.dx = 14; d.dy = 19; }
     else if (d.src.kind === 'move') { d.block = find(this.program, d.src.id).block; inner = d.src.el.cloneNode(true); d.src.el.classList.add('dragging'); }
     else inner = d.src.el.cloneNode(true);
     for (const e of [inner, ...inner.querySelectorAll('*')]) e.classList.remove('now', 'sensing', 'err', 'sel');
@@ -270,7 +276,7 @@ export class Editor {
   tap(d) {
     const { src } = d;
     if (src.kind === 'new') {
-      const block = this.newBlock(src.type);
+      const block = this.newBlock(src.type, src.name);
       if (!this.canAdd(block)) return;
       this.snapshot(); this.program.push(block); this.notify('add'); this.changed();
       this.ws.scrollTop = this.ws.scrollHeight;

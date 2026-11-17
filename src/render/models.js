@@ -33,35 +33,48 @@ export function buildShip(ghostMat = null) {
   fus.rotation.x = -Math.PI / 2; fus.scale.set(1, 1, 0.72); g.add(fus);
   const WING = [[0.13, 0.3], [0.98, -0.46], [0.98, -0.66], [0.52, -0.6], [0.13, -0.56]];
   const TIP = [[0.64, -0.16], [0.98, -0.46], [0.98, -0.66], [0.74, -0.63]];
-  const flames = [];
+  // Hangardaki biçim seçimi için: kanatlar, kanada bağlı parçalar ve alev malzemeleri (bkz. styleShip).
+  const flames = [], wings = [], span = [], flameMats = [];
   for (const mir of [false, true]) {
     const s = mir ? -1 : 1;
-    g.add(slab(wingShape(WING, mir), 0.06, H));
-    g.add(slab(wingShape(TIP, mir), 0.085, A));
+    for (const w of [slab(wingShape(WING, mir), 0.06, H), slab(wingShape(TIP, mir), 0.085, A)]) { g.add(w); wings.push(w); }
     const eng = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.12, 0.56, 20), D);
     eng.rotation.x = Math.PI / 2; eng.position.set(s * 0.25, 0.02, 0.52); g.add(eng);
     const fin = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.3, 0.36), A);
     fin.rotation.x = 0.5; fin.rotation.z = -s * 0.28; fin.position.set(s * 0.27, 0.2, 0.52); g.add(fin);
     const gun = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.42, 10), D);
-    gun.rotation.x = Math.PI / 2; gun.position.set(s * 0.52, 0, -0.22); g.add(gun);
+    gun.rotation.x = Math.PI / 2; gun.position.set(s * 0.52, 0, -0.22); g.add(gun); span.push({ o: gun, x: s * 0.52 });
     if (ghostMat) continue;
     const noz = new THREE.Mesh(new THREE.CircleGeometry(0.09, 20), new THREE.MeshBasicMaterial({ color: bright(0x8ff0ff, 3) }));
     noz.position.set(s * 0.25, 0.02, 0.805); g.add(noz);
     const flame = new THREE.Group(); flame.position.set(s * 0.25, 0.02, 0.8);
     const outer = new THREE.Mesh(new THREE.ConeGeometry(0.1, 1.15, 16, 1, true), additive(bright(0x49c8ff, 1.6), 0.75));
-    outer.rotation.x = Math.PI / 2; outer.position.z = 0.575; flame.add(outer);
+    outer.rotation.x = Math.PI / 2; outer.position.z = 0.575; flame.add(outer); flameMats.push(outer.material);
     const inner = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.6, 12, 1, true), additive(bright(0xffffff, 2.5), 0.9));
     inner.rotation.x = Math.PI / 2; inner.position.z = 0.3; flame.add(inner);
     g.add(flame); flames.push(flame);
     const tip = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), new THREE.MeshBasicMaterial({ color: bright(s > 0 ? 0x37e39a : 0xff4d6a, 3) }));
-    tip.position.set(s * 0.98, 0.03, -0.56); g.add(tip);
+    tip.position.set(s * 0.98, 0.03, -0.56); g.add(tip); span.push({ o: tip, x: s * 0.98 });
   }
   const can = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), G);
   can.scale.set(0.115, 0.1, 0.3); can.position.set(0, 0.105, -0.28); g.add(can);
   const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.02, 0.5), A);
   stripe.position.set(0, 0.145, 0.25); g.add(stripe);
-  g.userData.flames = flames;
+  Object.assign(g.userData, { flames, wings, span, flameMats, fus });
   return g;
+}
+
+/**
+ * Hangardaki görünümü gemiye uygular: gövde, şerit ve alev rengi; kanat açıklığı ve gövde boyu.
+ * Gövde ve şerit malzemeleri ortaktır; hayalet gemi (tek renk) yalnızca biçimi alır.
+ */
+export function styleShip(ship, look) {
+  const u = ship.userData;
+  if (u.flameMats.length) { hull.color.set(look.hull.color); accent.color.set(look.accent.color); }
+  for (const m of u.flameMats) m.color.copy(bright(look.flame.color, 1.6));
+  for (const w of u.wings) w.scale.x = look.shape.wing;
+  for (const p of u.span) p.o.position.x = p.x * look.shape.wing;
+  u.fus.scale.y = look.shape.nose;
 }
 
 const pirateHull = new THREE.MeshStandardMaterial({ color: 0x8a1c36, roughness: 0.4, metalness: 0.45, emissive: 0xff2244, emissiveIntensity: 0.3 });

@@ -2,8 +2,9 @@
 // haritada o sektörün yolunun yanında durur. Türleri:
 //   gizli   sektörde yeterince yıldız toplanınca açılır; ödülü Bip'in bir arkadaşıdır
 //   acil    bir ana görev bitince araya giren beklenmedik görev (bir kez haber verilir)
+//   catal   bir ana görevin öteki yolu: ikisinden hangisi geçilirse sıradaki görev açılır
 // Alanları ana görevlerle aynıdır; ek olarak `extra` (tür), `after` (haritada yanında
-// durduğu ana görev) ve `open(store)` (açık mı) taşırlar. Ana yolu kilitlemezler.
+// durduğu ana görev) ve `open(store, levels)` (açık mı) taşırlar. Ana yolu kilitlemezler.
 import { F, L, R, rep, forever, ifelse, until, on, shield, setEnergy, addEnergy, define, call } from '../engine/blocks.js';
 import { genWaves } from './gen.js';
 import { route, mission, wallWaves, steer, cruise, MOVES, LOOPS, EVENT_TOOLS, ENERGY_TOOLS, ALL_TOOLS, SENSORS } from './advanced.js';
@@ -11,23 +12,27 @@ import { LEVELS, levelById, levelsOf } from './levels.js';
 
 /** Gizli görevin açılması için sektörde toplanması gereken yıldız (24 üzerinden). */
 export const SECRET_STARS = 20;
-export const EXTRA_LABEL = { gizli: 'GİZLİ GÖREV', acil: 'ACİL DURUM' };
+export const EXTRA_LABEL = { gizli: 'GİZLİ GÖREV', acil: 'ACİL DURUM', catal: 'ÖTEKİ YOL' };
 export const sectorStars = (store, sector) => levelsOf(sector).reduce((a, l) => a + store.stars(l.id), 0);
 
 const OPEN = {
   gizli: (l) => (store) => sectorStars(store, l.sector) >= SECRET_STARS,
   acil: (l) => (store) => store.passed(levelById(l.after)),
+  catal: (l) => (store, levels) => store.isUnlocked(levelById(l.after), levels),
 };
 
 /** @param after  haritada yanında duracağı ana görevin sırası (1–8) */
 function extra(kind, sector, after, def) {
-  const id = `${sector}-${kind === 'gizli' ? 'g' : 'a'}`;
+  const id = kind === 'catal' ? `${sector}-${after}-b` : `${sector}-${kind === 'gizli' ? 'g' : 'a'}`;
   const level = { conds: [], events: [], functions: [], ...def, id, saveKey: id, sector, extra: kind, kind, after: `${sector}-${after}` };
   level.open = OPEN[kind](level);
+  // Çatal: ana görev öteki yolunu tanır; kayıt (storage.passed) ikisinden birini geçilmiş sayar.
+  if (kind === 'catal') levelById(level.after).alt = id;
   return level;
 }
 const secret = (sector, def) => extra('gizli', sector, 8, def);
 const alarm = (sector, after, def) => extra('acil', sector, after, def);
+const fork = (sector, after, def) => extra('catal', sector, after, def);
 
 const twoSensor = () => [forever(steer())];
 const oneSide = (side) => [forever(ifelse('ahead', [side()], [F()]))];
@@ -87,12 +92,53 @@ export const EXTRAS = [
     hint: 'İki olay bloğu kur: biri korsan görünce kalkan açsın, öteki işarete varınca sağa kaçsın.',
   })),
   secret(8, mission({
-    title: 'Atlas\'ın Kalbi', tools: ALL_TOOLS, functions: ['safe'], events: ['pirate', 'energy'], conds: ['atBeacon', ...SENSORS],
+    title: 'Atlas\'ın Kalbi', tools: ALL_TOOLS, functions: ['safe'], events: ['pirate', 'energy'], conds: ['atBeacon', ...SENSORS], library: true,
     brief: 'En zor rota: dar geçit, korsanlar **ve** azalan enerji. Güvenli uçuşu tanımla; olaylar kalkanı ve şarjı yönetsin. Halkada sağa kaç!',
     waves: wallWaves({ energy: [3, 6, 9], pirates: [2, 10], crystals: [4, 7, 11] }),
     solution: () => [define('safe', steer()), on('pirate', shield()), on('energy', addEnergy(3)), setEnergy(3), until('atBeacon', call('safe')), R(), forever(call('safe'))],
     maxBlocks: 17,
     hint: 'Manevra Okulu finalindeki programın aynısı; üstüne şarj olayını ve 3 enerjilik kalkışı ekle.',
+  })),
+
+  // ───────────── çatallar: aynı kavram, başka bir yol ─────────────
+  fork(1, 5, {
+    title: 'Kristal Koridoru',
+    brief: 'Meteor Tarlası\'nın öteki yolu: daha az meteor, daha çok kristal. Altı adımda üç kristali topla.',
+    waves: [route('LFRRFL', { crystals: [1, 3, 5] })],
+    tools: MOVES, maxBlocks: 8, par: 6,
+    solution: () => [L(), F(), R(), R(), F(), L()],
+    hint: 'Kristaller yolu gösteriyor: önce sola, sonra düz, sonra iki kez sağa.',
+  }),
+  fork(2, 6, {
+    title: 'Dalga Deseni',
+    brief: 'Desen Avcısı\'nın öteki yolu: bu kez desen üç hareketten oluşuyor ve üç kez tekrar ediyor.',
+    waves: [route('RFLRFLRFL', { start: 1, crystals: [2, 5, 8] })],
+    tools: [...MOVES, 'repeat'], maxBlocks: 6, par: 4,
+    solution: () => [rep(3, R(), F(), L())],
+    hint: 'İlk üç adım: sağa, düz, sola. Gerisi aynısı.',
+  }),
+  fork(3, 5, {
+    title: 'Önce Sola Bak',
+    brief: 'İki Sensör\'ün öteki yolu: önünde meteor varsa bu kez **solum boş mu?** diye sor. Karar ağacının aynası da iş görür.',
+    waves: genWaves({ lanes: 5, rows: 8, start: 2, density: 0.3, seed: 3535, solution: twoSensorLeft(), minDodges: 3, needBoth: true, decoys: [oneSide(R), oneSide(L)], alts: [twoSensor()] }),
+    tools: [...MOVES, 'forever', 'ifelse'], conds: ['ahead', 'leftFree', 'rightFree'], maxBlocks: 8, par: 6,
+    solution: twoSensorLeft,
+    hint: 'Önünde meteor varsa: solun boşsa sola, değilse sağa. Yoksa düz uç.',
+  }),
+  fork(4, 5, mission({
+    title: 'Ters Duraklar',
+    brief: 'İki Durak\'ın aynası: ilk mor halkaya kadar düz uç, **sola** kaç. İkinci halkaya kadar düz uç, **sağa** kaç ve çıkışa devam et.',
+    waves: [route('FFFLFFRFFF', { beacons: [3, 6], crystals: [4, 7], extra: [[1, 1], [1, 2], [1, 3], [2, 5], [2, 6]] })], conds: ['atBeacon'],
+    solution: () => [until('atBeacon', F()), L(), until('atBeacon', F()), R(), cruise()],
+    hint: 'İki olana kadar döngüsü gerekiyor; arada bir sola, sonda bir sağa kaçış.',
+  })),
+  fork(6, 5, mission({
+    title: 'Yalnızca Gerekince', tools: ENERGY_TOOLS, conds: ['energyLow', 'atEnergy'],
+    brief: 'İstasyon çok, depo küçük: her istasyonda şarj edersen depo taşar! 6 enerjiyle kalk; enerji **3\'ten azsa** 6 ekle, sonra hep düz uç.',
+    // Enerji yalnızca 4. ve 10. sırada 3'ün altına iner; öteki istasyonlarda şarj etmek depoyu taşırır.
+    waves: [route('FFFFFFFFFFFF', { energy: [1, 2, 4, 6, 7, 10], crystals: [3, 5, 8, 11] })],
+    solution: () => [setEnergy(6), forever(ifelse('energyLow', [addEnergy(6)], []), F())],
+    hint: 'İstasyona değil enerjiye bak: "enerji 3\'ten az mı?" sensörünü seç. Düz uç, eğer bloğunun dışında olsun.',
   })),
 
   // ───────────── acil durumlar ─────────────
@@ -124,6 +170,8 @@ export const EXTRAS = [
 ];
 
 export const extraById = (id) => EXTRAS.find((l) => l.id === id);
+/** Bir ana görev, kendisinden ya da öteki yolundan yıldız alındıysa geçilmiştir. */
+export const wonEither = (store, level) => store.stars(level.id) > 0 || (!!level.alt && store.stars(level.alt) > 0);
 export const extrasOf = (sectorId) => EXTRAS.filter((l) => l.sector === sectorId);
 /** Ana ya da yan, kimliği verilen görev. */
 export const findLevel = (id) => levelById(id) || extraById(id);

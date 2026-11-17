@@ -59,6 +59,8 @@ export const sfx = {
   /** Kalkış: motorların yükselen sesi. */
   launch: () => { noise(0.45, 0.09, { from: 220, to: 2400, type: 'bandpass', q: 1.1, swell: true }); tone(120, 0.4, { type: 'sawtooth', vol: 0.04, slide: 260 }); },
   shield: () => { tone(520, 0.22, { type: 'sine', vol: 0.06, slide: 420 }); tone(1040, 0.3, { vol: 0.03, delay: 0.05 }); },
+  /** Terfi töreni: kısa bir borazan. */
+  fanfare: () => { [[392, 0], [523, 0.14], [659, 0.28], [784, 0.42], [1047, 0.62]].forEach(([f, d], i) => tone(f, i === 4 ? 0.6 : 0.2, { type: 'sawtooth', vol: 0.05, delay: d })); tone(523, 0.7, { type: 'triangle', vol: 0.07, delay: 0.62 }); },
   /** Acil durum: iki tonlu kısa siren. */
   alarm: () => { for (let i = 0; i < 3; i++) { tone(740, 0.16, { type: 'square', vol: 0.04, delay: i * 0.34 }); tone(554, 0.16, { type: 'square', vol: 0.04, delay: i * 0.34 + 0.17 }); } },
   /** Rota ekranında gemi yol boyunca uçarken. */

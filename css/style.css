@@ -27,8 +27,12 @@ svg { display: block; }
 
 /* ───────── görev ekranı: üst şerit ───────── */
 .top { position: absolute; left: 22px; top: 20px; display: flex; align-items: center; gap: 14px; }
-/* Kristal sayacı: ses düğmesinin yanında. */
-.gems { position: absolute; left: 76px; top: 86px; height: 36px; padding: 0 12px; border-radius: 12px; display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 800; z-index: 2; box-shadow: none; }
+/* Kristal sayacı ve rekor rozeti: ses düğmesinin yanında. */
+.hud { position: absolute; left: 76px; top: 86px; z-index: 2; display: flex; gap: 8px; pointer-events: none; }
+.gems, .record { height: 36px; padding: 0 12px; border-radius: 12px; display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 800; box-shadow: none; }
+.record { font-size: 13px; font-weight: 600; color: #ffe9a3; gap: 5px; }
+.record b { font-size: 15px; font-weight: 800; color: #fff; }
+.record i { width: 14px; height: 0; border-top: 3px dotted var(--now); }
 .gems svg { width: 15px; height: 15px; color: #58e6ff; filter: drop-shadow(0 0 6px rgba(88, 230, 255, .8)); }
 .gems span { font-size: 13px; font-weight: 600; color: var(--soft); }
 .gems.full { border-color: rgba(88, 230, 255, .75); }
@@ -118,6 +122,7 @@ button.node:not(.locked):active { transform: scale(.92); }
 .ev svg { width: 14px; height: 14px; }
 .blk .bi { width: 17px; height: 17px; flex: none; }
 .palrow .blk .bi { width: 15px; height: 15px; }
+.blk.lib { box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .2), 0 0 0 2px rgba(255, 233, 163, .75); }
 .blk.hole { --col: rgba(255, 255, 255, .1); border: 2px dashed rgba(255, 233, 163, .6); box-shadow: none; color: #ffe9a3; min-width: 70px; justify-content: center; cursor: default; }
 .ctl { --col: var(--ctl); } .mov { --col: var(--mov); }
 .fun { --col: #9154ce; } .variable { --col: #217c60; }
@@ -300,6 +305,59 @@ button.node:not(.locked):active { transform: scale(.92); }
 .bots .face { width: 40px; height: 40px; }
 .bots .lost b { color: var(--soft); }
 
+/* hangar: gemi görünümü, rütbe, armalar */
+.rankbar { height: 8px; margin: 0 auto 8px; max-width: 420px; border-radius: 4px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.rankbar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #ffc21a, #ffe066); }
+.hangar { display: flex; gap: 18px; align-items: center; margin: 4px 0 14px; text-align: left; }
+.hangar .preview { flex: none; width: 190px; height: 190px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 50% 40%, rgba(90, 140, 255, .28), rgba(10, 16, 44, .9) 70%); border: 1px solid var(--line); }
+.hangar .preview svg { width: 124px; height: 124px; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .5)); }
+.hangar .preview .flame, .certificate .flame { transform-box: fill-box; transform-origin: 50% 0; animation: flick .16s infinite alternate; }
+.parts { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 9px; }
+.part small { display: block; margin-bottom: 5px; font-size: 11.5px; font-weight: 800; letter-spacing: .12em; color: var(--soft); }
+.part small b { color: #fff; letter-spacing: 0; font-size: 13px; }
+.part > div { display: flex; gap: 7px; flex-wrap: wrap; }
+.swatch { position: relative; width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; background: rgba(255, 255, 255, .06); border: 2px solid transparent; }
+.swatch i { width: 26px; height: 26px; border-radius: 50%; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .22), 0 0 0 1px rgba(255, 255, 255, .25); }
+.swatch.shape svg { width: 30px; height: 30px; }
+.swatch.on { border-color: var(--now); background: rgba(255, 213, 61, .14); }
+.swatch.locked i, .swatch.locked svg:first-child { opacity: .28; }
+.swatch em { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-style: normal; font-size: 10.5px; font-weight: 800; color: #ffe9a3; line-height: 1.1; }
+.swatch em svg { width: 13px; height: 13px; opacity: 1; }
+.swatch:not(.locked):active { transform: scale(.92); }
+.patches { margin: 0 0 18px; padding: 9px 12px; border-radius: 14px; background: rgba(255, 255, 255, .04); }
+.patches small { display: block; margin-bottom: 7px; font-size: 11.5px; font-weight: 800; letter-spacing: .12em; color: var(--soft); }
+.patches > div { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.patch { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 16px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .6);
+         background: radial-gradient(circle at 66% 28%, hsl(var(--h) 95% 80%), hsl(var(--h) 80% 52%) 45%, hsl(var(--h) 70% 26%)); box-shadow: 0 0 0 2px #ffe9a3, 0 0 14px hsl(var(--h) 90% 60% / .6); }
+.patch.off { filter: grayscale(1) brightness(.5); box-shadow: 0 0 0 2px rgba(150, 170, 230, .3); }
+.patch svg { width: 15px; height: 15px; }
+.medal { width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; color: #3b2a00; background: radial-gradient(circle at 35% 30%, #fff3b0, #ffc21a 60%, #c98a00); box-shadow: 0 0 0 5px rgba(255, 213, 61, .25), 0 0 40px rgba(255, 213, 61, .7); animation: bob .9s ease-in-out infinite alternate; }
+.medal svg { width: 46px; height: 46px; }
+.libgrid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 4px; }
+.namebox { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 0 12px; font-size: 14px; font-weight: 700; color: var(--soft); }
+.namebox input { width: 220px; height: 42px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, .08); color: #fff; font: inherit; font-size: 17px; font-weight: 700; -webkit-user-select: text; user-select: text; }
+.certificate { margin: 0 auto 16px; max-width: 520px; padding: 20px 22px 16px; border-radius: 16px; border: 3px double #e0b93a; background: linear-gradient(180deg, rgba(255, 213, 61, .09), rgba(255, 213, 61, .02)); text-align: center; }
+.certificate small { font-size: 11px; font-weight: 800; letter-spacing: .2em; color: #ffe9a3; }
+.certificate h2 { margin: 4px 0 6px; font-size: 26px; font-weight: 800; }
+.certificate .cship svg { width: 64px; height: 64px; margin: 0 auto; }
+.certificate p { margin: 4px auto; font-size: 15px; }
+.certificate .cname { font-size: 30px; font-weight: 800; color: #fff; margin: 6px auto 2px; }
+.certificate .cstats { font-weight: 700; color: #ffe9a3; }
+.certificate .cskills { font-size: 13.5px; color: var(--soft); }
+.csign { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--soft); }
+.csign span { display: flex; align-items: center; gap: 6px; } .csign .robot { width: 30px; height: 30px; animation: none; }
+.printsheet { display: none; }
+@media print {
+  html, body { overflow: visible; height: auto; background: #fff; }
+  body > :not(.printsheet) { display: none !important; }
+  .printsheet { display: block; padding: 40px 24px; }
+  .printsheet .certificate { max-width: 640px; padding: 40px 36px 28px; border: 6px double #c9a227; background: #fff; color: #1d2b4a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .printsheet .certificate small { color: #8a6d00; } .printsheet .certificate h2 { font-size: 34px; }
+  .printsheet .certificate .cname { color: #1d2b4a; font-size: 40px; } .printsheet .certificate .cstats { color: #8a6d00; }
+  .printsheet .certificate p, .printsheet .csign, .printsheet .certificate .cskills { color: #3a4668; }
+  .printsheet .certificate .cship svg { width: 96px; height: 96px; }
+}
+
 /* ───────── rota ekranı: yıldız haritası ───────── */
 /* Hafif bir perde: arka plandaki büyük gezegen geri planda kalır, rota öne çıkar. */
 #map { overflow: auto; padding: 0 12px 104px; -webkit-overflow-scrolling: touch; background: rgba(7, 11, 34, .52); }
@@ -366,6 +424,9 @@ button.node:not(.locked):active { transform: scale(.92); }
 .mn.side { transform: translate(-50%, -19px); width: 38px; }
 .mn.side .node { width: 38px; height: 38px; font-size: 19px; border-style: dashed; border-color: #ffe9a3; color: #ffe9a3; background: #1a1f47; }
 .mn.side.acil .node { border-color: #ff8d9f; color: #ff8d9f; animation: pulse-red 1.4s infinite; }
+.mn.side.catal .node { border-color: #9fe9ff; color: #9fe9ff; }
+.mn .node.via { border: 2px dashed var(--ok); color: var(--ok); }
+.code[data-extra="catal"] .brief .lab { color: #9fe9ff; }
 .mn.side .node.done { border-style: solid; border-color: var(--ok); color: #06301d; background: var(--ok); animation: none; }
 .mn.side .node.locked { border-color: rgba(255, 233, 163, .4); color: rgba(255, 233, 163, .6); cursor: pointer; }
 .mn.side .node svg { width: 16px; height: 16px; }
@@ -385,7 +446,7 @@ button.node:not(.locked):active { transform: scale(.92); }
 
 .shipmark { position: absolute; width: 0; height: 0; z-index: 3; pointer-events: none; }
 .shipmark > svg { position: absolute; left: -23px; top: -23px; width: 46px; height: 46px; overflow: visible; filter: drop-shadow(0 0 8px rgba(94, 242, 255, .95)); }
-.shipmark .flame { fill: #7fe9ff; transform-box: fill-box; transform-origin: 50% 0; animation: flick .16s infinite alternate; }
+.shipmark .flame { transform-box: fill-box; transform-origin: 50% 0; animation: flick .16s infinite alternate; }
 @keyframes flick { from { transform: scaleY(.7); opacity: .75; } to { transform: scaleY(1.2); opacity: 1; } }
 .shipmark span { position: absolute; left: 0; bottom: 34px; transform: translateX(-50%); white-space: nowrap; font-size: 13px; font-weight: 600; padding: 6px 11px; border-radius: 11px; color: #d7e0ff;
                  background: rgba(12, 18, 44, .94); border: 1px solid rgba(255, 213, 61, .6); transition: opacity .2s; }
@@ -413,7 +474,7 @@ button.node:not(.locked):active { transform: scale(.92); }
   .brief p { font-size: 14px; } .brief h2 { display: none; } .wavebar { margin-top: 5px; padding: 4px 8px; } .wavebar .note { font-size: 11.5px; }
   .top { left: 12px; top: 12px; } .ttl b { font-size: 20px; }
   .iconbtn.gsnd { left: auto; right: 12px; top: 12px; }
-  .gems { left: auto; right: 64px; top: 16px; }
+  .hud { left: auto; right: 64px; top: 16px; } .record { display: none; }
   .tbtns { flex-direction: column; }
   .toast { top: 72px; }
   .rank { display: none; }
@@ -424,6 +485,7 @@ button.node:not(.locked):active { transform: scale(.92); }
   .field-key, .flight-state { font-size: 11px; gap: 2px 10px; }
   .pal { max-height: 105px; padding: 7px; }
   .crew { grid-template-columns: 1fr; } .dock button { min-width: 64px; font-size: 11px; }
+  .hangar { flex-direction: column; } .hangar .preview { width: 130px; height: 130px; } .hangar .preview svg { width: 86px; height: 86px; }
   .palrow .blk { height: 30px; font-size: 12px; padding: 0 9px; }
   .brief .row { flex-wrap: wrap; }
 }

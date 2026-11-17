@@ -2,6 +2,7 @@
 import { View } from './render/view.js';
 import { Game } from './ui/game.js';
 import { MapScreen } from './ui/map.js';
+import { Hangar } from './ui/hangar.js';
 import { sfx, music } from './ui/sfx.js';
 import { voice } from './ui/voice.js';
 import { store } from './storage.js';
@@ -17,8 +18,11 @@ async function boot() {
   for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) document.addEventListener(ev, () => music.start(), { passive: true });
 
   const view = new View(document.getElementById('stage'));
-  const map = new MapScreen({ store, sfx, music, voice, onOpen: (level) => { map.hide(); music.mood('game'); game.open(level); } });
-  const game = new Game({ view, store, sfx, music, voice, onExit: () => { music.mood('map'); map.show(); } });
+  // Hangardaki seçim sahnedeki gemiye ve rota ekranındaki işarete hemen yansır.
+  const hangar = new Hangar({ store, sfx, onLook: (look) => { view.setLook(look); if (!document.getElementById('map').hidden) map.render(false); } });
+  view.setLook(hangar.look());
+  const map = new MapScreen({ store, sfx, music, voice, hangar, onOpen: (level) => { map.hide(); music.mood('game'); game.open(level); } });
+  const game = new Game({ view, store, sfx, music, voice, hangar, onExit: () => { music.mood('map'); map.show(); } });
 
   let timer = 0;
   window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(() => { view.resize(); game.layout(); }, 120); });
@@ -29,7 +33,7 @@ async function boot() {
 
   const fromHash = findLevel(location.hash.slice(1));
   if (fromHash && store.isUnlocked(fromHash, LEVELS)) { music.mood('game'); game.open(fromHash); } else map.show();
-  window.__kp = { view, game, map, store };
+  window.__kp = { view, game, map, store, hangar };
 }
 
 boot();

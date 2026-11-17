@@ -2,12 +2,13 @@
 // görevler gezegenler arasındaki yolun üstünde düğümdür. Gemi sıradaki görevin
 // önünde durur; bir görev geçilince yol boyunca yeni yerine uçar.
 import { LEVELS, SECTORS, levelsOf, levelById } from '../content/levels.js';
-import { ALL_LEVELS, EXTRA_LABEL, SECRET_STARS, extrasOf, findLevel, sectorStars } from '../content/extras.js';
+import { ALL_LEVELS, EXTRA_LABEL, SECRET_STARS, extrasOf, findLevel, sectorStars, wonEither } from '../content/extras.js';
 import { rankOf } from '../content/ranks.js';
 import { groupLog, welcome } from '../content/logbook.js';
 import { CREW, BOTS, SHIP } from '../content/story.js';
 import { robot, face, miniBot } from './copilot.js';
 import { showCard, hideCard, makeCard } from './overlay.js';
+import { shipSvg } from './shipart.js';
 
 const $ = (id) => document.getElementById(id);
 const svg = (id, cls = '') => `<svg viewBox="0 0 32 32" class="${cls}"><use href="#${id}"/></svg>`;
@@ -15,11 +16,10 @@ const svg = (id, cls = '') => `<svg viewBox="0 0 32 32" class="${cls}"><use href
 const SURUM = document.querySelector('meta[name="surum"]')?.content || '';
 const rich = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 const NS = 'http://www.w3.org/2000/svg';
-const SHIP_ICON = `<svg viewBox="-24 -24 48 48"><path class="flame" d="M-7 13L-4.500 27-2 13zM2 13l2.500 14L7 13z"/><path d="M0-21C3.500-15 5-7 5 3v9h-10V3c0-10 1.500-18 5-24z" fill="#e6ecf7"/><path d="M-5-2L-21 11v5l16-3zM5-2l16 13v5L5 13z" fill="#dfe6f3"/><path d="M-21 11v5l6-1.200V7zM21 11v5l-6-1.200V7z" fill="#ff6a2b"/><ellipse cx="0" cy="-6" rx="2.300" ry="5.500" fill="#2fc8ff"/></svg>`;
 
 export class MapScreen {
-  constructor({ store, sfx, music, voice, onOpen }) {
-    Object.assign(this, { store, sfx, music, voice, onOpen });
+  constructor({ store, sfx, music, voice, hangar, onOpen }) {
+    Object.assign(this, { store, sfx, music, voice, hangar, onOpen });
     this.segs = []; this.shipLen = null; this.raf = 0;
     $('route').addEventListener('click', (e) => {
       const b = e.target.closest('[data-level]');
@@ -38,6 +38,7 @@ export class MapScreen {
     // Köprü: rota ekranının altındaki çubuk. Yeni ekranlar buraya eklenir.
     this.dock = [
       { id: 'crew', icon: 'i-crew', label: 'Mürettebat', run: () => this.showCrew() },
+      { id: 'hangar', icon: 'i-ship', label: 'Hangar', run: () => { hangar.open(); this.renderDock(); }, badge: () => hangar.fresh() },
       { id: 'log', icon: 'i-book', label: 'Günlük', run: () => this.showLog() },
     ];
     $('dock').addEventListener('click', (e) => {
@@ -122,13 +123,13 @@ export class MapScreen {
 
   /** Sıradaki görev: açık olup henüz geçilmemiş ilk görev; sonraya bırakılanlar en sona kalır. */
   current() {
-    const open = LEVELS.filter((l) => this.store.isUnlocked(l, LEVELS) && this.store.stars(l.id) === 0);
+    const open = LEVELS.filter((l) => this.store.isUnlocked(l, LEVELS) && !wonEither(this.store, l));
     return open.find((l) => !this.store.isSkipped(l.id)) || open[0] || null;
   }
 
   // ---------- yerleşim ----------
   render(travel) {
-    const { store } = this, route = $('route'), total = store.total();
+    const { store } = this, route = $('route'), total = store.total(), hangarLook = this.hangar.look();
     $('totalStars').textContent = total; $('maxStars').textContent = `/ ${ALL_LEVELS.length * 3}`;
     this.renderDock();
     $('rank').textContent = rankOf(total);
@@ -179,7 +180,9 @@ export class MapScreen {
         const at = g.start + g.len * ((k + 1) / (levels.length + (i === sectors.length - 1 ? 1.8 : 1)));
         lenOf.set(l.id, at);
         const p = this.pointAt(at), st = store.stars(l.id), locked = !store.isUnlocked(l, LEVELS), isCur = cur && l.id === cur.id;
-        const cls = ['node', l.n === 8 ? 'boss' : '', isCur ? 'cur' : st ? 'done' : '', locked ? 'locked' : '', store.isSkipped(l.id) ? 'skipped' : ''].join(' ');
+        // Öteki yolundan geçilen görev de tamamlanmış görünür (kesik çerçeveyle: kendi yıldızları duruyor).
+        const via = !st && wonEither(store, l);
+        const cls = ['node', l.n === 8 ? 'boss' : '', isCur ? 'cur' : st ? 'done' : via ? 'via' : '', locked ? 'locked' : '', !via && store.isSkipped(l.id) ? 'skipped' : ''].join(' ');
         const inner = locked ? svg('i-lock') : l.n === 8 ? svg('i-star') : l.n;
         const stars = locked ? '' : [1, 2, 3].map((n) => svg('i-star', n <= st ? 'lit' : '')).join('');
         html.push(`<div class="mn" style="left:${p.x}px;top:${p.y}px"><button class="${cls}" data-level="${l.id}" title="${l.title}" aria-label="Görev ${l.id}: ${l.title}">${inner}</button><div class="mstars">${stars}</div></div>`);
@@ -188,7 +191,7 @@ export class MapScreen {
       for (const x of extrasOf(s.id)) {
         const at = lenOf.get(x.after), unlocked = store.isUnlocked(x, LEVELS);
         // Gizli görev sektör açılınca kilitli görünür (hedef olsun); acil durum açılmadan görünmez.
-        if (at === undefined || !open || (x.extra === 'acil' && !unlocked)) continue;
+        if (at === undefined || !open || (x.extra !== 'gizli' && !unlocked)) continue;
         const p = this.pointAt(at), q = this.pointAt(at + 3), len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
         const tx = (q.x - p.x) / len, ty = (q.y - p.y) / len, toCentre = Math.sign(W / 2 - p.x) || 1;
         // Yola dik iki yönden yukarı ve haritanın ortasına bakanı seçilir: gezegen etiketlerine değmesin.
@@ -199,14 +202,14 @@ export class MapScreen {
         line.setAttribute('class', 'rside'); line.setAttribute('x1', p.x); line.setAttribute('y1', p.y); line.setAttribute('x2', sx); line.setAttribute('y2', sy);
         root.append(line);
         const cls = ['node', st ? 'done' : '', unlocked ? '' : 'locked'].join(' ');
-        const inner = !unlocked ? svg('i-lock') : x.extra === 'gizli' ? '?' : '!';
+        const inner = !unlocked ? svg('i-lock') : x.extra === 'gizli' ? '?' : x.extra === 'catal' ? svg('i-fork') : '!';
         const under = unlocked ? `<div class="mstars">${[1, 2, 3].map((n) => svg('i-star', n <= st ? 'lit' : '')).join('')}</div>` : `<small>${SECRET_STARS}${svg('i-star')}</small>`;
         html.push(`<div class="mn side ${x.extra}" style="left:${sx}px;top:${sy}px"><button class="${cls}" data-level="${x.id}" title="${x.title}" aria-label="${EXTRA_LABEL[x.extra]}: ${x.title}">${inner}</button>${under}</div>`);
       }
     });
     const last = sectors.length;
     html.push(`<div class="nova" style="left:${xs(last)}px;top:${ys[last]}px"><i></i><div><small>HEDEF GEZEGEN</small><b>NOVA</b></div></div>`);
-    html.push(`<div class="shipmark" id="shipmark">${SHIP_ICON}${cur ? `<span>Sıradaki: <b>${cur.title}</b></span>` : ''}</div>`);
+    html.push(`<div class="shipmark" id="shipmark">${shipSvg(hangarLook)}${cur ? `<span>Sıradaki: <b>${cur.title}</b></span>` : ''}</div>`);
     html.push(`<p class="mapfoot" style="top:${H - 46}px">Her sektör yeni bir kodlama kavramı öğretir. Bir görevi geçince sıradaki açılır.${SURUM ? ` · sürüm ${SURUM}` : ''}</p>`);
     route.insertAdjacentHTML('beforeend', html.join(''));
 
