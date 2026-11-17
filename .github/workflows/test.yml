@@ -25,6 +25,3 @@ jobs:
         run: npm run denetle
       - name: BİLSEM testleri
         run: node --test bilsem/tests/*.test.js
-      - name: KodRobot testleri
-        working-directory: kodrobot-eski
-        run: node --test

@@ -155,7 +155,7 @@ Kayıt yalnızca o cihazın tarayıcısında tutulur; hiçbir yere gönderilmez.
 Oyun bir kez açıldıktan sonra internetsiz de çalışır ve telefonda/tablette ana ekrana
 uygulama gibi eklenebilir (`manifest.webmanifest`, `sw.js`). Servis çalışanı sayfayı her
 açılışta önce ağdan ister, bu yüzden yeni sürüm yayımlanınca hemen görülür; aynı adresteki
-öteki uygulamalara (`bilsem/`, `kodrobot-eski/`) dokunmaz. Geliştirme sırasında eski dosya
+öteki uygulamaya (`bilsem/`) dokunmaz. Geliştirme sırasında eski dosya
 sunmasın diye `localhost`ta kurulmaz; denemek için adrese `?sw` ekle.
 
 ## Yayın
@@ -274,10 +274,6 @@ Görev bayrakları: `boss` (son korsan kaptandır), `dock` (çıkışta Atlas'ı
 - `vendor/three.bundle.min.js`: three.js r187 ve bloom için gereken eklentiler,
   esbuild ile tek dosyada paketlendi (MIT lisansı).
 - `vendor/fonts/`: Exo 2 yazı tipi (SIL Open Font License).
-
-## Eski oyun
-
-Önceki ızgara bulmaca oyunu KodRobot `kodrobot-eski/` klasöründe duruyor.
 
 ## Bu depodaki diğer uygulama
 
