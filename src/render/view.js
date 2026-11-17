@@ -1,7 +1,7 @@
 // 3B sahne: uzay, şerit ızgarası, gemi, meteorlar ve bütün animasyonlar.
 // Oyun mantığını bilmez; yalnızca motorun ürettiği olayları oynatır.
 import * as THREE from '../../vendor/three.bundle.min.js';
-import { buildShip, buildMeteor, buildCrystal, glowTexture, streakTexture, beamTexture, paintBackground } from './models.js';
+import { buildShip, buildMeteor, buildCrystal, buildPirate, buildAtlasGate, glowTexture, streakTexture, beamTexture, paintBackground } from './models.js';
 import { rng } from '../engine/rng.js';
 import { themeOf } from './themes.js';
 
@@ -10,7 +10,10 @@ const SHIP_Y = 0.42, SHIP_SCALE = 0.8;
 const CAM_DIR = new THREE.Vector3(0, 21.5, 15.5).normalize();
 const MOVE_MS = 430;
 const RED = 0xff4d6a, GREEN = 0x37e39a, YELLOW = 0xffd53d, BLUE = 0x7f9cff;
+const GATE_GAP = 2.4;           // çıkış çizgisi ile Atlas'ın kapısı arası
 const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+/** İki açı arasındaki en kısa fark (-π, π]. */
+const turn = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const bright = (hex, k) => new THREE.Color(hex).multiplyScalar(k);
 const glow = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
 
@@ -84,7 +87,7 @@ export class View {
     }
     this.mats = { line: glow(0x4fd2ff, 0.34), edge: glow(0x7fe2ff, 0.7), floor: glow(0x2a6bff, 0.07), exit: glow(bright(GREEN, 2.2), 1) };
     this.tweens = new Set(); this.bursts = []; this.meteors = new Map(); this.crystals = new Map();
-    this.pirates = new Map(); this.landmarks = new Map();
+    this.pirates = new Map(); this.landmarks = new Map(); this.gate = null; this.progress = 0;
     this.speed = 1; this.time = 0; this.last = performance.now(); this.shake = 0; this.thrust = 1;
     this.field = null; this.rect = null; this.offset = { x: 0, y: 0 };
     // Kalite: 2 = keskin + parlama, 1 = parlama, 0 = sade. Adrese ?kalite=yuksek|orta|dusuk
@@ -119,14 +122,19 @@ export class View {
 
   paint() {
     if (this.scene.background) this.scene.background.dispose();
-    this.scene.background = paintBackground(this.W, this.H, rng(77123), this.theme);
+    this.scene.background = paintBackground(this.W, this.H, rng(77123), this.theme, this.progress);
   }
 
-  /** Sektörün görünümünü uygular: gökyüzü, ızgara rengi ve ışıklar. 0 rota ekranıdır. */
-  setTheme(sector) {
+  /**
+   * Sektörün görünümünü uygular: gökyüzü, ızgara rengi ve ışıklar. 0 rota ekranıdır.
+   * `progress` (0–1) sektörde ne kadar ilerlendiğidir: gezegen (son sektörde Atlas) yaklaşır.
+   */
+  setTheme(sector, progress = 0) {
     const t = themeOf(sector);
-    if (t === this.theme) return;
-    this.theme = t;
+    if (t === this.theme && progress === this.progress) return;
+    const same = t === this.theme;
+    this.theme = t; this.progress = progress;
+    if (same) { this.paint(); return; }
     this.mats.line.color.set(t.grid[0]); this.mats.edge.color.set(t.grid[1]); this.mats.floor.color.set(t.grid[2]);
     this.hemi.color.set(t.light[0]); this.hemi.groundColor.set(t.light[1]); this.rim.color.set(t.light[2]);
     this.paint();
@@ -141,7 +149,9 @@ export class View {
     if (!f) return;
     const rect = this.rect || { x: 0, y: 0, w: W, h: H };
     const hw = (f.lanes * C) / 2, zb = this.gz(-0.5), zt = this.gz(f.rows - 0.5);
-    const pts = [[-hw - 0.15, 0, zb + 1.5], [hw + 0.15, 0, zb + 1.5], [-hw - 0.15, 0, zt - 1.7], [hw + 0.15, 0, zt - 1.7], [-hw, 1.1, zt], [hw, 1.1, zt]]
+    // Atlas'ın kapısı çıkışın ötesinde durur; o da ekrana sığmalı.
+    const far = this.gate ? GATE_GAP + 0.4 : 1.7, top = this.gate ? 3.2 : 1.1, side = this.gate ? 2.2 : 0;
+    const pts = [[-hw - 0.15, 0, zb + 1.5], [hw + 0.15, 0, zb + 1.5], [-hw - 0.15 - side, 0, zt - far], [hw + 0.15 + side, 0, zt - far], [-hw - side, top, zt - (this.gate ? far : 0)], [hw + side, top, zt - (this.gate ? far : 0)]]
       .map((p) => new THREE.Vector3(...p));
     const target = new THREE.Vector3(0, 0, (zb + zt) / 2);
     const box = (d) => {
@@ -179,14 +189,19 @@ export class View {
   }
 
   // ---------- alan ----------
-  /** Alanı kurar. `rain` verilirse meteorlar yukarıdan yağarak yerlerine oturur (dalga değişimi). */
-  setField(field, { rain = false } = {}) {
+  /**
+   * Alanı kurar.
+   * @param o.rain  meteorlar yukarıdan yağarak yerlerine oturur (dalga değişimi)
+   * @param o.boss  en uzaktaki korsan kaptandır (Kızıl Kanca): daha büyük, altın süslü
+   * @param o.gate  çıkışın ötesinde Atlas'ın hangar kapısı durur; kazanınca gemi oraya yanaşır
+   */
+  setField(field, { rain = false, boss = false, gate = false } = {}) {
     this.cancel();
     for (const o of [...this.level.children]) {
       this.level.remove(o);
       o.traverse((n) => { if (n.geometry) n.geometry.dispose(); if (n.userData.own && n.material) n.material.dispose(); });
     }
-    this.meteors.clear(); this.crystals.clear(); this.pirates.clear(); this.landmarks.clear();
+    this.meteors.clear(); this.crystals.clear(); this.pirates.clear(); this.landmarks.clear(); this.gate = null;
     this.field = field;
     this.ship.visible = !!field;
     if (!field) { this.fit(); return; }
@@ -203,8 +218,18 @@ export class View {
       strip(g, this.gx(l) - 0.22, z + 0.16, this.gx(l), z, 0.05, a).userData.own = true;
       strip(g, this.gx(l), z, this.gx(l) + 0.22, z + 0.16, 0.05, a);
     }
-    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.exitTexture(), transparent: true, depthWrite: false }));
-    label.scale.set(2.9, 0.725, 1); label.position.set(0, 0.1, Z1 - 1.25); g.add(label);
+    if (gate) {
+      this.gate = buildAtlasGate(X1 - X0); this.gate.position.set(0, 0, Z1 - GATE_GAP); g.add(this.gate);
+      // iniş ışıkları: çıkıştan kapıya uzanan iki sıra
+      for (const sx of [-1, 1]) for (let i = 0; i < 4; i++) {
+        const dot = new THREE.Mesh(new THREE.CircleGeometry(0.07, 10), glow(bright(0x9ff3ff, 2), 0.9));
+        dot.userData.own = true; dot.rotation.x = -Math.PI / 2; dot.position.set(sx * (X1 - X0) * 0.3, 0.02, Z1 - 0.35 - i * 0.55); g.add(dot);
+      }
+      this.lightGate(0);
+    } else {
+      const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.exitTexture(), transparent: true, depthWrite: false }));
+      label.scale.set(2.9, 0.725, 1); label.position.set(0, 0.1, Z1 - 1.25); g.add(label);
+    }
 
     const rand = rng(lanes * 131 + rows * 17 + field.meteors.size * 7 + [...field.meteors].join('').length);
     for (const k of field.meteors) {
@@ -235,12 +260,14 @@ export class View {
         g.add(marker); this.landmarks.set(k, marker);
       }
     }
+    const far = Math.max(-1, ...[...field.pirates].map((k) => Number(k.split(',')[1])));
     for (const k of field.pirates) {
-      const [lane, y] = k.split(',').map(Number);
-      const mat = new THREE.MeshStandardMaterial({ color: 0xb12b4b, emissive: 0xff294b, emissiveIntensity: 0.65, metalness: 0.4, roughness: 0.3 });
-      const pirate = buildShip(mat); pirate.children[0].userData.own = true;
-      pirate.scale.setScalar(0.57); pirate.rotation.y = Math.PI;
-      pirate.position.copy(this.cellPos({ lane, y }, 0.48));
+      const [lane, y] = k.split(',').map(Number), captain = boss && y === far;
+      const pirate = buildPirate(captain);
+      pirate.userData.home = this.cellPos({ lane, y }, 0.48); pirate.userData.size = captain ? 0.8 : 0.6;
+      pirate.userData.gone = false;
+      pirate.scale.setScalar(pirate.userData.size); pirate.rotation.y = Math.PI;
+      pirate.position.copy(pirate.userData.home);
       g.add(pirate); this.pirates.set(k, pirate);
     }
     this.fit();
@@ -295,12 +322,50 @@ export class View {
     this.ship.position.copy(this.cellPos({ lane: this.field.start, y: 0 }));
     this.ship.rotation.set(0, 0, 0);
     this.setShield(false);
-    for (const p of this.pirates.values()) p.visible = true;
+    for (const p of this.pirates.values()) {
+      p.visible = true; p.userData.gone = false;
+      p.position.copy(p.userData.home); p.rotation.set(0, Math.PI, 0); p.scale.setScalar(p.userData.size);
+    }
+    this.lightGate(0);
     for (const c of this.crystals.values()) { c.visible = true; c.scale.setScalar(1); }
     for (const m of this.meteors.values()) m.material.emissiveIntensity = 0;
   }
 
   setShield(visible) { this.shieldBubble.visible = !!visible; }
+
+  /** Atlas'ın ışıkları: 0 sönük (otopilotu bozuk), 1 tamamen açık. */
+  lightGate(k) {
+    if (!this.gate) return;
+    for (const l of this.gate.userData.lights) l.mat.color.copy(l.base).multiplyScalar(0.1 + 1.5 * k);
+  }
+
+  /** En uzaktaki korsan kaptan mı? (Oyun, kaçışını duyurmak için sorar.) */
+  isCaptain(cell) { return !!this.pirates.get(`${cell.lane},${cell.y}`)?.userData.captain; }
+
+  /**
+   * Kalkana çarpan korsan: ateş eder, atışı kalkan emer; korsan savrulup uzaklaşır.
+   * Kaptan savrulmaz, ileri doğru kaçar (hikâyede geri dönecektir).
+   */
+  repel(cell) {
+    const pirate = this.pirates.get(`${cell.lane},${cell.y}`);
+    if (!pirate) return;
+    const gen = this.gen, from = pirate.position.clone(), side = from.x >= this.ship.position.x ? 1 : -1, size = pirate.userData.size;
+    pirate.userData.gone = true;
+    this.zap(from, this.ship.position);
+    this.tween(pirate.userData.captain ? 760 : 560, (k) => {
+      if (gen !== this.gen) return;
+      const e = k * k;
+      if (pirate.userData.captain) {
+        pirate.position.set(from.x + side * 1.2 * k, from.y + 1.1 * k, from.z - 15 * e);
+        pirate.rotation.y = Math.PI * (1 - Math.min(1, k * 3)); pirate.rotation.z = -side * 0.5 * Math.sin(Math.PI * k);
+      } else {
+        pirate.position.set(from.x + side * 5 * e, from.y + 2.4 * k - 1.2 * e, from.z - 1.5 * k);
+        pirate.rotation.y += 0.5; pirate.rotation.z += 0.34;
+        pirate.scale.setScalar(size * (1 - 0.75 * e));
+      }
+      if (k >= 1) pirate.visible = false;
+    }, false);
+  }
 
   /** Kısa bir parlama: çarpışma ve sıçrama anlarını vurgular. */
   flash(strength = 1.8, ms = 420) {
@@ -366,7 +431,13 @@ export class View {
       for (const m of this.meteors.values()) { const s = m.userData.spin; m.rotation.x += s.x * dt; m.rotation.y += s.y * dt; m.rotation.z += s.z * dt; }
       for (const c of this.crystals.values()) { c.userData.gem.rotation.y = t * 1.4 + c.userData.phase; c.position.y = 0.5 + Math.sin(t * 2 + c.userData.phase) * 0.06; }
       for (const m of this.landmarks.values()) { m.userData.core.rotation.y = t; m.userData.core.position.y = 0.44 + Math.sin(t * 2 + m.userData.phase) * 0.08; }
-      for (const p of this.pirates.values()) p.position.y = 0.48 + Math.sin(t * 2 + p.position.z) * 0.04;
+      for (const p of this.pirates.values()) {
+        if (p.userData.gone) continue;
+        // Korsanlar gemiyi izler: burunları hep ona döner.
+        const aim = Math.atan2(p.position.x - this.ship.position.x, p.position.z - this.ship.position.z);
+        p.rotation.y += turn(aim - p.rotation.y) * Math.min(1, dt * 5);
+        p.position.y = 0.48 + Math.sin(t * 2 + p.userData.home.z) * 0.04;
+      }
       for (const f of this.ship.userData.flames) f.scale.set(1, 1, this.thrust * (0.9 + Math.sin(t * 40 + f.position.x * 9) * 0.1));
       if (this.shieldBubble.visible) { const w = this.shieldBubble.children[1]; w.rotation.y = t * 0.9; w.rotation.x = t * 0.5; this.shieldBubble.scale.setScalar(1 + Math.sin(t * 5) * 0.03); }
       if (!this.tweens.size) this.ship.position.y = SHIP_Y + Math.sin(t * 2.2) * 0.025;
@@ -451,8 +522,11 @@ export class View {
    */
   async move(ev) {
     const a = this.cellPos(ev.from), b = this.cellPos(ev.to), dl = ev.to.lane - ev.from.lane, gen = this.gen;
+    let repelled = false;
     await this.tween(MOVE_MS, (k) => {
       if (gen !== this.gen) return;
+      // Kalkanlı gemi korsana yaklaşınca korsan ateş eder ve savrulur.
+      if (ev.blocked && !repelled && k > 0.3) { repelled = true; this.repel(ev.to); }
       this.ship.position.set(a.x + (b.x - a.x) * ease(k), SHIP_Y, a.z + (b.z - a.z) * k);
       const s = Math.sin(Math.PI * k);
       // Meteordan kaçış tam tur dönüşle (ev.roll), öteki yana kayışlar hafif yatışla yapılır.
@@ -462,9 +536,7 @@ export class View {
     if (gen !== this.gen) return;
     if (ev.collect) this.collect(ev.to);
     if (ev.blocked) {
-      // Korsan ateş eder, kalkan atışı emer; korsan dağılır.
-      const pirate = this.pirates.get(`${ev.to.lane},${ev.to.y}`);
-      if (pirate) pirate.visible = false;
+      if (!repelled) this.repel(ev.to);
       this.burst(this.cellPos(ev.to), { color: 0x65dfff, n: 40, speed: 3.4, life: 0.65 });
       this.burst(this.cellPos(ev.to), { color: 0xff4d6a, n: 22, speed: 5, life: 0.5, size: 0.3 });
       this.flash(1.35, 260);
@@ -503,8 +575,29 @@ export class View {
     if (gen === this.gen) this.shake = 0.001;
   }
 
-  /** Gemi çıkış çizgisini geçtikten sonra hızlanıp uzaklaşır. */
-  async win() {
+  /** Atlas'a yanaşma: ışıklar yanar, gemi hangar kapısından içeri süzülür. */
+  async dock() {
+    const a = this.ship.position.clone(), gen = this.gen, door = new THREE.Vector3(0, 0.72, this.gate.position.z + 0.2);
+    this.hideTarget();
+    await this.tween(700, (k) => { if (gen === this.gen) { this.lightGate(k); this.thrust = 1.2; } }, false);
+    if (gen !== this.gen) return;
+    this.flash(1.4, 500);
+    await this.tween(1300, (k) => {
+      if (gen !== this.gen) return;
+      const e = ease(k);
+      this.ship.position.lerpVectors(a, door, e);
+      this.ship.scale.setScalar(SHIP_SCALE * (1 - 0.55 * e)); this.thrust = 1.3 + (1 - k) * 1.2;
+    }, false);
+    if (gen !== this.gen) return;
+    this.ship.visible = false; this.thrust = 1;
+    for (const sx of [-1, 0, 1]) this.burst(new THREE.Vector3(door.x + sx * 1.6, 0.8, door.z + 0.3), { color: 0x9ff3ff, n: 34, speed: 4, life: 1, size: 0.4, up: 0.9 });
+    this.flash(1.9, 700);
+    await this.tween(500, () => {}, false);
+  }
+
+  /** Gemi çıkış çizgisini geçtikten sonra hızlanıp uzaklaşır. `dock`: son dalgada Atlas'ın kapısına yanaşır. */
+  async win(dock = false) {
+    if (dock && this.gate) return this.dock();
     const a = this.ship.position.clone(), b = a.clone(), gen = this.gen; b.z -= 7;
     this.hideTarget();
     // Sıçrama: çıkış çizgisi boyunca kıvılcımlar, ileri fırlayan ışık çizgileri ve kısa bir parlama.

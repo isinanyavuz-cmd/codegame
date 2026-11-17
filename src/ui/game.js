@@ -72,9 +72,10 @@ export class Game {
     this.refreshMeta(); this.renderWaves();
     this.resetTelemetry();
     this.layout();
-    this.view.setTheme(sector.id);
+    // Sektörde ilerledikçe arka plandaki gezegen (son sektörde Atlas) yaklaşır.
+    this.view.setTheme(sector.id, level.extra ? 0.5 : (level.n - 1) / 7);
     document.documentElement.style.setProperty('--sector', this.view.theme.accent);
-    this.view.setField(this.fields[0]);
+    this.view.setField(this.fields[0], this.stage());
     this.view.enter();
     history.replaceState(null, '', `#${level.id}`);
     if (level.n === 1 && !this.store.introSeen(sector.id)) this.showStory(sector, () => this.showIntro(sector));
@@ -88,6 +89,9 @@ export class Game {
     history.replaceState(null, '', location.pathname + location.search);
     this.onExit(this.level);
   }
+
+  /** Sahnenin göreve özel süsleri: finallerdeki kaptan korsan ve Atlas'ın kapısı. */
+  stage(extra = {}) { return { boss: !!this.level.boss, gate: !!this.level.dock, ...extra }; }
 
   /** Alanın sığacağı ekran bölgesini hesaplar (panelin kapatmadığı kısım). */
   layout() {
@@ -132,7 +136,7 @@ export class Game {
   showWave(i) {
     this.loopId++; this.hideCall(); this.hideToast(); this.editor.mark(null);
     this.results = []; this.wave = i;
-    this.view.setField(this.fields[i], { rain: true });
+    this.view.setField(this.fields[i], this.stage({ rain: true }));
     this.resetTelemetry(); this.setStatus('idle');
   }
 
@@ -223,7 +227,7 @@ export class Game {
   start(step) {
     this.reset();
     // Uçuş hep ilk dalgadan başlar; ekranda başka bir dalga duruyorsa önce ilkine dönülür.
-    if (this.wave !== 0) { this.wave = 0; this.view.setField(this.fields[0]); }
+    if (this.wave !== 0) { this.wave = 0; this.view.setField(this.fields[0], this.stage()); }
     this.stepMode = step; this.results = [];
     this.simulateWave();
     this.setStatus('running');
@@ -346,7 +350,11 @@ export class Game {
       if (!ev.exit) this.nearMiss(field, ev.to);
       this.flight.energy = ev.energy;
       if (ev.shielded !== undefined) this.flight.shielded = ev.shielded;
-      if (ev.blocked) this.flight.message = 'Korsan saldırısı engellendi';
+      if (ev.blocked) {
+        const captain = view.isCaptain(ev.to);
+        this.flight.message = captain ? `${VILLAIN} kaçıyor!` : 'Korsan saldırısı engellendi';
+        if (captain) this.floaty(ev.to, `${VILLAIN} kaçıyor!`, 'red');
+      }
       this.renderTelemetry();
       // Gemi silüetin olduğu kareye vardı: silüet sıradaki hedefe geçer.
       this.showTarget(this.events.slice(this.i).find((e) => e.t === 'move' || e.t === 'crash'));
@@ -366,7 +374,7 @@ export class Game {
     }
     // win
     editor.mark(null); sfx.win();
-    await view.win();
+    await view.win(this.wave === this.fields.length - 1);
     if (!alive()) return true;
     this.results.push(this.sim);
     if (this.wave < this.fields.length - 1) {
@@ -374,7 +382,7 @@ export class Game {
       this.wave++; this.renderWaves();
       await view.wait(500);
       if (!alive()) return true;
-      view.setField(this.fields[this.wave], { rain: true });
+      view.setField(this.fields[this.wave], this.stage({ rain: true }));
       await view.enter();
       if (!alive()) return true;
       this.hideToast(); this.simulateWave();
@@ -445,10 +453,15 @@ export class Game {
   nearMiss(field, cell) {
     const blocked = (lane) => lane < 0 || lane >= field.lanes || hasMeteor(field, lane, cell.y);
     if (!blocked(cell.lane - 1) || !blocked(cell.lane + 1) || !(hasMeteor(field, cell.lane - 1, cell.y) || hasMeteor(field, cell.lane + 1, cell.y))) return;
+    this.floaty(cell, 'Kıl payı!'); this.sfx.whoosh();
+  }
+
+  /** Bir karenin üstünde belirip yükselen kısa yazı. */
+  floaty(cell, text, cls = '') {
     const box = this.view.cellBox(cell), el = document.createElement('div');
-    el.className = 'floaty'; el.textContent = 'Kıl payı!';
+    el.className = `floaty ${cls}`; el.textContent = text;
     el.style.left = `${(box.left + box.right) / 2}px`; el.style.top = `${box.y}px`;
-    $('game').append(el); this.sfx.whoosh();
+    $('game').append(el);
     setTimeout(() => el.remove(), 1000);
   }
 

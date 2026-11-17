@@ -64,6 +64,78 @@ export function buildShip(ghostMat = null) {
   return g;
 }
 
+const pirateHull = new THREE.MeshStandardMaterial({ color: 0x8a1c36, roughness: 0.4, metalness: 0.45, emissive: 0xff2244, emissiveIntensity: 0.3 });
+const pirateDark = new THREE.MeshStandardMaterial({ color: 0x1c1226, roughness: 0.55, metalness: 0.5 });
+const pirateGold = new THREE.MeshStandardMaterial({ color: 0xffc23a, roughness: 0.3, metalness: 0.8, emissive: 0xff9a1f, emissiveIntensity: 0.4 });
+const pirateEye = new THREE.MeshBasicMaterial({ color: bright(0xff3b5c, 2.8) });
+const CLAW = [[0.13, 0.08], [0.6, 0.6], [0.72, 1.0], [0.88, 0.48], [0.62, -0.5], [0.13, -0.44]];
+
+/**
+ * Korsan gemisi: öne uzanan iki pençe ve tek kırmızı göz. Burnu -z yönüne bakar.
+ * Kaptanınki (Kızıl Kanca) altın süslüdür ve burnunda bir kanca taşır.
+ */
+export function buildPirate(captain = false) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.ConeGeometry(0.34, 1.5, 6), pirateHull);
+  body.rotation.x = -Math.PI / 2; body.scale.set(1, 1, 0.5); g.add(body);
+  for (const mir of [false, true]) g.add(slab(wingShape(CLAW, mir), 0.08, pirateDark));
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), pirateEye);
+  eye.scale.set(0.1, 0.07, 0.17); eye.position.set(0, 0.12, -0.12); g.add(eye);
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.28, 0.5), pirateDark);
+  fin.rotation.x = 0.35; fin.position.set(0, 0.2, 0.42); g.add(fin);
+  const jet = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.8, 12, 1, true), additive(bright(0xff4a2f, 1.7), 0.75));
+  jet.rotation.x = Math.PI / 2; jet.position.set(0, 0, 1.1); jet.userData.own = true; g.add(jet);
+  if (captain) {
+    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.03, 1.0), pirateGold);
+    spine.position.set(0, 0.17, 0.05); g.add(spine);
+    const hook = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.045, 8, 18, Math.PI * 1.25), pirateGold);
+    hook.rotation.set(Math.PI / 2, 0, -0.4); hook.position.set(0, -0.02, -0.86); g.add(hook);
+    for (const s of [-1, 1]) {
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.34, 8), pirateGold);
+      tip.rotation.x = -Math.PI / 2; tip.position.set(s * 0.72, 0, -1.08); g.add(tip);
+    }
+  }
+  g.userData.captain = captain;
+  return g;
+}
+
+const atlasHull = new THREE.MeshStandardMaterial({ color: 0x2c2654, roughness: 0.55, metalness: 0.6 });
+const atlasTrim = new THREE.MeshStandardMaterial({ color: 0x7667b8, roughness: 0.4, metalness: 0.7 });
+
+/**
+ * Ana Gemi Atlas'ın hangar kapısı: çıkışın hemen ötesinde duran dev gövde. Ön yüzü +z'ye
+ * (oyun alanına) bakar; `width` alanın genişliğidir. `userData.lights` kapı ve pencere
+ * ışıklarının malzemeleridir: View bunları kısıp açar (gemi yaklaşınca Atlas uyanır).
+ */
+export function buildAtlasGate(width) {
+  const g = new THREE.Group(), lights = [];
+  const light = (color, w, h, x, y, z = 0.02) => {
+    const mat = new THREE.MeshBasicMaterial({ color });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+    m.position.set(x, y, z); m.userData.own = true; g.add(m);
+    lights.push({ mat, base: new THREE.Color(color) });
+    return m;
+  };
+  const W = width + 6, D = 5;
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(W, 3.6, D), atlasHull); hull.position.set(0, 0.7, -D / 2); g.add(hull);
+  for (const s of [-1, 1]) {
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.2, 2.4), atlasHull); tower.position.set(s * (W / 2 - 1.6), 3.3, -D / 2); g.add(tower);
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.16, 3.7, 0.2), atlasTrim); rail.position.set(s * (width * 0.3 + 0.2), 0.7, 0.05); g.add(rail);
+    light(0xffd9a0, 0.9, 0.16, s * (W / 2 - 1.6), 3.7); light(0xffd9a0, 0.9, 0.16, s * (W / 2 - 1.6), 3.2);
+  }
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(width * 0.6 + 0.7, 0.2, 0.2), atlasTrim); lintel.position.set(0, 1.75, 0.05); g.add(lintel);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.07, 2.2, 8), atlasTrim); mast.position.set(0, 3.6, -D / 2); g.add(mast);
+  // hangar kapısı: geminin gireceği parlak açıklık
+  light(0x9ff3ff, width * 0.6, 1.9, 0, 0.72);
+  // pencere sıraları
+  for (const s of [-1, 1]) for (let r = 0; r < 3; r++) for (let c = 0; c < 5; c++) {
+    if ((r * 5 + c) % 4 === 3) continue;
+    light(c % 3 ? 0xffe2ac : 0x9fe9ff, 0.32, 0.13, s * (width * 0.3 + 0.75 + c * 0.47), 1.9 - r * 0.55);
+  }
+  g.userData.lights = lights;
+  return g;
+}
+
 const ROCKS = [0x9a857a, 0x857268, 0xa58e7c, 0x7d6c68];
 /** Yontulmuş görünümlü meteor. `rand` 0–1 arası sayı üreten fonksiyondur; `rocks` renk seçenekleridir. */
 export function buildMeteor(radius, rand, rocks = ROCKS) {
@@ -132,7 +204,7 @@ export function beamTexture() {
  * Uzay arka planı: gökyüzü, bulutsu, yıldızlar ve sektöre özgü öğeler.
  * Görünüm `theme` ile belirlenir (bkz. themes.js).
  */
-export function paintBackground(W, H, rand, theme) {
+export function paintBackground(W, H, rand, theme, progress = 0) {
   const S = Math.min(2, window.devicePixelRatio || 1), cv = document.createElement('canvas');
   cv.width = Math.max(2, Math.round(W * S)); cv.height = Math.max(2, Math.round(H * S));
   const c = cv.getContext('2d'); c.scale(S, S);
@@ -160,15 +232,15 @@ export function paintBackground(W, H, rand, theme) {
     c.beginPath(); c.moveTo(x - 13 * s, y); c.lineTo(x + 13 * s, y); c.moveTo(x, y - 13 * s); c.lineTo(x, y + 13 * s); c.stroke();
     c.fillStyle = '#fff'; c.beginPath(); c.arc(x, y, 2.2 * s, 0, 6.283); c.fill();
   }
-  if (EXTRAS[theme.extra]) EXTRAS[theme.extra](c, W, H, rand, u, blob);
-  if (theme.planet) paintPlanet(c, H, theme.planet, blob);
+  if (EXTRAS[theme.extra]) EXTRAS[theme.extra](c, W, H, rand, u, blob, progress);
+  if (theme.planet) paintPlanet(c, H, theme.planet, progress);
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
-/** Sol kenardan görünen gezegen. */
-function paintPlanet(c, H, { hue, ring }, blob) {
-  const R = H * 0.24, px = -R * 0.33, py = H * 0.58, hsl = (dh, s, l, a = 1) => `hsla(${hue + dh},${s}%,${l}%,${a})`;
+/** Sol kenardan görünen gezegen. Sektörde ilerledikçe (`progress` 0–1) yaklaşır: büyür ve içeri kayar. */
+function paintPlanet(c, H, { hue, ring }, progress) {
+  const R = H * (0.19 + 0.09 * progress), px = -R * (0.46 - 0.2 * progress), py = H * 0.58, hsl = (dh, s, l, a = 1) => `hsla(${hue + dh},${s}%,${l}%,${a})`;
   const halo = c.createRadialGradient(px, py, R * 0.8, px, py, R + 80);
   halo.addColorStop(0, hsl(0, 90, 65, 0.34)); halo.addColorStop(1, hsl(0, 90, 65, 0));
   c.fillStyle = halo; c.fillRect(px - R - 90, py - R - 90, (R + 90) * 2, (R + 90) * 2);
@@ -266,8 +338,9 @@ const EXTRAS = {
     }
   },
   // Ana gemi: sol kenarda dev bir geminin gövdesi
-  station(c, W, H, rand, u, blob) {
-    const x = H * 0.02, y = H * 0.56, s = H * 0.3;
+  station(c, W, H, rand, u, blob, progress) {
+    // Atlas her görevde biraz daha yakın görünür.
+    const s = H * (0.2 + 0.13 * progress), x = H * 0.02 - s * (0.3 - 0.3 * progress), y = H * 0.56;
     blob(x, y, s * 1.5, '210,90,255', 0.24);
     c.save(); c.translate(x, y); c.rotate(-0.24);
     const body = c.createLinearGradient(-s * 0.5, 0, s * 0.62, 0);

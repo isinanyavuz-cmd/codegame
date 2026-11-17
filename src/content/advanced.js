@@ -247,7 +247,7 @@ export const ADVANCED_LEVELS = [
     hint: 'Bu rotada mor işaret yok. Kalkan korsan görünce açılmalı.',
   }),
   mission({
-    kind: 'final', title: 'Korsan Bölgesi Finali', tools: EVENT_TOOLS, events: ['pirate'], conds: ['atBeacon', ...SENSORS],
+    kind: 'final', title: 'Korsan Bölgesi Finali', tools: EVENT_TOOLS, events: ['pirate'], conds: ['atBeacon', ...SENSORS], boss: true,
     brief: 'Mor işarete kadar meteorları aş, sonra düz uç. Korsanlar iki tarafta da saldırabilir; olayın bütün uçuşu korusun.',
     waves: safeWaves({ beacons: [7], pirates: [2, 5, 8], crystals: [3, 6] }),
     solution: () => [on('pirate', shield()), until('atBeacon', steer()), cruise()],
@@ -430,6 +430,7 @@ export const ADVANCED_LEVELS = [
   }),
   mission({
     kind: 'final', title: 'Ana Gemiye Dönüş', tools: ALL_TOOLS, functions: ['safe', 'protect'], events: ['pirate', 'energy'], conds: ['atBeacon', 'aheadAndRightFree', 'ahead'], rev: 2,
+    boss: true, dock: true,   // son korsan Kızıl Kanca'dır; çıkışın ötesinde Atlas'ın kapısı durur
     brief: 'Büyük final! Güvenli uçuş: meteor **VE** sağ boşsa sağa, başka meteor varsa sola, yoksa düz. Olaylarla şarj ol ve korun; halkadan sonra iki kez düz uç.',
     waves: finalWaves(), solution: () => finalSolution(3, true),
     hint: 'Önce iki fonksiyon ve iki olay. 3 enerjiyle kalk. Halkaya kadar güvenli uçuşu çağır; sonunda 2 düz uçuş.',
