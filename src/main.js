@@ -5,7 +5,8 @@ import { MapScreen } from './ui/map.js';
 import { Hangar } from './ui/hangar.js';
 import { Workshop } from './ui/workshop.js';
 import { ParentPanel } from './ui/parent.js';
-import { decodeField, customLevel } from './content/custom.js';
+import { decodeField, customLevel, hasRoute } from './content/custom.js';
+import { hideCard } from './ui/overlay.js';
 import { sfx, music } from './ui/sfx.js';
 import { voice } from './ui/voice.js';
 import { store } from './storage.js';
@@ -24,11 +25,14 @@ async function boot() {
   // Hangardaki seçim sahnedeki gemiye ve rota ekranındaki işarete hemen yansır.
   const hangar = new Hangar({ store, sfx, onLook: (look) => { view.setLook(look); if (!document.getElementById('map').hidden) map.render(false); } });
   view.setLook(hangar.look());
-  const play = (level) => { map.hide(); music.mood('game'); game.open(level); };
+  const play = (level) => game.open(level);
   const workshop = new Workshop({ store, sfx, onPlay: play });
   const parent = new ParentPanel({ store, sfx });
   const map = new MapScreen({ store, sfx, music, voice, hangar, workshop, parent, onOpen: play });
-  const game = new Game({ view, store, sfx, music, voice, hangar, workshop, onExit: () => { music.mood('map'); map.show(); } });
+  const game = new Game({ view, store, sfx, music, voice, hangar, workshop,
+    onEnter: () => { map.hide(); music.mood('game'); },
+    onExit: (level) => { music.mood('map'); map.show(level); },
+  });
 
   let timer = 0;
   window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(() => { view.resize(); game.layout(); }, 120); });
@@ -44,13 +48,43 @@ async function boot() {
     try { field = m && decodeField(decodeURIComponent(m[1])); } catch (e) { /* bozuk bağlantı */ }
     return field ? customLevel(field.lines, { par: field.par, own: false, library: Object.keys(store.library()) }) : null;
   };
-  window.addEventListener('hashchange', () => { const level = shared(); if (level) play(level); });
-
-  const fromHash = shared() || findLevel(location.hash.slice(1));
-  if (fromHash && (fromHash.free || store.isUnlocked(fromHash, LEVELS))) { music.mood('game'); game.open(fromHash); } else map.show();
-  // İlerleme aktarma bağlantısı (#aktar=...): bu cihazdaki kaydın yerini alacağı için önce sorulur.
-  const moved = /^#aktar=(.+)$/.exec(location.hash);
-  if (moved) parent.offer(moved[1]);
+  let offered = null;
+  const route = () => {
+    // Eski #hepsi bağlantısı hem ilk açılışta hem sonradan yazıldığında çalışsın.
+    const reveal = location.hash === '#hepsi';
+    if (reveal) {
+      const url = new URL(location.href); url.hash = ''; url.searchParams.set('hepsi', '');
+      history.replaceState(null, '', url); store.unlockAll = true;
+    }
+    const hash = location.hash, visible = !document.getElementById('game').hidden;
+    if (offered && offered !== hash) { hideCard(); offered = null; }
+    // Geri/ileri gezinmede popstate ve hashchange birlikte gelebilir: aynı görevi iki kez açma.
+    if (visible && hash === `#${game.level.hash ?? game.level.id}`) return;
+    if (hash === '#gunluk') { map.openDaily(); return; }
+    if (hash === '#atolye') {
+      workshop.load();
+      if (hasRoute(workshop.design.lines)) { workshop.play(); return; }
+      // Başka sekmede yolu kapatılmış bir tasarım varsa boş ekran yerine düzenleyiciyi aç.
+      if (visible) game.close({ navigate: false }); else map.show();
+      history.replaceState(null, '', location.pathname + location.search);
+      workshop.open(); return;
+    }
+    const level = shared() || findLevel(hash.slice(1));
+    if (level && (level.free || store.isUnlocked(level, LEVELS))) game.open(level, { navigate: false });
+    else {
+      if (visible) game.close({ navigate: false });
+      else if (document.getElementById('map').hidden || reveal) map.show();
+      // İlerleme aktarma bağlantısı: kaydın yerini almadan önce mutlaka sorulur.
+      const moved = /^#aktar=(.+)$/.exec(hash);
+      if (moved) {
+        if (offered !== hash) parent.offer(moved[1]);
+        offered = hash;
+      } else if (hash) history.replaceState(null, '', location.pathname + location.search);
+    }
+  };
+  window.addEventListener('popstate', route);
+  window.addEventListener('hashchange', route);
+  route();
   window.__kp = { view, game, map, store, hangar, workshop, parent };
 
   // Çevrimdışı çalışma: servis çalışanı dosyaları önbelleğe alır. Geliştirme sırasında (localhost)

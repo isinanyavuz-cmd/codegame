@@ -94,10 +94,16 @@ export class MapScreen {
       <div class="btns"><button class="btn primary" data-act="close">Tamam</button></div>`, () => { this.sfx.click(); hideCard(); }));
   }
 
-  show() {
+  show(level = null) {
     this.renderToggles();
     $('map').hidden = false;
-    this.render(true);
+    this.render(!level);
+    // Görevden çıkınca rota en başa atlamasın: son açılan görevin yanına dön.
+    const button = level && [...$('route').querySelectorAll('[data-level]')].find((b) => b.dataset.level === level.id);
+    if (button) {
+      button.scrollIntoView({ block: 'center', behavior: 'instant' });
+      button.focus({ preventScroll: true });
+    }
     this.greet();
   }
 

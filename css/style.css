@@ -49,6 +49,8 @@ svg { display: block; }
 #game[data-mode="tahmin"] .gcam { display: none; }
 .back, .iconbtn { width: 50px; height: 50px; border-radius: 16px; display: grid; place-items: center; background: rgba(24, 33, 72, .85); border: 1px solid var(--line); color: #cfd9ff; }
 .back svg, .iconbtn svg { width: 22px; height: 22px; }
+.back { width: auto; flex: none; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 0 11px; font-size: 12px; font-weight: 800; }
+#missionTitle:focus { outline: none; }
 .back:active, .iconbtn:active { transform: scale(.94); }
 .ttl small { display: block; font-size: 12.5px; font-weight: 700; letter-spacing: .16em; color: var(--sector, #7fd8ff); }
 .ttl b { display: block; font-size: 25px; font-weight: 800; line-height: 1.05; margin-top: 2px; white-space: nowrap; }
@@ -226,7 +228,7 @@ button.node:not(.locked):active { transform: scale(.92); }
 .call.top::after { left: 50%; top: 100%; width: 2px; height: 12px; }
 
 .toast { position: absolute; left: 50%; top: 112px; transform: translateX(-50%); padding: 13px 16px 13px 18px; display: flex; align-items: center; gap: 13px; font-size: 16.5px; font-weight: 700;
-         max-width: min(560px, 92vw); z-index: 6; animation: rise .25s ease-out; }
+         width: max-content; max-width: min(560px, 92vw); z-index: 6; animation: rise .25s ease-out; }
 .toast .robot { width: 46px; height: 46px; flex: none; margin: -4px 0 -4px -6px; }
 .toast .say { min-width: 0; }
 .tbtns { display: flex; gap: 8px; flex: none; }
@@ -560,7 +562,7 @@ button.node:not(.locked):active { transform: scale(.92); }
 @media (max-width: 860px), (max-aspect-ratio: 1/1) {
   .code { left: 10px; right: 10px; top: auto; bottom: 10px; width: auto; height: 52%; padding: 12px; gap: 8px; }
   .brief p { font-size: 14px; } .brief h2 { display: none; } .wavebar { margin-top: 5px; padding: 4px 8px; } .wavebar .note { font-size: 11.5px; }
-  .top { left: 12px; top: 12px; } .ttl b { font-size: 20px; }
+  .top { left: 12px; right: 116px; top: 12px; gap: 8px; } .ttl { min-width: 0; } .ttl b { font-size: 20px; overflow: hidden; text-overflow: ellipsis; }
   .iconbtn.gsnd { left: auto; right: 12px; top: 12px; } .iconbtn.gcam { left: auto; right: 64px; top: 12px; }
   .hud { left: auto; right: 116px; top: 16px; } .record { display: none; }
   .scrub { height: 36px; padding: 0 10px; } .scrub span { display: none; } .scrub input { width: 150px; }

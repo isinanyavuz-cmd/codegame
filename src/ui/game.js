@@ -23,8 +23,8 @@ const IN_FLIGHT = ['meteor', 'wall', 'pirate', 'shield', 'energy', 'overflow', '
 const TONE = { bad: 'var(--bad)', ok: 'var(--ok)', info: '#8fa6e8' };
 
 export class Game {
-  constructor({ view, store, sfx, music, voice, hangar, workshop, onExit }) {
-    Object.assign(this, { view, store, sfx, music, voice, hangar, workshop, onExit });
+  constructor({ view, store, sfx, music, voice, hangar, workshop, onEnter, onExit }) {
+    Object.assign(this, { view, store, sfx, music, voice, hangar, workshop, onEnter, onExit });
     this.status = 'idle'; this.loopId = 0; this.current = Promise.resolve(); this.level = null; this.tab = 'blocks';
     this.editor = new Editor({
       ws: $('ws'), pal: $('pal'), pop: $('pop'),
@@ -61,7 +61,8 @@ export class Game {
   }
 
   // ---------- sahne açma ----------
-  open(level) {
+  open(level, { navigate = true } = {}) {
+    this.onEnter(); this.hideOverlay(); this.voice.stop();
     this.loopId++; this.level = level;
     const sector = SECTORS.find((s) => s.id === level.sector);
     this.sector = sector;
@@ -100,7 +101,9 @@ export class Game {
     this.view.enter();
     this.renderRecord();
     if (this.quiz) this.askRound();
-    history.replaceState(null, '', `#${level.hash ?? level.id}`);
+    const hash = `#${level.hash ?? level.id}`;
+    if (navigate && location.hash !== hash) history.pushState(null, '', hash);
+    $('missionTitle').focus({ preventScroll: true });
     if (level.n === 1 && !this.store.introSeen(sector.id)) this.showStory(sector, () => this.showIntro(sector));
     else {
       this.voice.say(`${level.title}. ${level.brief}`);
@@ -130,13 +133,13 @@ export class Game {
     if (best) el.innerHTML = `<i></i>rekor <b>${best.blocks}</b> blok`;
   }
 
-  close() {
+  close({ navigate = true } = {}) {
     this.loopId++; this.replaying = false; this.view.setField(null); this.view.setTheme(0); this.view.setCamera('ust');
     this.music.theme(0); this.music.tension(0);
     this.hideCall(); this.hideToast(); this.hideOverlay(); this.editor.closePop(); this.voice.stop();
     $('picks').replaceChildren();
     $('game').hidden = true;
-    history.replaceState(null, '', location.pathname + location.search);
+    if (navigate && location.hash) history.pushState(null, '', location.pathname + location.search);
     this.onExit(this.level);
   }
 
@@ -298,7 +301,7 @@ export class Game {
     this.status = s;
     if (s !== 'failed') { this.reel = null; $('scrub').hidden = true; }
     const btn = $('runBtn');
-    const label = { idle: ['i-play', 'Uçur'], running: ['i-pause', 'Duraklat'], paused: ['i-play', 'Devam'], failed: ['i-undo', 'Tekrar dene'], won: ['i-play', 'Uçur'] }[s];
+    const label = { idle: ['i-play', 'Uçur'], running: ['i-pause', 'Duraklat'], paused: ['i-play', 'Devam'], failed: ['i-restart', 'Tekrar dene'], won: ['i-play', 'Uçur'] }[s];
     btn.innerHTML = `${svg(label[0])}${label[1]}`;
     btn.classList.toggle('go', s === 'paused');
     $('resetBtn').disabled = s === 'idle';
@@ -609,7 +612,7 @@ export class Game {
       <h1>${got === this.fields.length ? 'Hepsi doğru!' : got ? `${got} doğru tahmin` : 'Bu tur olmadı'}</h1>
       <div class="bigstars">${[1, 2, 3].map((i) => svg('i-star', i <= got ? 'lit' : '')).join('')}</div>
       <p>${got === this.fields.length ? 'Programı çalıştırmadan okuyabiliyorsun: tam bir pilot gözü!' : 'Kod okumak da bir beceri. Programı blok blok, geminin yolunu parmağınla izleyerek oku ve yeniden dene.'}</p>
-      <div class="btns"><button class="btn" data-act="again">${svg('i-undo')}Tekrar</button><button class="btn primary" data-act="map">Rota</button></div>`, (act) => {
+      <div class="btns"><button class="btn" data-act="again">${svg('i-restart')}Tekrar</button><button class="btn primary" data-act="map">Rota</button></div>`, (act) => {
       this.sfx.click(); this.hideOverlay();
       if (act === 'again') this.open(level); else this.close();
     });
@@ -711,7 +714,7 @@ export class Game {
       <div class="bigstars">${[1, 2, 3].map((i) => svg('i-star', i <= got ? 'lit' : '')).join('')}</div>
       <ul class="checks">${checks.map(([t, ok]) => `<li class="${ok ? '' : 'no'}">${svg(ok ? 'i-check' : 'i-cross')}${t}</li>`).join('')}</ul>
       <div class="hooks">${hooks.map((h) => `<p>${rich(h)}</p>`).join('')}</div>
-      <div class="btns"><button class="btn" data-act="again">${svg('i-undo')}Tekrar</button><button class="btn" data-act="watch">${svg('i-cam')}İzle</button>${daily ? '' : `<button class="btn" data-act="workshop">${level.own ? 'Atölyeye dön' : 'Ben de kurayım'}</button>`}<button class="btn primary" data-act="map">Rota</button></div>`, (act) => {
+      <div class="btns"><button class="btn" data-act="again">${svg('i-restart')}Tekrar</button><button class="btn" data-act="watch">${svg('i-cam')}İzle</button>${daily ? '' : `<button class="btn" data-act="workshop">${level.own ? 'Atölyeye dön' : 'Ben de kurayım'}</button>`}<button class="btn primary" data-act="map">Rota</button></div>`, (act) => {
       this.sfx.click(); this.hideOverlay();
       if (act === 'watch') { this.replay(card); return; }
       if (act === 'again') { this.showWave(0); return; }
@@ -772,7 +775,7 @@ export class Game {
       ${lastOfSector && !next ? `<p>Ana gemiye döndün! ${SECTORS.length} sektör ve ${LEVELS.length} görev tamamlandı. Kendi otopilotunu yazdın; şimdi eksik yıldızları tamamlayabilirsin.</p>` : ''}
       ${hooks.length ? `<div class="hooks">${hooks.map((h) => `<p>${rich(h)}</p>`).join('')}</div>` : ''}
       <div class="btns">
-        <button class="btn" data-act="again">${svg('i-undo')}Tekrar</button>
+        <button class="btn" data-act="again">${svg('i-restart')}Tekrar</button>
         <button class="btn" data-act="watch">${svg('i-cam')}İzle</button>
         <button class="btn" data-act="map">Rota</button>
         ${next ? `<button class="btn primary" data-act="next">${lastOfSector ? 'Sonraki sektör' : 'Sonraki görev'}${svg('i-play')}</button>` : ''}

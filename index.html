@@ -11,8 +11,8 @@
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <title>Kod Pilotu</title>
-<link rel="stylesheet" href="css/style.css?v=872cfe89">
-<meta name="surum" content="014581f">
+<link rel="stylesheet" href="css/style.css?v=6643a21b">
+<meta name="surum" content="070a6b3">
 <script type="importmap">
 {
  "imports": {
@@ -32,16 +32,16 @@
   "./src/engine/blocks.js": "./src/engine/blocks.js?v=b74f7525",
   "./src/engine/rng.js": "./src/engine/rng.js?v=09b50631",
   "./src/engine/world.js": "./src/engine/world.js?v=bf63e0b0",
-  "./src/main.js": "./src/main.js?v=eae40987",
+  "./src/main.js": "./src/main.js?v=9bfa690f",
   "./src/render/models.js": "./src/render/models.js?v=61728efe",
   "./src/render/themes.js": "./src/render/themes.js?v=285d926a",
   "./src/render/view.js": "./src/render/view.js?v=36efa7f1",
   "./src/storage.js": "./src/storage.js?v=9308ed19",
   "./src/ui/copilot.js": "./src/ui/copilot.js?v=514243d9",
   "./src/ui/editor.js": "./src/ui/editor.js?v=7a2120b4",
-  "./src/ui/game.js": "./src/ui/game.js?v=9332f185",
+  "./src/ui/game.js": "./src/ui/game.js?v=19619f73",
   "./src/ui/hangar.js": "./src/ui/hangar.js?v=0dd951e3",
-  "./src/ui/map.js": "./src/ui/map.js?v=38d066a0",
+  "./src/ui/map.js": "./src/ui/map.js?v=6ed94c45",
   "./src/ui/overlay.js": "./src/ui/overlay.js?v=ab98ef4f",
   "./src/ui/parent.js": "./src/ui/parent.js?v=ea8eaf99",
   "./src/ui/sfx.js": "./src/ui/sfx.js?v=61e4584b",
@@ -75,7 +75,7 @@
 <!-- Görev ekranı -->
 <section id="game" class="screen" hidden>
   <div class="top">
-    <button class="back" id="backBtn" aria-label="Rotaya dön"><svg viewBox="0 0 32 32"><path d="M20 6L10 16l10 10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="back" id="backBtn" aria-label="Rotaya dön"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M20 6L10 16l10 10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Rota</span></button>
     <div class="ttl"><small id="sectorNo">SEKTÖR 1</small><b id="sectorName">Kalkış</b></div>
   </div>
   <button class="iconbtn gsnd" id="gameSoundBtn" aria-label="Sesi kapat/aç"><svg viewBox="0 0 32 32"><use href="#i-sound"/></svg></button>
@@ -87,7 +87,7 @@
   <aside class="code glass" id="panel">
     <div class="brief">
       <div class="row"><span class="lab" id="missionNo">GÖREV 1 / 8</span><span class="chip" id="conceptChip">Sıralama</span><button class="mini speak" id="speakBtn" aria-label="Görevi sesli oku"><svg viewBox="0 0 32 32"><use href="#i-speak"/></svg></button></div>
-      <h2 id="missionTitle"></h2>
+      <h2 id="missionTitle" tabindex="-1"></h2>
       <p id="missionText"></p>
       <div class="wavebar" id="waveBar" hidden><span class="waves" id="waves"></span><span class="note" id="waveNote"></span></div>
     </div>
@@ -105,7 +105,7 @@
     <div class="ctrl">
       <button class="big" id="runBtn"></button>
       <button class="sq" id="stepBtn"><svg viewBox="0 0 32 32"><path d="M7 6l13 10L7 26z" fill="currentColor"/><rect x="21" y="6" width="5" height="20" rx="2" fill="currentColor"/></svg>adım</button>
-      <button class="sq" id="resetBtn"><svg viewBox="0 0 32 32"><use href="#i-undo"/></svg>baştan</button>
+      <button class="sq" id="resetBtn" aria-label="Uçuşu başa al"><svg viewBox="0 0 32 32" aria-hidden="true"><use href="#i-restart"/></svg>baştan</button>
       <button class="sq" id="speedBtn"><b id="speedLab">1×</b>hız</button>
     </div>
   </aside>
@@ -127,6 +127,7 @@
   <symbol id="i-play" viewBox="0 0 32 32"><path d="M9 5l18 11L9 27z" fill="currentColor"/></symbol>
   <symbol id="i-pause" viewBox="0 0 32 32"><rect x="7" y="5" width="7" height="22" rx="2" fill="currentColor"/><rect x="18" y="5" width="7" height="22" rx="2" fill="currentColor"/></symbol>
   <symbol id="i-undo" viewBox="0 0 32 32"><path d="M9 11a9 9 0 1 1-2 9" fill="none" stroke="currentColor" stroke-width="3.500" stroke-linecap="round"/><path d="M4 6l5 6 6-4" fill="none" stroke="currentColor" stroke-width="3.500" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-restart" viewBox="0 0 32 32"><path d="M6 20a10 10 0 1 0 3-12l-4 4M5 5v7h7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-sound" viewBox="0 0 32 32"><path d="M5 12h5l7-6v20l-7-6H5z" fill="currentColor"/><path class="waves-on" d="M21 11a7 7 0 0 1 0 10M24.500 7.500a12 12 0 0 1 0 17" fill="none" stroke="currentColor" stroke-width="2.800" stroke-linecap="round"/></symbol>
   <symbol id="i-music" viewBox="0 0 32 32"><path d="M12 23V8l14-3.500V20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="8.500" cy="23" rx="4" ry="3.200" fill="currentColor"/><ellipse cx="22.500" cy="20" rx="4" ry="3.200" fill="currentColor"/></symbol>
   <symbol id="i-bolt" viewBox="0 0 32 32"><path d="M18.500 2L6 18h8l-2.500 12L24 14h-8z" fill="currentColor"/></symbol>
@@ -134,7 +135,7 @@
   <symbol id="i-up" viewBox="0 0 32 32"><path d="M16 27V6M7 15l9-9 9 9" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-upl" viewBox="0 0 32 32"><path d="M25 25L8 8M8 21V8h13" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-upr" viewBox="0 0 32 32"><path d="M7 25L24 8M24 21V8H11" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-  <symbol id="i-loop" viewBox="0 0 32 32"><path d="M6 14a10 10 0 0 1 18-4M26 18a10 10 0 0 1-18 4" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/><path d="M25 3v8h-8M7 29v-8h8" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-loop" viewBox="0 0 32 32"><path d="M22 3l5 5-5 5M5 14v-2a4 4 0 0 1 4-4h18M10 29l-5-5 5-5M27 18v2a4 4 0 0 1-4 4H5" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-inf" viewBox="0 0 32 32"><path d="M16 16c-3.500-6-11-6-11 0s7.500 6 11 0 11-6 11 0-7.500 6-11 0z" fill="none" stroke="currentColor" stroke-width="3.600" stroke-linejoin="round"/></symbol>
   <symbol id="i-if" viewBox="0 0 32 32"><path d="M16 28V17M16 17L7 6M16 17l9-11" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-flag" viewBox="0 0 32 32"><ellipse cx="16" cy="21" rx="11" ry="6" fill="none" stroke="currentColor" stroke-width="3.500"/><path d="M16 3l4.500 6.500L16 16l-4.500-6.500z" fill="currentColor"/></symbol>
@@ -156,6 +157,6 @@
   <symbol id="i-trash" viewBox="0 0 32 32"><path d="M7 9h18M13 9V6h6v3M9.500 9l1 17h11l1-17" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
 
-<script type="module" src="src/main.js?v=eae40987"></script>
+<script type="module" src="src/main.js?v=9bfa690f"></script>
 </body>
 </html>

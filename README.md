@@ -86,6 +86,8 @@ Sonra tarayıcıda `http://localhost:8080` adresini aç. Fare ve dokunmatik ekra
   basmak onu siler. Geri al düğmesi son değişikliği geri getirir.
 - **Uçur** programı çalıştırır, **adım** tek tek ilerletir, **baştan** gemiyi
   başlangıca alır, **hız** 1×, 2× ve ½× arasında geçer.
+- **Rota** açtığın görevin haritadaki yerine döner. Tarayıcının geri/ileri düğmeleri de
+  rota ve görevler arasında gezinir; günlük ve atölye görevleri sayfa yenilenince yeniden açılır.
 - Her uçuş komutu gemiyi bir sıra ileri taşır; kaçış blokları çapraz gider. Gemi
   çıkış çizgisini geçince görev tamamlanır.
 - Yıldızlar: çıkışa ulaşmak 1, bütün kristalleri toplamak +1, hedef blok
