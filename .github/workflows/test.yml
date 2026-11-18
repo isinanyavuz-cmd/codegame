@@ -23,5 +23,3 @@ jobs:
         run: npm test
       - name: Görev denetçisi
         run: npm run denetle
-      - name: BİLSEM testleri
-        run: node --test bilsem/tests/*.test.js

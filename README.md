@@ -158,8 +158,8 @@ Kayıt yalnızca o cihazın tarayıcısında tutulur; hiçbir yere gönderilmez.
 
 Oyun bir kez açıldıktan sonra internetsiz de çalışır ve telefonda/tablette ana ekrana
 uygulama gibi eklenebilir (`manifest.webmanifest`, `sw.js`). Servis çalışanı sayfayı her
-açılışta önce ağdan ister, bu yüzden yeni sürüm yayımlanınca hemen görülür; aynı adresteki
-öteki uygulamaya (`bilsem/`) dokunmaz. Geliştirme sırasında eski dosya
+açılışta önce ağdan ister, bu yüzden yeni sürüm yayımlanınca hemen görülür; `bilsem/`
+yönlendirme sayfasına dokunmaz. Geliştirme sırasında eski dosya
 sunmasın diye `localhost`ta kurulmaz; denemek için adrese `?sw` ekle.
 
 ## Yayın
@@ -167,8 +167,9 @@ sunmasın diye `localhost`ta kurulmaz; denemek için adrese `?sw` ekle.
 Oyun GitHub Pages ile ana daldan yayınlanır: ana dala giren her değişiklik bir
 iki dakika içinde yayına çıkar.
 
-- Kod Pilotu: `https://isinanyavuz-cmd.github.io/codegame/`
-- BİLSEM uygulaması: `https://isinanyavuz-cmd.github.io/codegame/bilsem/`
+- Kod Pilotu: `https://isinanyavuz-cmd.github.io/codepilot/` (depo eskiden `codegame` adını taşıyordu)
+- BİLSEM uygulaması kendi deposuna taşındı: `https://isinanyavuz-cmd.github.io/bilsem/`
+  (`codepilot/bilsem/` adresi oraya yönlendirir)
 
 Dosyaları değiştirdikten sonra şunu çalıştır:
 
@@ -279,8 +280,8 @@ Görev bayrakları: `boss` (son korsan kaptandır), `dock` (çıkışta Atlas'ı
   esbuild ile tek dosyada paketlendi (MIT lisansı).
 - `vendor/fonts/`: Exo 2 yazı tipi (SIL Open Font License).
 
-## Bu depodaki diğer uygulama
+## BİLSEM uygulaması
 
-[`bilsem/`](bilsem/README.md) klasöründe **Enes BİLSEM'e Hazırlanıyor** var: 2. sınıf için
-BİLSEM hazırlık alıştırmaları (20 soru türü, sayı hafızası, günün görevi, deneme sınavı,
-veli paneli). Açmak için `bilsem/index.html`. Testleri: `node --test bilsem/tests/*.test.js`.
+**Enes BİLSEM'e Hazırlanıyor** önceden bu depoda `bilsem/` klasöründeydi; artık kendi deposunda:
+[isinanyavuz-cmd/bilsem](https://github.com/isinanyavuz-cmd/bilsem). Buradaki `bilsem/index.html`
+yalnızca eski adresi açanları yeni adrese yönlendirir.
