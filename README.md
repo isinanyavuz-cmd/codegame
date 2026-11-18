@@ -169,7 +169,7 @@ iki dakika içinde yayına çıkar.
 
 - Kod Pilotu: `https://isinanyavuz-cmd.github.io/codepilot/` (depo eskiden `codegame` adını taşıyordu)
 - BİLSEM uygulaması kendi deposuna taşındı: `https://isinanyavuz-cmd.github.io/bilsem/`
-  (eski `codegame/bilsem/` adresi oraya yönlendirir)
+  (`codepilot/bilsem/` adresi oraya yönlendirir)
 
 Dosyaları değiştirdikten sonra şunu çalıştır:
 
