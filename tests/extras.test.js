@@ -107,7 +107,7 @@ test('1-s silah denemesi: baştan açıktır; ateş etmeden kaya duvarı geçile
   assert.equal(starsOf(level, level.solution()), 3);
 });
 
-test('1-s2 kaya sütunu: şarjlı lazerle tam yıldız, küçük lazerle blok yetmez', async () => {
+test('1-s2 kaya sütunu: güçlü lazerle tam yıldız, küçük lazerle blok yetmez', async () => {
   const { fire } = await import('../src/engine/blocks.js');
   const store = await freshStore();
   const level = findLevel('1-s2');

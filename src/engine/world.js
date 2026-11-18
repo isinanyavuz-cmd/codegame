@@ -157,7 +157,7 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
         return;
       }
       case 'beam': {
-        // Şarjlı lazer: şarj olur, sonra kesintisiz bir ışınla şeritteki bütün kayaları parçalar.
+        // Güçlü lazer: kesintisiz bir ışınla şeritteki bütün kayaları birden parçalar.
         spin(b);
         const hits = [];
         for (let ty = y + 1; ty < field.rows; ty++) if (rocks.delete(key(lane, ty))) hits.push({ lane, y: ty });

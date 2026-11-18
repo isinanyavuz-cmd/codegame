@@ -189,12 +189,12 @@ export const EXTRAS = [
 
   extra('silah', 1, 2, {
     id: '1-s2', title: 'Kaya Sütunu',
-    brief: 'Yeni silah: **şarjlı lazer**! Önce şarj olur, sonra kesintisiz bir ışınla şeridindeki **bütün kayaları** birden parçalar. Küçük lazer her atışta tek kaya kırar; burada blok yetmez.',
-    // Her şerit kaya sütunu: küçük lazerle 6 atış gerekir, şarjlı lazerle tek atış.
+    brief: 'Yeni silah: **güçlü lazer**! Kesintisiz uzun bir ışınla şeridindeki **bütün kayaları** birden parçalar. Küçük lazer her atışta tek kaya kırar; burada blok yetmez.',
+    // Her şerit kaya sütunu: küçük lazerle 6 atış gerekir, güçlü lazerle tek atış.
     waves: [['.....', 'MMMMM', 'MMKMM', 'MMMMM', 'MMMMM', 'MMKMM', 'MMMMM', 'MMMMM', 'MMMMM', '..S..']],
     tools: [...MOVES, 'fire', 'beam'], maxBlocks: 13, par: 11,
     solution: () => [beam(), F(), F(), F(), F(), F(), F(), F(), F(), F(), F()],
-    hint: 'Önce şarjlı lazeri ateşle: bütün sütun temizlenir. Sonra düz uçarak iki kristali topla.',
+    hint: 'Önce güçlü lazeri ateşle: bütün sütun temizlenir. Sonra düz uçarak iki kristali topla.',
   }),
 
   // ───────────── tahmin turları ─────────────

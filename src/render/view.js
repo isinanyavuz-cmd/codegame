@@ -9,8 +9,6 @@ const C = 1.62;                 // bir karenin kenarı
 const SHIP_Y = 0.42, SHIP_SCALE = 0.8;
 const CAM_DIR = new THREE.Vector3(0, 21.5, 15.5).normalize();
 const MOVE_MS = 430;
-/** Şarjlı lazerin dolma süresi (1× hızda). Kısa kalsın: art arda kullanılınca izlemek sıkmasın. */
-const CHARGE_MS = 500;
 const RED = 0xff4d6a, GREEN = 0x37e39a, YELLOW = 0xffd53d, BLUE = 0x7f9cff;
 const GATE_GAP = 2.4;           // çıkış çizgisi ile Atlas'ın kapısı arası
 const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
@@ -717,37 +715,18 @@ export class View {
     if (gen === this.gen) { rock.visible = false; this.shake = 0.001; }
   }
 
-  /** Şarjlı lazerin şu anki hızda ne kadar süreceği (ses, görüntüyle aynı anda bitsin diye). */
-  chargeMs() { return CHARGE_MS / this.speed; }
-
   /**
-   * Şarjlı lazer: geminin burnunda mor bir enerji topu büyür, kanatlardan ona kıvılcımlar akar.
-   * Şarj bitince burundan kesintisiz, kalın bir ışın alanın sonuna kadar uzanır; ışının ucu
-   * geçtikçe şeritteki bütün kayalar sırayla parçalanır. `onFire` ışın çıktığı anda çağrılır.
+   * Güçlü lazer: beklemeden ateş eder. Burundan kesintisiz, kalın bir ışın alanın sonuna kadar
+   * uzanır; ışının ucu geçtikçe şeritteki bütün kayalar sırayla parçalanır. Burunda mor bir
+   * parlama ışın sürdükçe yanar. `onFire` ışın çıktığı anda çağrılır.
    */
   async beam(ev, { onFire } = {}) {
     const gen = this.gen, from = this.cellPos(ev.from), nose = from.clone(); nose.z -= 0.7;
-    const wing = 0.52 * SHIP_SCALE;
     const orb = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, color: bright(0xb38bff, 2.4), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
     const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, color: bright(0xffffff, 2.2), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-    orb.position.copy(nose); core.position.copy(nose); orb.scale.setScalar(0.01); core.scale.setScalar(0.01);
+    orb.position.copy(nose); core.position.copy(nose); orb.scale.setScalar(2.2); core.scale.setScalar(0.8);
     this.scene.add(orb, core);
     const drop = (o) => { this.scene.remove(o); o.material.dispose(); };
-    let sparks = 0;
-    // Şarj: top büyür ve titrer, gemi hafifçe sarsılır; kanat uçlarından buruna kıvılcım akar.
-    await this.tween(CHARGE_MS, (k) => {
-      if (gen !== this.gen) return;
-      const e = k * k, pulse = 1 + Math.sin(k * 40) * 0.08 * k;
-      orb.scale.setScalar((0.3 + 1.9 * e) * pulse); core.scale.setScalar((0.1 + 0.7 * e) * pulse);
-      this.ship.position.x = from.x + (Math.random() - 0.5) * 0.05 * k;
-      this.thrust = 1 + 0.6 * k;
-      while (sparks < Math.floor(k * 9)) {
-        sparks++;
-        for (const sx of [-1, 1]) this.burst(new THREE.Vector3(from.x + sx * wing, SHIP_Y, from.z - 0.2), { color: 0xc6a6ff, n: 5, speed: 0.9, life: 0.25, size: 0.2 });
-      }
-    });
-    if (gen !== this.gen) { drop(orb); drop(core); return; }
-    this.ship.position.x = from.x;
     onFire?.();
     // Ateş: burundan alanın sonuna kadar kesintisiz ışın (beyaz çekirdek ve geniş mor hale).
     const zEnd = this.gz(this.field.rows + 1), len = nose.z - zEnd, parts = [];

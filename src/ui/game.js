@@ -461,9 +461,6 @@ export class Game {
       return false;
     }
     if (ev.t === 'beam') {
-      this.flight.message = 'Lazer şarj oluyor…';
-      this.renderTelemetry();
-      sfx.charge(view.chargeMs() / 1000);
       await view.beam(ev, { onFire: () => {
         sfx.beam(ev.hits.length > 0);
         for (const h of ev.hits) this.flight.broken.add(`${h.lane},${h.y}`);

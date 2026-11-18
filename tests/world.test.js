@@ -177,7 +177,7 @@ test('ateş et: gemi yerinde kalır, şeridindeki ilk kaya parçalanır ve yol a
   assert.match(toPython([fire()]), /ates_et\(\)/);
 });
 
-test('şarjlı lazer: şeritteki bütün kayaları birden parçalar, öteki şeritlere dokunmaz', async () => {
+test('güçlü lazer: şeritteki bütün kayaları birden parçalar, öteki şeritlere dokunmaz', async () => {
   const { beam, fire } = await import('../src/engine/blocks.js');
   const f = field(['MMM', 'M.M', 'MMM', '.S.']);
   const res = simulate(f, [beam(), F(), F(), F(), F()]);
@@ -193,5 +193,5 @@ test('şarjlı lazer: şeritteki bütün kayaları birden parçalar, öteki şer
   // Boş şeritte de çalışır; hiç uçmayan sürekli lazer durdurulur.
   assert.deepEqual(simulate(field(['...', '.S.']), [beam(), F(), F()]).events.find((e) => e.t === 'beam').hits, []);
   assert.equal(simulate(f, [forever(beam())]).reason, 'idle');
-  assert.match(toPython([beam()]), /sarjli_lazer\(\)/);
+  assert.match(toPython([beam()]), /guclu_lazer\(\)/);
 });
