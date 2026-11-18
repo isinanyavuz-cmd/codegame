@@ -17,7 +17,7 @@ function h(tag, cls, ...kids) {
 
 // Her bloğun simgesi: yazıyı okumadan da ne yaptığı anlaşılsın.
 const ICONS = {
-  fwd: 'i-up', left: 'i-upl', right: 'i-upr', shield: 'i-shield', setEnergy: 'i-bolt', addEnergy: 'i-bolt', setCounter: 'i-count', addCounter: 'i-count',
+  fwd: 'i-up', left: 'i-upl', right: 'i-upr', shield: 'i-shield', fire: 'i-laser', setEnergy: 'i-bolt', addEnergy: 'i-bolt', setCounter: 'i-count', addCounter: 'i-count',
   repeat: 'i-loop', forever: 'i-inf', ifelse: 'i-if', until: 'i-flag', on: 'i-event', define: 'i-fn', call: 'i-call',
 };
 const sign = (type) => icon(ICONS[type], 'bi');
@@ -36,7 +36,7 @@ export function renderBlock(b) {
     else if (b.type === 'addEnergy') e = h('div', 'blk variable', sign(b.type), 'enerjiye', number(b.value), 'ekle');
     else if (b.type === 'setCounter') e = h('div', 'blk variable counter', sign(b.type), 'sayaç =', number(b.value));
     else if (b.type === 'addCounter') e = h('div', 'blk variable counter', sign(b.type), 'sayacı', number(b.value), 'artır');
-    else e = h('div', 'blk mov', sign(b.type), ACTIONS[b.type].label);
+    else e = h('div', `blk mov${b.type === 'fire' ? ' fire' : ''}`, sign(b.type), ACTIONS[b.type].label);
     e.dataset.id = b.id; return e;
   }
   const c = h('div', `c ${b.type === 'on' ? 'ev' : b.type === 'define' ? 'fun' : 'ctl'}`); c.dataset.id = b.id;
@@ -106,7 +106,7 @@ export class Editor {
   renderPalette() {
     this.pal.replaceChildren();
     for (const t of this.level.tools) {
-      const cls = ['define', 'call'].includes(t) ? 'fun' : t === 'on' ? 'ev' : ['setEnergy', 'addEnergy'].includes(t) ? 'variable' : ['setCounter', 'addCounter'].includes(t) ? 'variable counter' : isAction(t) ? 'mov' : 'ctl';
+      const cls = ['define', 'call'].includes(t) ? 'fun' : t === 'on' ? 'ev' : ['setEnergy', 'addEnergy'].includes(t) ? 'variable' : ['setCounter', 'addCounter'].includes(t) ? 'variable counter' : t === 'fire' ? 'mov fire' : isAction(t) ? 'mov' : 'ctl';
       const e = h('div', `blk ${cls}`, sign(t), isAction(t) ? ACTIONS[t].label : TOOLS[t]);
       e.dataset.tool = t; this.pal.append(e);
     }

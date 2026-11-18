@@ -66,7 +66,7 @@ export const ENERGY_MAX = 9;
 
 /**
  * Programı alanda çalıştırır ve olay listesini döndürür.
- * Olaylar: sense, move, event, shield, variable, call, crash, win, fail.
+ * Olaylar: sense, move, fire, event, shield, variable, call, crash, win, fail.
  * Her olay ilgili bloğun `id`sini taşır.
  * @param o.library  otopilot kitaplığı: { ad: gövde }. Programda tanımı olmayan bir manevra
  *                   çağrılırsa gövdesi buradan alınır; programdaki tanım kitaplıktakinin önüne geçer.
@@ -80,6 +80,9 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
   let counter = null;        // sayaç: ayarlanana kadar yoktur
   const args = [];           // çağrı yığını: parametreli manevralara verilen sayılar
   const handlers = new Map(), functions = new Map(), activeEvents = new Set();
+  // Işın silahıyla kırılan kayalar alandan silinir; asıl alan değişmesin diye kopyası kullanılır.
+  const rocks = new Set(field.meteors), live = { ...field, meteors: rocks };
+  let broken = 0;
 
   const stop = (o, r, ev) => { outcome = o; reason = r; events.push(ev); throw STOP; };
   // İlerlemeden dönen hatalı programlar binlerce animasyon biriktirmesin.
@@ -102,7 +105,7 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
       events.push({ t: 'move', ...base, exit: true, collect: false });
       stop('win', null, { t: 'win', id: b.id });
     }
-    if (hasMeteor(field, to.lane, to.y)) stop('crash', 'meteor', { t: 'crash', reason: 'meteor', ...base });
+    if (hasMeteor(live, to.lane, to.y)) stop('crash', 'meteor', { t: 'crash', reason: 'meteor', ...base });
     const blocked = field.pirates.has(key(to.lane, to.y));
     if (blocked && !shielded) stop('crash', 'pirate', { t: 'crash', reason: 'pirate', ...base });
     if (blocked) shielded = false;
@@ -135,7 +138,7 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
   function check(b) {
     spin(b);
     if (!b.cond) stop('fail', 'nocond', { t: 'fail', reason: 'nocond', id: b.id });
-    const s = sense(field, lane, y, b.cond, { energy, counter });
+    const s = sense(live, lane, y, b.cond, { energy, counter });
     if (idle <= 8) events.push({ t: 'sense', id: b.id, cond: b.cond, result: s.result, cell: s.cell, lane, y });
     return s.result;
   }
@@ -144,6 +147,15 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
     if (++ops > maxOps) stop('fail', 'limit', { t: 'fail', reason: 'limit', id: b.id });
     switch (b.type) {
       case 'fwd': case 'left': case 'right': act(b); return;
+      case 'fire': {
+        // Kanatlardaki ışın silahı: gemi yerinde durur, kendi şeridinde önündeki ilk kaya parçalanır.
+        spin(b);
+        let hit = null;
+        for (let ty = y + 1; ty < field.rows; ty++) if (rocks.has(key(lane, ty))) { hit = { lane, y: ty }; break; }
+        if (hit) { rocks.delete(key(hit.lane, hit.y)); broken++; }
+        announce({ t: 'fire', id: b.id, from: { lane, y }, hit });
+        return;
+      }
       case 'repeat': {
         // 'n': içinde durduğu manevraya çağrıda verilen sayı
         const times = b.count === 'n' ? args[args.length - 1] : b.count;
@@ -213,7 +225,7 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
   } catch (e) {
     if (e !== STOP) throw e;
   }
-  return { events, outcome, reason, ticks, collected, total: field.crystals.size, ship: { lane, y }, energy, shielded, counter };
+  return { events, outcome, reason, ticks, collected, total: field.crystals.size, ship: { lane, y }, energy, shielded, counter, broken };
 }
 
 /** Yıldız: geçmek 1, bütün kristaller +1, `par` blok veya azı +1. Geçemediyse 0. */

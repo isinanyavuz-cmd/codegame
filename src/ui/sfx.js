@@ -58,6 +58,11 @@ export const sfx = {
   star: (i) => { tone(784 + i * 196, 0.22, { type: 'triangle', vol: 0.1 }); tone((784 + i * 196) * 2, 0.3, { vol: 0.035, delay: 0.03 }); },
   /** Kalkış: motorların yükselen sesi. */
   launch: () => { noise(0.45, 0.09, { from: 220, to: 2400, type: 'bandpass', q: 1.1, swell: true }); tone(120, 0.4, { type: 'sawtooth', vol: 0.04, slide: 260 }); },
+  /** Işın silahı: iki kısa, inen lazer sesi; kaya vurulduysa ardından gürültülü patlama. */
+  laser: (hit) => {
+    tone(1500, 0.16, { type: 'sawtooth', vol: 0.045, slide: 300 }); tone(1180, 0.16, { type: 'square', vol: 0.03, slide: 240, delay: 0.03 });
+    if (hit) { noise(0.42, 0.13, { from: 1600, to: 160, type: 'lowpass', q: 0.8, delay: 0.2 }); tone(90, 0.35, { type: 'triangle', vol: 0.08, slide: 40, delay: 0.2 }); }
+  },
   shield: () => { tone(520, 0.22, { type: 'sine', vol: 0.06, slide: 420 }); tone(1040, 0.3, { vol: 0.03, delay: 0.05 }); },
   /** Terfi töreni: kısa bir borazan. */
   fanfare: () => { [[392, 0], [523, 0.14], [659, 0.28], [784, 0.42], [1047, 0.62]].forEach(([f, d], i) => tone(f, i === 4 ? 0.6 : 0.2, { type: 'sawtooth', vol: 0.05, delay: d })); tone(523, 0.7, { type: 'triangle', vol: 0.07, delay: 0.62 }); },
