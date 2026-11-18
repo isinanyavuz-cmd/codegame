@@ -24,6 +24,11 @@ test('çözüm adresi tüm ana ve yan görevleri açar; hepsi modu yalnız kilit
     ['?hepsi&cozum', '', true, true],
     ['?foo=cozum', '', false, false],
     ['?cozumluk', '', false, false],
+    // Görev açıkken adresin sonuna yazılınca bağlantı kısmına düşer.
+    ['', '#1-6?cozum', true, true],
+    ['', '#3-4?hepsi', true, false],
+    ['', '#cozum', true, true],
+    ['', '#1-6?cozumluk', false, false],
   ]) {
     const { store } = await load(null, { search, hash });
     assert.equal(store.unlockAll, unlockAll, search + hash);
