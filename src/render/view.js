@@ -666,45 +666,53 @@ export class View {
   }
 
   /**
-   * Işın silahı: iki kanadın ucundaki namlulardan kırmızı ışınlar fırlar ve önlerindeki ilk
-   * kayada birleşir; kaya parçalanır. Kaya yoksa ışınlar alanın sonuna kadar gider, gemi yerinde kalır.
+   * Işın silahı: iki kanadın ucundaki namlulardan kılıç boyunda kırmızı ışın mermileri düz ileri fırlar
+   * (çaprazlamaz) ve şeritteki ilk kayaya çarpar; kaya parçalanır. Kaya yoksa mermiler alanın dışına uçar.
    */
   async fire(ev) {
     const gen = this.gen, rock = ev.hit ? this.meteors.get(`${ev.hit.lane},${ev.hit.y}`) : null;
-    const from = this.cellPos(ev.from), end = rock ? rock.position.clone() : this.cellPos({ lane: ev.from.lane, y: this.field.rows });
-    const wing = 0.52 * SHIP_SCALE, beams = [];
+    const from = this.cellPos(ev.from), wing = 0.52 * SHIP_SCALE, z0 = from.z - 0.3;
+    // Kayanın ön yüzüne kadar ya da alanın sonunu geçene kadar.
+    const zEnd = rock ? rock.position.z + 0.3 : this.gz(this.field.rows + 1);
+    const LEN = 1.15, SPEED = 34, dist = Math.max(0.1, z0 - zEnd), ms = Math.max(70, (dist / SPEED) * 1000);
+    const bolts = [];
     for (const s of [-1, 1]) {
-      const x0 = from.x + s * wing, z0 = from.z - 0.25, x1 = end.x + s * 0.08, z1 = end.z + (rock ? 0.25 : 0);
-      const len = Math.hypot(x1 - x0, z1 - z0), mat = glow(bright(0xff3b5c, 2.8), 1);
-      const geo = new THREE.PlaneGeometry(1, 0.1); geo.translate(0.5, 0, 0);
-      const m = new THREE.Mesh(geo, mat);
-      m.rotation.x = -Math.PI / 2; m.rotation.z = -Math.atan2(z1 - z0, x1 - x0); m.position.set(x0, SHIP_Y, z0); m.scale.x = 0.001;
-      this.scene.add(m); beams.push({ m, mat, len });
-      this.burst(new THREE.Vector3(x0, SHIP_Y, z0), { color: 0xff6b80, n: 10, speed: 1.6, life: 0.25, size: 0.24 });
+      const x = from.x + s * wing, parts = [];
+      // Parlak çekirdek ve çevresinde yumuşak hale
+      for (const [w, color, op] of [[0.07, bright(0xffd0d8, 2.6), 1], [0.2, bright(0xff3b5c, 2.2), 0.55]]) {
+        const geo = new THREE.PlaneGeometry(w, 1); geo.rotateX(-Math.PI / 2); geo.translate(0, 0, 0.5);
+        const mat = glow(color, op), m = new THREE.Mesh(geo, mat);
+        m.position.set(x, SHIP_Y, z0); m.scale.z = 0.001; this.scene.add(m); parts.push({ m, mat, op });
+      }
+      bolts.push(parts);
+      this.burst(new THREE.Vector3(x, SHIP_Y, z0), { color: 0xff6b80, n: 8, speed: 1.4, life: 0.2, size: 0.22 });
     }
-    const cleanup = () => { for (const b of beams) { this.scene.remove(b.m); b.m.geometry.dispose(); b.mat.dispose(); } };
-    // Işınlar uzar; gemi geri tepmeyle hafifçe sarsılır.
-    await this.tween(200, (k) => {
-      for (const b of beams) b.m.scale.x = Math.max(0.001, b.len * k);
-      if (gen === this.gen) this.ship.position.z = from.z + Math.sin(Math.PI * k) * 0.12;
+    const all = bolts.flat();
+    const cleanup = () => { for (const p of all) { this.scene.remove(p.m); p.m.geometry.dispose(); p.mat.dispose(); } };
+    // Mermiler namludan çıkıp ileri uçar; boyları kılıç uzunluğunu geçmez. Gemi hafifçe geri teper.
+    await this.tween(ms, (k) => {
+      const front = z0 - dist * k, tail = Math.min(z0, front + LEN);
+      for (const p of all) { p.m.position.z = front; p.m.scale.z = Math.max(0.001, tail - front); }
+      if (gen === this.gen) this.ship.position.z = from.z + Math.sin(Math.PI * Math.min(1, k * 2)) * 0.08;
     });
     if (gen !== this.gen) { cleanup(); return; }
     this.ship.position.z = from.z;
-    if (rock) {
-      const p = rock.position.clone();
-      this.flash(1.5, 260);
-      this.burst(p, { color: 0xff8a3d, n: 46, speed: 4.6, life: 0.7, size: 0.42, up: 0.8 });
-      this.burst(p, { color: 0xffe0b0, n: 18, speed: 2.4, life: 0.4, size: 0.6 });
-      this.burst(p, { color: 0x9a8f86, n: 30, speed: 3.2, life: 0.9, size: 0.3, up: 0.6 });
-      if (rock.userData.streak) rock.userData.streak.visible = false;
-      this.shake = 5;
+    if (!rock) {
+      await this.tween(90, (k) => { for (const p of all) p.mat.opacity = p.op * (1 - k); });
+      cleanup(); return;
     }
-    await this.tween(220, (k) => {
-      for (const b of beams) b.mat.opacity = 1 - k;
-      if (rock && gen === this.gen) { rock.scale.setScalar(Math.max(0.001, 1 + 0.5 * k - 1.5 * k * k)); if (k >= 1) rock.visible = false; }
-    });
     cleanup();
-    if (rock && gen === this.gen) { rock.visible = false; this.shake = 0.001; }
+    const p = rock.position.clone();
+    this.flash(1.5, 220);
+    this.burst(p, { color: 0xff8a3d, n: 46, speed: 4.6, life: 0.6, size: 0.42, up: 0.8 });
+    this.burst(p, { color: 0xffe0b0, n: 18, speed: 2.4, life: 0.35, size: 0.6 });
+    this.burst(p, { color: 0x9a8f86, n: 30, speed: 3.2, life: 0.8, size: 0.3, up: 0.6 });
+    if (rock.userData.streak) rock.userData.streak.visible = false;
+    this.shake = 5;
+    await this.tween(150, (k) => {
+      if (gen === this.gen) { rock.scale.setScalar(Math.max(0.001, 1 + 0.4 * k - 1.4 * k * k)); if (k >= 1) rock.visible = false; }
+    });
+    if (gen === this.gen) { rock.visible = false; this.shake = 0.001; }
   }
 
   collect(cell) {
