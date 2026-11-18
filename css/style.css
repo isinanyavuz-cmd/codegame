@@ -136,7 +136,7 @@ button.node:not(.locked):active { transform: scale(.92); }
 .palrow .blk .bi { width: 15px; height: 15px; }
 .blk.lib { box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .2), 0 0 0 2px rgba(255, 233, 163, .75); }
 .blk.hole { --col: rgba(255, 255, 255, .1); border: 2px dashed rgba(255, 233, 163, .6); box-shadow: none; color: #ffe9a3; min-width: 70px; justify-content: center; cursor: default; }
-.ctl { --col: var(--ctl); } .mov { --col: var(--mov); } .mov.fire { --col: #ff5470; }
+.ctl { --col: var(--ctl); } .mov { --col: var(--mov); } .mov.fire { --col: #ff5470; } .mov.beam { --col: #9b5cff; }
 .fun { --col: #9154ce; } .variable { --col: #217c60; } .variable.counter { --col: #b0487a; }
 .param { padding: 2px 9px; border-radius: 10px; background: #fff; color: #5a2a8f; font-size: 14px; font-weight: 800; font-style: italic; }
 .choice { padding: 3px 8px; border-radius: 8px; background: rgba(0, 0, 0, .18); cursor: pointer; }

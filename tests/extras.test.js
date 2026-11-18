@@ -106,3 +106,15 @@ test('1-s silah denemesi: baştan açıktır; ateş etmeden kaya duvarı geçile
   for (let lane = 0; lane < field.lanes; lane++) assert.ok(field.meteors.has(`${lane},2`) && field.meteors.has(`${lane},5`));
   assert.equal(starsOf(level, level.solution()), 3);
 });
+
+test('1-s2 kaya sütunu: şarjlı lazerle tam yıldız, küçük lazerle blok yetmez', async () => {
+  const { fire } = await import('../src/engine/blocks.js');
+  const store = await freshStore();
+  const level = findLevel('1-s2');
+  assert.equal(store.isUnlocked(level, LEVELS), true);
+  assert.equal(starsOf(level, level.solution()), 3);
+  // Küçük lazerle de geçilir ama 6 atış + 10 uçuş, blok sınırını aşar.
+  const small = [...Array(6)].map(() => fire()).concat([...Array(10)].map(() => F()));
+  assert.equal(starsOf(level, small), 3 - 1);
+  assert.ok(count(small) > level.maxBlocks);
+});

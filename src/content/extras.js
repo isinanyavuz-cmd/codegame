@@ -7,7 +7,7 @@
 //   silah   ışın silahının deneme görevi: baştan açıktır, kayalar ateş edilerek parçalanır
 // Alanları ana görevlerle aynıdır; ek olarak `extra` (tür), `after` (haritada yanında
 // durduğu ana görev) ve `open(store, levels)` (açık mı) taşırlar. Ana yolu kilitlemezler.
-import { F, L, R, fire, rep, forever, ifelse, until, on, shield, setEnergy, addEnergy, setCounter, addCounter, define, call, defineN, callN } from '../engine/blocks.js';
+import { F, L, R, fire, beam, rep, forever, ifelse, until, on, shield, setEnergy, addEnergy, setCounter, addCounter, define, call, defineN, callN } from '../engine/blocks.js';
 import { genWaves } from './gen.js';
 import { route, mission, wallWaves, steer, cruise, MOVES, LOOPS, EVENT_TOOLS, ENERGY_TOOLS, ALL_TOOLS, SENSORS } from './advanced.js';
 import { LEVELS, SECTORS, levelById, levelsOf } from './levels.js';
@@ -29,7 +29,7 @@ const OPEN = {
 
 /** @param after  haritada yanında duracağı ana görevin sırası (1–8) */
 function extra(kind, sector, after, def) {
-  const id = kind === 'catal' ? `${sector}-${after}-b` : `${sector}-${SUFFIX[kind]}`;
+  const id = def.id || (kind === 'catal' ? `${sector}-${after}-b` : `${sector}-${SUFFIX[kind]}`);
   const level = { conds: [], events: [], functions: [], ...def, id, saveKey: id, sector, extra: kind, kind, after: `${sector}-${after}` };
   level.open = OPEN[kind](level);
   // Çatal: ana görev öteki yolunu tanır; kayıt (storage.passed) ikisinden birini geçilmiş sayar.
@@ -185,6 +185,16 @@ export const EXTRAS = [
     tools: [...MOVES, 'fire'], maxBlocks: 13, par: 10,
     solution: () => [fire(), F(), F(), F(), R(), fire(), F(), F(), F(), F()],
     hint: 'Önce ateş et, sonra açılan delikten geç. İkinci kristal sağda: kayanın yanından sağa kaç, sonra yine ateş et.',
+  }),
+
+  extra('silah', 1, 2, {
+    id: '1-s2', title: 'Kaya Sütunu',
+    brief: 'Yeni silah: **şarjlı lazer**! Önce şarj olur, sonra kesintisiz bir ışınla şeridindeki **bütün kayaları** birden parçalar. Küçük lazer her atışta tek kaya kırar; burada blok yetmez.',
+    // Her şerit kaya sütunu: küçük lazerle 6 atış gerekir, şarjlı lazerle tek atış.
+    waves: [['.....', 'MMMMM', 'MMKMM', 'MMMMM', 'MMMMM', 'MMKMM', 'MMMMM', 'MMMMM', 'MMMMM', '..S..']],
+    tools: [...MOVES, 'fire', 'beam'], maxBlocks: 13, par: 11,
+    solution: () => [beam(), F(), F(), F(), F(), F(), F(), F(), F(), F(), F()],
+    hint: 'Önce şarjlı lazeri ateşle: bütün sütun temizlenir. Sonra düz uçarak iki kristali topla.',
   }),
 
   // ───────────── tahmin turları ─────────────

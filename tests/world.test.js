@@ -176,3 +176,22 @@ test('ateş et: gemi yerinde kalır, şeridindeki ilk kaya parçalanır ve yol a
   assert.equal(simulate(f, [forever(fire())]).reason, 'idle');
   assert.match(toPython([fire()]), /ates_et\(\)/);
 });
+
+test('şarjlı lazer: şeritteki bütün kayaları birden parçalar, öteki şeritlere dokunmaz', async () => {
+  const { beam, fire } = await import('../src/engine/blocks.js');
+  const f = field(['MMM', 'M.M', 'MMM', '.S.']);
+  const res = simulate(f, [beam(), F(), F(), F(), F()]);
+  assert.equal(res.outcome, 'win');
+  assert.equal(res.broken, 2);
+  const ev = res.events.find((e) => e.t === 'beam');
+  assert.deepEqual(ev.hits, [{ lane: 1, y: 1 }, { lane: 1, y: 3 }]);
+  assert.deepEqual(ev.from, { lane: 1, y: 0 });
+  assert.ok(f.meteors.has('1,1') && f.meteors.has('0,1') && f.meteors.has('2,3'));
+  // Küçük lazer aynı işi tek tek yapar.
+  assert.equal(simulate(f, [fire(), fire(), F(), F(), F(), F()]).outcome, 'win');
+  assert.equal(simulate(f, [fire(), F(), F(), F(), F()]).reason, 'meteor');
+  // Boş şeritte de çalışır; hiç uçmayan sürekli lazer durdurulur.
+  assert.deepEqual(simulate(field(['...', '.S.']), [beam(), F(), F()]).events.find((e) => e.t === 'beam').hits, []);
+  assert.equal(simulate(f, [forever(beam())]).reason, 'idle');
+  assert.match(toPython([beam()]), /sarjli_lazer\(\)/);
+});

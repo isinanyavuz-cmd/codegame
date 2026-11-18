@@ -17,8 +17,8 @@ adımıdır. Bir sahne geçilince sıradaki açılır.
 | 7. Manevra Okulu | Fonksiyonlar | oynanabilir (8 sahne) |
 | 8. Ana Gemi | Bütün kavramlarla büyük final | oynanabilir (8 sahne) |
 
-Ana yolda **64 görev**, yanında **25 yan görev** var; bütün yıldızlar toplandığında
-**267 yıldız**. İlerleme ve yazılan programlar tarayıcıda saklanır.
+Ana yolda **64 görev**, yanında **26 yan görev** var; bütün yıldızlar toplandığında
+**270 yıldız**. İlerleme ve yazılan programlar tarayıcıda saklanır.
 
 Her sektörün sahneleri aynı sırayı izler: **tanış** (hazır programı çalıştır,
 küçük bir şeyi değiştir) → **dene** ×2 (yarım programı tamamla) → **pekiştir** ×3
@@ -42,7 +42,7 @@ ana yolu kilitlemezler.
 | **Tahmin turu** (göz) | sektörün 3. görevinden sonra | Program hazırdır, yazılmaz: çocuk okur ve geminin hangi karede duracağını tahmin eder. Üç soru, doğru sayısı kadar yıldız |
 | **Öteki yol** (çatal) | ana görevle birlikte | Aynı kavramın başka bir görevi. İkisinden hangisi geçilirse sıradaki açılır (1-5, 2-6, 3-5, 4-5, 6-5) |
 | **Acil durum** (!) | bir görev bitince bir kez haber verilir | Araya giren hikâyeli görev (2-5, 5-4 ve 6-6'dan sonra) |
-| **Silah denemesi** (ışın) | baştan açık, 1. görevin yanında | Işın silahının deneme görevi **Kaya Duvarı** (`1-s`): iki kaya duvarı bütün şeritleri kapatır, ateş etmeden geçilemez |
+| **Silah denemesi** (ışın) | baştan açık, 1. ve 2. görevin yanında | **Kaya Duvarı** (`1-s`): iki kaya duvarı bütün şeritleri kapatır, ateş etmeden geçilemez. **Kaya Sütunu** (`1-s2`): her şerit kaya sütunu; küçük lazerle blok yetmez, şarjlı lazer gerekir |
 | **Gizli görev** (?) | sektörde 24 yıldızın 20'si toplanınca | Daha zor bir görev; ödülü Bip'in bir arkadaşıdır. 2, 4, 6 ve 7. sektörlerinki yeni bir fikir tanıtır: iç içe döngü, döngü içinde "olana kadar", **sayaç değişkeni**, **sayı alan manevra** |
 
 Rota ekranının altındaki **köprü** çubuğu:
@@ -75,7 +75,7 @@ Sonra tarayıcıda `http://localhost:8080` adresini aç. Fare ve dokunmatik ekra
   Tahmin turlarında doğru kare işaretlenir. Bu modda programı değiştirmek kayıtlı programlarının üzerine yazmaz;
   parametreyi kaldırınca normal oyuna dönersin. Atölyede oluşturulan görevlerin hazır çözümü yoktur.
 - `#3-4` gibi bir ek doğrudan o sahneyi açar: `http://localhost:8080/?hepsi#3-4`.
-  Yan görevlerin kimlikleri: `1-s` silah denemesi, `3-t` tahmin turu, `3-g` gizli görev, `2-a` acil durum, `1-5-b` öteki yol.
+  Yan görevlerin kimlikleri: `1-s`, `1-s2` silah denemeleri, `3-t` tahmin turu, `3-g` gizli görev, `2-a` acil durum, `1-5-b` öteki yol.
 - `?kalite=yuksek|orta|dusuk` görüntü kalitesini sabitler (yazılmazsa cihaz yavaşsa kendiliğinden düşer).
 - `#oyna=...` atölyede kurulmuş bir görevi, `#aktar=...` başka cihazdan gelen ilerlemeyi açar.
 
@@ -108,6 +108,9 @@ Sonra tarayıcıda `http://localhost:8080` adresini aç. Fare ve dokunmatik ekra
 - **Ateş et** (kırmızı blok): gemi yerinde kalır, iki kanadındaki ışın silahı ateş eder ve
   kendi şeridinde önündeki ilk kayayı parçalar. Kırılan kaya o uçuş boyunca yoktur (sensörler
   de görmez); önde kaya yoksa ışın boşa gider. Yalnızca paletinde bu blok olan görevlerde kullanılır.
+- **Şarjlı lazer** (mor blok): daha güçlüdür. Gemi yerinde kalır, burnunda enerji topu dolar
+  (1× hızda 1,2 saniye; `src/render/view.js` içindeki `CHARGE_MS`), sonra kesintisiz uzun bir ışın
+  şeritteki **bütün** kayaları birden parçalar.
 - **Enerji** bir değişkendir. Enerji görevlerinde başlangıçta 0'dır; ilk uçuş öncesi
   değerini ayarla. Her hareket, çıkış adımı dahil 1 enerji harcar. **Enerjiye ekle**
   yalnızca yeşil şarj istasyonunda çalışır ve gemiyi ilerletmez. Depo en çok 9
