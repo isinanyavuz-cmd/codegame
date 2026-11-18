@@ -109,7 +109,7 @@ Sonra tarayıcıda `http://localhost:8080` adresini aç. Fare ve dokunmatik ekra
   kendi şeridinde önündeki ilk kayayı parçalar. Kırılan kaya o uçuş boyunca yoktur (sensörler
   de görmez); önde kaya yoksa ışın boşa gider. Yalnızca paletinde bu blok olan görevlerde kullanılır.
 - **Şarjlı lazer** (mor blok): daha güçlüdür. Gemi yerinde kalır, burnunda enerji topu dolar
-  (1× hızda 1,2 saniye; `src/render/view.js` içindeki `CHARGE_MS`), sonra kesintisiz uzun bir ışın
+  (1× hızda 1 saniye; `src/render/view.js` içindeki `CHARGE_MS`), sonra kesintisiz uzun bir ışın
   şeritteki **bütün** kayaları birden parçalar.
 - **Enerji** bir değişkendir. Enerji görevlerinde başlangıçta 0'dır; ilk uçuş öncesi
   değerini ayarla. Her hareket, çıkış adımı dahil 1 enerji harcar. **Enerjiye ekle**
