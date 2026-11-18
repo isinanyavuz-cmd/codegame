@@ -72,3 +72,28 @@ test('atölye: palet alanın içindekilere göre kurulur; çözülmemiş görevd
   assert.notEqual(rich.id, plain.id);
   assert.equal(decodeField(rich.hash.slice('oyna='.length)).par, 9);
 });
+
+test('günün dalgası: 2. basamaktan sonra arada bir lazer günü gelir; pil duvar sayısı kadardır', async () => {
+  const { fire, forever, F } = await import('../src/engine/blocks.js');
+  const laser = days(40).map((d) => dailyLevel(d, 3)).filter((l) => l.tools.includes('fire'));
+  assert.ok(laser.length >= 5 && laser.length <= 20, `${laser.length} lazer günü`);
+  assert.ok(days(40).every((d) => !dailyLevel(d, 1).tools.includes('fire')), 'ilk basamakta lazer yok');
+  for (const level of laser) {
+    const f = parseField(level.waves[0]);
+    assert.equal(f.battery, level.solution()[0].count);
+    assert.notEqual(simulate(f, [forever(fire(), F())]).outcome, 'win');
+  }
+});
+
+test('atölye: lazer pili bağlantıda taşınır; kristalli kaya ve demir konabilir', () => {
+  const lines = ['..K..', 'MMGMM', '..D..', '.....', '..S..'];
+  assert.deepEqual(decodeField(encodeField(lines, 6, 3)), { lines, par: 6, battery: 3 });
+  assert.deepEqual(decodeField(encodeField(lines, 6)), { lines, par: 6 });
+  assert.equal(hasRoute(lines), false);
+  assert.equal(hasRoute(lines, { laser: true }), true);
+  assert.equal(hasRoute(['.....', 'DDDDD', '.....', '.....', '..S..'], { laser: true }), false, 'demiri lazer de kıramaz');
+  const level = customLevel(lines, { battery: 3 });
+  assert.ok(level.tools.includes('fire') && level.tools.includes('beam') && level.events.includes('rock'));
+  assert.equal(parseField(level.waves[0]).battery, 3);
+  assert.ok(!customLevel(lines).tools.includes('fire'));
+});

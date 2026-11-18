@@ -1,6 +1,19 @@
 // İlerleme kaydı: yıldızlar, çocuğun programları, ayarlar ve oyunun biriktirdiği her şey
 // (denemeler, mürettebat, gemi görünümü, otopilot kitaplığı, günlük). Tarayıcıda saklanır.
-const KEY = 'kodpilotu.v1';
+//
+// Oyuncu profilleri: aynı cihazı kullanan her çocuğun kaydı ayrıdır. Profil listesi PROFILES
+// anahtarında durur; ilk profilin kaydı eski anahtardadır (KEY), böylece eski kayıt ilk pilotun olur.
+const KEY = 'kodpilotu.v1', PROFILES = 'kodpilotu.pilotlar';
+const keyOf = (id) => (id === 'p1' ? KEY : `${KEY}.${id}`);
+function readProfiles() {
+  try {
+    const p = JSON.parse(localStorage.getItem(PROFILES) || 'null');
+    if (p && Array.isArray(p.list) && p.list.length && p.list.some((x) => x.id === p.active)) return p;
+  } catch (e) { /* bozuk liste: tek profille başla */ }
+  return { active: 'p1', list: [{ id: 'p1', name: '' }] };
+}
+let profiles = readProfiles();
+const saveProfiles = () => { try { localStorage.setItem(PROFILES, JSON.stringify(profiles)); } catch (e) { /* kayıt kapalı olabilir */ } };
 
 /**
  * Gizli inceleme modları (?hepsi, ?cozum). Bir görev açıkken adresin sonuna yazılınca
@@ -31,11 +44,17 @@ const fresh = () => ({
   workshop: null,   // atölyedeki tasarım: { lines, par, solved }
 });
 let data = fresh();
-try {
-  const raw = localStorage.getItem(KEY);
-  if (raw) data = { ...data, ...JSON.parse(raw) };
-} catch (e) { /* kayıt okunamadı; temiz başla */ }
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* kayıt kapalı olabilir */ } };
+function load() {
+  data = fresh();
+  try {
+    const raw = localStorage.getItem(keyOf(profiles.active));
+    if (raw) data = { ...data, ...JSON.parse(raw) };
+  } catch (e) { /* kayıt okunamadı; temiz başla */ }
+}
+load();
+const save = () => { try { localStorage.setItem(keyOf(profiles.active), JSON.stringify(data)); } catch (e) { /* kayıt kapalı olabilir */ } };
+/** Profilin görünen adı: listedeki ad, yoksa kaydındaki pilot adı, yoksa "Pilot N". */
+const nameOf = (p, i) => p.name || (p.id === profiles.active ? data.name : (() => { try { return JSON.parse(localStorage.getItem(keyOf(p.id)) || '{}').name || ''; } catch (e) { return ''; } })()) || `Pilot ${i + 1}`;
 
 /** Yerel takvim günü: 'YYYY-AA-GG'. */
 export const dayOf = (t = Date.now()) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -135,4 +154,33 @@ export const store = {
     } catch (e) { return false; }
   },
   reset() { data = fresh(); save(); },
+
+  // ---------- oyuncu profilleri ----------
+  /** [{ id, name, active, stars }] */
+  profiles() {
+    return profiles.list.map((p, i) => {
+      let stars = 0;
+      try { const d = p.id === profiles.active ? data : JSON.parse(localStorage.getItem(keyOf(p.id)) || '{}'); stars = Object.values(d.stars || {}).reduce((a, b) => a + b, 0); } catch (e) { /* okunamadı */ }
+      return { id: p.id, name: nameOf(p, i), active: p.id === profiles.active, stars };
+    });
+  },
+  /** Yeni profil ekler ve ona geçer (en çok 6). Eklenemezse null döner. */
+  addProfile(name) {
+    const clean = String(name || '').trim().slice(0, 24);
+    if (!clean || profiles.list.length >= 6) return null;
+    let n = profiles.list.length + 1;
+    while (profiles.list.some((p) => p.id === `p${n}`)) n++;
+    const id = `p${n}`;
+    profiles.list.push({ id, name: clean });
+    this.switchProfile(id);
+    data.name = clean; save();
+    return id;
+  },
+  /** Başka profile geçer: o profilin kaydı yüklenir. */
+  switchProfile(id) {
+    if (!profiles.list.some((p) => p.id === id)) return false;
+    profiles.active = id; saveProfiles(); load();
+    return true;
+  },
+  get profileId() { return profiles.active; },
 };

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseField, simulate, sense, stars } from '../src/engine/world.js';
+import { parseField, simulate, sense, stars, FAIL_TEXT } from '../src/engine/world.js';
 import { F, L, R, rep, forever, ifelse, count, clone, find, remove, toPython } from '../src/engine/blocks.js';
 
 const field = (lines) => parseField(lines);
@@ -175,6 +175,56 @@ test('ateş et: gemi yerinde kalır, şeridindeki ilk kaya parçalanır ve yol a
   // Hiç uçmadan sürekli ateş eden program durdurulur.
   assert.equal(simulate(f, [forever(fire())]).reason, 'idle');
   assert.match(toPython([fire()]), /ates_et\(\)/);
+});
+
+test('lazer pili: küçük lazer 1, şarjlı lazer 3 hücre harcar; yetmezse uçuş biter', async () => {
+  const { fire, beam } = await import('../src/engine/blocks.js');
+  const { pilli, LASER_COST } = await import('../src/engine/world.js');
+  assert.deepEqual(LASER_COST, { fire: 1, beam: 3 });
+  const lines = pilli(['...', '.M.', '.M.', '.S.'], 3);
+  assert.equal(parseField(lines).battery, 3);
+  // Pilsiz alan sınırsızdır; pilli() asıl diziyi değiştirmez.
+  assert.equal(parseField(['...', '.S.']).battery, null);
+  const res = simulate(parseField(lines), [fire(), fire(), F(), F(), F(), F()]);
+  assert.equal(res.outcome, 'win'); assert.equal(res.battery, 1);
+  assert.deepEqual(res.events.filter((e) => e.t === 'fire').map((e) => e.battery), [2, 1]);
+  assert.equal(simulate(parseField(lines), [beam(), F(), F(), F(), F()]).battery, 0);
+  assert.equal(simulate(parseField(lines), [fire(), beam()]).reason, 'battery');
+  // Boşa giden atış da pil yer: durmadan ateş eden program pili bitirir.
+  assert.equal(simulate(parseField(pilli(['....', '.M..', '....', '.S..'], 3)), [forever(fire(), F())]).reason, 'battery');
+  assert.ok(FAIL_TEXT.battery && FAIL_TEXT.iron);
+});
+
+test('kristalli kaya kırılınca kristal bırakır; demir asteroit lazeri durdurur ve kırılmaz', async () => {
+  const { fire, beam } = await import('../src/engine/blocks.js');
+  const geo = field(['...', '.G.', '.S.']);
+  assert.equal(simulate(geo, [F(), F()]).reason, 'meteor');
+  const won = simulate(geo, [fire(), F(), F(), F()]);
+  assert.equal(won.outcome, 'win'); assert.equal(won.collected, 1); assert.equal(won.total, 1);
+  assert.deepEqual(won.events.find((e) => e.t === 'fire').hit, { lane: 1, y: 1, gem: true });
+  const iron = field(['.M.', '.D.', '.M.', '.S.']);
+  const shot = simulate(iron, [fire(), fire(), F(), F()]);
+  assert.equal(shot.reason, 'iron');
+  assert.deepEqual(shot.events.filter((e) => e.t === 'fire').map((e) => [e.hit, e.iron]), [[{ lane: 1, y: 1 }, null], [null, { lane: 1, y: 2 }]]);
+  const b = simulate(iron, [beam()]).events.find((e) => e.t === 'beam');
+  assert.deepEqual(b.hits, [{ lane: 1, y: 1 }]); assert.deepEqual(b.iron, { lane: 1, y: 2 });
+  // Sensörler demiri engel olarak görür ama kaya saymaz.
+  assert.equal(sense(iron, 1, 1, 'ahead').result, true);
+  assert.equal(sense(iron, 1, 1, 'rockAhead').result, false);
+  assert.equal(sense(iron, 1, 0, 'rockAhead').result, true);
+});
+
+test('lazer sensörleri ve "kaya görünce" olayı', async () => {
+  const { fire, until, on } = await import('../src/engine/blocks.js');
+  const f = field(['.M.', '...', '.M.', '.M.', '.S.']);
+  assert.equal(sense(f, 1, 0, 'laneClear').result, false);
+  assert.equal(sense(f, 0, 0, 'laneClear').result, true);
+  assert.equal(sense(f, 1, 0, 'rocks3').result, true);
+  assert.equal(sense(f, 1, 2, 'rocks3').result, false);
+  assert.equal(simulate(f, [until('laneClear', fire()), forever(F())]).outcome, 'win');
+  const ev = simulate(f, [on('rock', fire()), forever(F())]);
+  assert.equal(ev.outcome, 'win'); assert.equal(ev.broken, 3);
+  assert.equal(ev.events.filter((e) => e.t === 'event' && e.event === 'rock').length, 3);
 });
 
 test('şarjlı lazer: şeritteki bütün kayaları birden parçalar, öteki şeritlere dokunmaz', async () => {

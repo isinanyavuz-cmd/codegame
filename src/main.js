@@ -46,7 +46,7 @@ async function boot() {
     const m = /^#oyna=(.+)$/.exec(location.hash);
     let field = null;
     try { field = m && decodeField(decodeURIComponent(m[1])); } catch (e) { /* bozuk bağlantı */ }
-    return field ? customLevel(field.lines, { par: field.par, own: false, library: Object.keys(store.library()) }) : null;
+    return field ? customLevel(field.lines, { par: field.par, own: false, library: Object.keys(store.library()), battery: field.battery || 0 }) : null;
   };
   let offered = null;
   const route = () => {
@@ -71,7 +71,7 @@ async function boot() {
     if (hash === '#gunluk') { map.openDaily(); return; }
     if (hash === '#atolye') {
       workshop.load();
-      if (hasRoute(workshop.design.lines)) { workshop.play(); return; }
+      if (hasRoute(workshop.design.lines, { laser: workshop.battery > 0 })) { workshop.play(); return; }
       // Başka sekmede yolu kapatılmış bir tasarım varsa boş ekran yerine düzenleyiciyi aç.
       if (visible) game.close({ navigate: false }); else map.show();
       history.replaceState(null, '', location.pathname + location.search);

@@ -17,8 +17,8 @@ adımıdır. Bir sahne geçilince sıradaki açılır.
 | 7. Manevra Okulu | Fonksiyonlar | oynanabilir (8 sahne) |
 | 8. Ana Gemi | Bütün kavramlarla büyük final | oynanabilir (8 sahne) |
 
-Ana yolda **64 görev**, yanında **26 yan görev** var; bütün yıldızlar toplandığında
-**270 yıldız**. İlerleme ve yazılan programlar tarayıcıda saklanır.
+Ana yolda **64 görev**, yanında **38 yan görev** var; bütün yıldızlar toplandığında
+**306 yıldız**. İlerleme ve yazılan programlar tarayıcıda saklanır.
 
 Her sektörün sahneleri aynı sırayı izler: **tanış** (hazır programı çalıştır,
 küçük bir şeyi değiştir) → **dene** ×2 (yarım programı tamamla) → **pekiştir** ×3
@@ -42,8 +42,26 @@ ana yolu kilitlemezler.
 | **Tahmin turu** (göz) | sektörün 3. görevinden sonra | Program hazırdır, yazılmaz: çocuk okur ve geminin hangi karede duracağını tahmin eder. Üç soru, doğru sayısı kadar yıldız |
 | **Öteki yol** (çatal) | ana görevle birlikte | Aynı kavramın başka bir görevi. İkisinden hangisi geçilirse sıradaki açılır (1-5, 2-6, 3-5, 4-5, 6-5) |
 | **Acil durum** (!) | bir görev bitince bir kez haber verilir | Araya giren hikâyeli görev (2-5, 5-4 ve 6-6'dan sonra) |
-| **Silah denemesi** (ışın) | baştan açık, 1. ve 2. görevin yanında | **Kaya Duvarı** (`1-s`): iki kaya duvarı bütün şeritleri kapatır, ateş etmeden geçilemez. **Kaya Sütunu** (`1-s2`): her şerit kaya sütunu; küçük lazerle blok yetmez, şarjlı lazer gerekir |
+| **Silah görevi** (ışın) | kanat lazeri 1. sektör finalinde (mühendis Defne takar), şarjlı lazer 6. sektör finalinde (teknisyen Nil yapar) gelir; görev, yanındaki ana görev geçilince açılır. Önceden yıldız alınmış silah görevi açık kalır | Her sektörde lazer o sektörün kavramını ister (aşağıdaki tablo) |
+| **Python bulmacası** (Py) | 3. sektörün 7. görevinden sonra | Program Python dilindedir, bir satırı boştur (`____`). Üç satırdan gemiyi çıkışa götüreni seçer; seçtiği satırla uçuş oynatılır |
 | **Gizli görev** (?) | sektörde 24 yıldızın 20'si toplanınca | Daha zor bir görev; ödülü Bip'in bir arkadaşıdır. 2, 4, 6 ve 7. sektörlerinki yeni bir fikir tanıtır: iç içe döngü, döngü içinde "olana kadar", **sayaç değişkeni**, **sayı alan manevra** |
+
+Silah görevleri:
+
+| Görev | Kavram | Ne ister |
+|---|---|---|
+| `1-s` Kaya Duvarı, `1-s2` Kaya Sütunu | sıralama | ateş et; kaya sütununda şarjlı lazer |
+| `1-s3` Kristal Madeni | sıralama | kristalli kayayı vur, düz kayadan kaç (pil 2) |
+| `1-s4` Ters Atış | hata avı | ateş, duvara varmadan önce gelmeli |
+| `2-s` Duvar Kuşağı | döngü | `tekrarla: ateş et, 3 düz uç` |
+| `3-s` Son Çare | eğer | kaçabiliyorsan kaç, iki yan da kapalıysa ateş et (pil 2) |
+| `3-s2` Kaya mı, Demir mi? | eğer / değilse eğer | kayaya ateş, demirden kaç |
+| `4-s` Kayalar Bitene Kadar | olana kadar | "şeridim temiz mi?" olana kadar ateş et; kaya sayısı dalgadan dalgaya değişir |
+| `5-s` Korsan ve Kaya | olaylar | korsan görünce kalkan, kaya görünce ateş |
+| `6-s` Pil Hesabı | değişkenler | "şeridimde 3+ kaya var mı?" ile ucuz lazeri seç |
+| `7-s` Delici Manevra | fonksiyonlar | sayı alan `kaya kır (n)` manevrası |
+| `8-s` Kızıl Kanca'nın Barikatı | final | hepsi bir arada |
+| `2-t2` Tahmin Turu: Lazer | kod okuma | lazer hangi kayayı kırar, gemi nerede durur? |
 
 Rota ekranının altındaki **köprü** çubuğu:
 
@@ -52,8 +70,11 @@ Rota ekranının altındaki **köprü** çubuğu:
   sektör armaları, otopilot kitaplığı ve yazdırılabilir sertifika.
 - **Günün Dalgası**: tarihten üretilen, her gün değişen tek görev. Zorluğu çocuğun vardığı
   yere göre seçilir. Yıldızları ayrı sayılır; seri yoktur, gün atlamak bir şey kaybettirmez.
+  2. basamaktan sonra her dört günden biri **lazer günüdür**: düzenli kaya duvarları, duvar sayısı kadar pil.
 - **Atölye**: çocuk kareleri doldurarak kendi görevini kurar. Görevi kendisi çözünce
-  bağlantıyla paylaşabilir; bağlantıyı açan herkes o görevi oynar.
+  bağlantıyla paylaşabilir; bağlantıyı açan herkes o görevi oynar. Kristalli kaya, demir asteroit
+  ve **lazer pili** de konabilir (pil 0 ise lazer kapalıdır; pil bağlantıda taşınır).
+- **Pilotlar**: aynı cihazı kullanan çocuklar için ayrı kayıtlar (en çok 6). Eski kayıt ilk pilotundur.
 - **Günlük**: son günlerde geçilen görevler. Oyuna başka bir gün dönülünce Bip kısa bir
   özetle karşılar.
 - **Veli**: şifreyle açılan veli paneli (aşağıda).
@@ -75,7 +96,7 @@ Sonra tarayıcıda `http://localhost:8080` adresini aç. Fare ve dokunmatik ekra
   Tahmin turlarında doğru kare işaretlenir. Bu modda programı değiştirmek kayıtlı programlarının üzerine yazmaz;
   parametreyi kaldırınca normal oyuna dönersin. Atölyede oluşturulan görevlerin hazır çözümü yoktur.
 - `#3-4` gibi bir ek doğrudan o sahneyi açar: `http://localhost:8080/?hepsi#3-4`.
-  Yan görevlerin kimlikleri: `1-s`, `1-s2` silah denemeleri, `3-t` tahmin turu, `3-g` gizli görev, `2-a` acil durum, `1-5-b` öteki yol.
+  Yan görevlerin kimlikleri: `1-s`, `1-s2`, `3-s2` silah görevleri, `3-p` Python bulmacası, `3-t` tahmin turu, `3-g` gizli görev, `2-a` acil durum, `1-5-b` öteki yol.
 - `?kalite=yuksek|orta|dusuk` görüntü kalitesini sabitler (yazılmazsa cihaz yavaşsa kendiliğinden düşer).
 - `#oyna=...` atölyede kurulmuş bir görevi, `#aktar=...` başka cihazdan gelen ilerlemeyi açar.
 
@@ -111,6 +132,15 @@ Sonra tarayıcıda `http://localhost:8080` adresini aç. Fare ve dokunmatik ekra
 - **Şarjlı lazer** (mor blok): daha güçlüdür. Gemi yerinde kalır, burnunda enerji topu dolar
   (1× hızda 1 saniye; `src/render/view.js` içindeki `CHARGE_MS`), sonra kesintisiz uzun bir ışın
   şeritteki **bütün** kayaları birden parçalar.
+- **Lazer pili**: lazerli görevlerde sol alttaki pil göstergesi. Küçük lazer 1, şarjlı lazer 3 hücre
+  harcar; boşa giden atış da harcar. Pil yetmezse uçuş "Lazer pili bitti!" diye durur. Böylece
+  "durmadan ateş et" bir kestirme olmaz; ateş etmek bir karardır.
+- **Kristalli kaya** (camgöbeği uçlu): kırılınca yerinde kristal kalır; kristal yıldızı onu da sayar.
+  **Demir asteroit** (koyu metal): lazer onu kıramaz, ışını durdurur; arkasındaki kayalar da yerinde kalır.
+- Lazer sensörleri: **önümdeki kaya mı?** (demir değil, kırılabilir kaya), **şeridim temiz mi?**
+  (çıkışa kadar engel yok), **şeridimde 3+ kaya var mı?**. Olay: **kaya görünce**. Manevra: **kaya kır**.
+- Atıştan hemen önce vurulacak kare kırmızı parlar (nişan). **Adım** modu her atıştan sonra da durur.
+  Lazerin rengi hangarda yıldızla açılır.
 - **Enerji** bir değişkendir. Enerji görevlerinde başlangıçta 0'dır; ilk uçuş öncesi
   değerini ayarla. Her hareket, çıkış adımı dahil 1 enerji harcar. **Enerjiye ekle**
   yalnızca yeşil şarj istasyonunda çalışır ve gemiyi ilerletmez. Depo en çok 9
@@ -180,7 +210,9 @@ Dosyaları değiştirdikten sonra şunu çalıştır:
 npm run surum
 ```
 
-Bu komut `index.html` içindeki dosya adreslerine içerik damgası ekler. Damga
+Bu komut `index.html` içindeki dosya adreslerine içerik damgası ekler. (Windows'ta `core.autocrlf=true`
+ile dosyalar CRLF açılır; damga ise depodaki LF içerikten hesaplanmalıdır. Bu yüzden orada sürüm testi
+yerelde kırmızı görünebilir; CI LF ile doğrular.) Damga
 olmazsa tarayıcı on dakikaya kadar eski dosyaları göstermeye devam edebilir.
 Rota ekranının altındaki sürüm kodu, yayında hangi sürümün açık olduğunu gösterir.
 Damgalar eskiyse testler hata verir.
@@ -252,7 +284,10 @@ içindedir. Her sektörün sekiz görevlik sırasını koru. Alan metinle
 Testler her sahne için şunları doğrular: örnek çözüm bütün dalgaları 3 yıldızla
 geçer, palet çözüme yeter, hazır verilen program işi çocuğa bırakır. Ayrıca
 döngü sahneleri döngüsüz çözülemez ve çok dalgalı görevlerde ezberlenmiş bir rota
-öteki dalgalarda işe yaramaz. Yeni sektörlerde B mor işaret, P korsan, E şarj istasyonudur.
+öteki dalgalarda işe yaramaz. Yeni sektörlerde B mor işaret, P korsan, E şarj istasyonudur;
+G kristalli kaya, D demir asteroittir. Lazer pili satırlara `pilli(satırlar, pil)` ile eklenir
+(`src/engine/world.js`); pilsiz alanda lazer sınırsızdır. Denetçi, paletinde lazer olan her görevde
+sensörsüz "ateş et, düz uç" kestirmelerini dener (`atesle` uyarısı).
 Şarj istasyonu bulunan bir alanda enerji sistemi etkinleşir. Olay adları `events`,
 fonksiyon adları `functions`, seçilebilir sensörler `conds` listesinde tanımlanır.
 Motor testleri enerji tüketimini, depo sınırını, olay sırasını, kalkanın tek kullanımını,

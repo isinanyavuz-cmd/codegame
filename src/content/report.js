@@ -9,6 +9,7 @@ export const REASON_LABEL = {
   overflow: 'deponun taşması', station: 'istasyon dışında şarj', shield: 'kalkanı gereksiz açma', ended: 'programın erken bitmesi',
   idle: 'geminin komutsuz kalması', limit: 'bitmeyen döngü', nocond: 'koşulu boş bırakma', function: 'tanımlanmamış manevra',
   definition: 'aynı manevrayı iki kez tanımlama', counter: 'sayacı ayarlamadan artırma', param: 'manevraya sayı vermeme', tahmin: 'yanlış tahmin',
+  battery: 'lazer pilini bitirme', iron: 'demir asteroide çarpma',
 };
 /** Sık görülen hata için veliye öneri. */
 const REASON_TIP = {
@@ -17,6 +18,7 @@ const REASON_TIP = {
   pirate: 'Korsanlara yakalanıyor. Kalkanın tek saldırıyı durdurduğunu ve **olay** bloğunun onu her korsanda yeniden açtığını konuşun.',
   energy: 'Enerji sık bitiyor. Uçuş sırasında alttaki enerji göstergesini birlikte izleyin: her adımda bir azaldığını görmek değişken fikrini oturtur.',
   ended: 'Program çoğu kez çıkışa varmadan bitiyor. "Kaç adım gerekiyor, programın kaç adım atıyor?" diye sayın; döngülerde **sürekli tekrarla** işe yarar.',
+  battery: 'Lazer pili sık bitiyor. "Ateş etmeden önce önüne bak" fikrini konuşun: boşa giden her atış pilden yer; yalnızca önünde kaya varken ateş eden bir **eğer** bloğu kurmayı birlikte deneyin.',
   overflow: 'Depo sık taşıyor. "Ne zaman şarj etmeli?" sorusu koşulların konusu: yalnızca enerji azaldığında şarj etmeyi birlikte kurun.',
 };
 const dayKey = (t) => { const d = new Date(t); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); };

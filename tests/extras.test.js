@@ -96,10 +96,45 @@ test('6-5-b: her istasyonda şarj eden taşar, enerjiye bakan geçer', () => {
   assert.equal(starsOf(level, level.solution()), 3);
 });
 
-test('1-s silah denemesi: baştan açıktır; ateş etmeden kaya duvarı geçilemez', async () => {
+test('silah görevleri: kanat lazeri Defne\'yle (1-8), şarjlı lazer Nil\'le (6-8) açılır; yıldız alınmışsa açık kalır', async () => {
   const store = await freshStore();
+  const wing = findLevel('1-s'), charged = findLevel('1-s2');
+  for (const id of ['1-1', '1-2']) store.setStars(id, 1);
+  assert.equal(store.isUnlocked(wing, LEVELS), false);
+  store.setStars('1-8', 1);
+  assert.equal(store.isUnlocked(wing, LEVELS), true);
+  assert.equal(store.isUnlocked(charged, LEVELS), false);
+  store.setStars('6-8', 1);
+  assert.equal(store.isUnlocked(charged, LEVELS), true);
+  // Silah görevi yanındaki ana görev geçilmeden açılmaz.
+  assert.equal(store.isUnlocked(findLevel('3-s'), LEVELS), false);
+  store.setStars('3-6', 1);
+  assert.equal(store.isUnlocked(findLevel('3-s'), LEVELS), true);
+  const early = await freshStore();
+  early.setStars('1-s2', 2);
+  assert.equal(early.isUnlocked(charged, LEVELS), true);
+});
+
+test('silah serisi: her görevin pili var, örnek çözüm 3 yıldız; durmadan ateş etmek pili bitirir', async () => {
+  const { fire, beam } = await import('../src/engine/blocks.js');
+  const weapons = EXTRAS.filter((l) => l.extra === 'silah');
+  assert.ok(weapons.length >= 12);
+  for (const level of weapons) {
+    assert.ok(level.waves.every((w) => Number.isInteger(parseField(w).battery)), level.id);
+    assert.equal(starsOf(level, level.solution()), 3, level.id);
+    assert.ok(level.tools.includes('fire') || level.tools.includes('beam'), level.id);
+    const results = level.waves.map((w) => simulate(parseField(w), [forever(fire(), F())]));
+    assert.ok(results.some((r) => r.outcome !== 'win'), `${level.id}: sürekli ateş geçmemeli`);
+    if (level.tools.includes('beam')) assert.ok(level.waves.map((w) => simulate(parseField(w), [beam(), forever(F())])).some((r) => r.outcome !== 'win') || level.id === '1-s2', level.id);
+  }
+  // Hata avı silah görevi hazır programla gelir ve o program çarpar.
+  const bug = findLevel('1-s4');
+  assert.equal(bug.kind, 'hata');
+  assert.equal(starsOf(bug, bug.initial()), 0);
+});
+
+test('1-s kaya duvarı: ateş etmeden kaya duvarı geçilemez', async () => {
   const level = findLevel('1-s');
-  assert.equal(store.isUnlocked(level, LEVELS), true);
   assert.ok(level.tools.includes('fire'));
   // Duvar bütün şeritleri kapatır: yalnızca hareket bloklarıyla yazılmış hiçbir yol geçemez.
   const field = parseField(level.waves[0]);
@@ -107,14 +142,12 @@ test('1-s silah denemesi: baştan açıktır; ateş etmeden kaya duvarı geçile
   assert.equal(starsOf(level, level.solution()), 3);
 });
 
-test('1-s2 kaya sütunu: şarjlı lazerle tam yıldız, küçük lazerle blok yetmez', async () => {
+test('1-s2 kaya sütunu: şarjlı lazerle tam yıldız, küçük lazere ne blok ne pil yeter', async () => {
   const { fire } = await import('../src/engine/blocks.js');
-  const store = await freshStore();
   const level = findLevel('1-s2');
-  assert.equal(store.isUnlocked(level, LEVELS), true);
   assert.equal(starsOf(level, level.solution()), 3);
-  // Küçük lazerle de geçilir ama 6 atış + 10 uçuş, blok sınırını aşar.
+  // Küçük lazerle 6 atış + 10 uçuş gerekir: blok sınırını aşar, pil de 4 hücre.
   const small = [...Array(6)].map(() => fire()).concat([...Array(10)].map(() => F()));
-  assert.equal(starsOf(level, small), 3 - 1);
   assert.ok(count(small) > level.maxBlocks);
+  assert.equal(simulate(parseField(level.waves[0]), small).reason, 'battery');
 });

@@ -44,3 +44,21 @@ test('tahmin turu: üç ayrı seçenek var, biri doğru; hiçbiri meteorun ya da
   }
   assert.ok(Math.min(...spots) >= 4, `doğru cevap hep aynı harfe düşmemeli: ${spots}`);
 });
+
+test('python bulmacası: doğru satır gemiyi çıkışa götürür, öteki iki satır götürmez', async () => {
+  const { PY_ROUNDS, pythonChoices, fillHole } = await import('../src/content/predict.js');
+  const { pythonLines } = await import('../src/engine/blocks.js');
+  const level = EXTRAS.find((x) => x.id === '3-p');
+  assert.ok(level?.tahmin && level.python && level.rounds === PY_ROUNDS);
+  PY_ROUNDS.forEach((r, i) => {
+    const program = r.program();
+    assert.ok(pythonLines(program).some((l) => l.text.trim() === '____'), `${i}: boş satır`);
+    const { choices, answer } = pythonChoices(r, i);
+    assert.equal(new Set(choices.map((c) => c.text)).size, 3);
+    choices.forEach((c, j) => {
+      const res = simulate(parseField(r.lines), fillHole(program, c.block));
+      assert.equal(res.outcome === 'win', j === answer, `${i}.${j} ${c.text}: ${res.outcome}`);
+    });
+    assert.deepEqual(pythonChoices(r, i).answer, answer);
+  });
+});

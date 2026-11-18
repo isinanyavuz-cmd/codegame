@@ -39,11 +39,12 @@ export class MapScreen {
     });
     // Köprü: rota ekranının altındaki çubuk. Yeni ekranlar buraya eklenir.
     this.dock = [
-      { id: 'crew', icon: 'i-crew', label: 'Mürettebat', run: () => this.showCrew() },
+      { id: 'crew', icon: 'i-crew', label: 'Müret­tebat', run: () => this.showCrew() },
       { id: 'hangar', icon: 'i-ship', label: 'Hangar', run: () => { hangar.open(); this.renderDock(); }, badge: () => hangar.fresh() },
       { id: 'daily', icon: 'i-sun', label: 'Günün Dalgası', run: () => this.openDaily(), badge: () => (store.daily(dayOf()) ? '' : '!') },
       { id: 'workshop', icon: 'i-tool', label: 'Atölye', run: () => workshop.open() },
       { id: 'log', icon: 'i-book', label: 'Günlük', run: () => this.showLog() },
+      { id: 'pilots', icon: 'i-crew', label: 'Pilotlar', run: () => this.showPilots() },
       { id: 'parent', icon: 'i-lock', label: 'Veli', run: () => parent.open() },
     ];
     $('dock').addEventListener('click', (e) => {
@@ -77,6 +78,31 @@ export class MapScreen {
       <ul class="crew">${people}</ul>
       <div class="bots"><small>BİP'İN ARKADAŞLARI · gizli görevlerde saklanıyorlar</small><div>${bots}</div></div>
       <div class="btns"><button class="btn primary" data-act="close">Tamam</button></div>`, () => { this.sfx.click(); hideCard(); }, 'wide'));
+  }
+
+  /**
+   * Pilotlar: aynı cihazı kullanan çocukların ayrı kayıtları. Birine dokununca oyun o pilotun
+   * kaydıyla yeniden açılır; yeni pilot adıyla eklenir (en çok 6).
+   */
+  showPilots() {
+    const { store } = this, list = store.profiles();
+    const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    const rows = list.map((p) => `<li class="${p.active ? 'on' : ''}"><button data-pilot="${p.id}" ${p.active ? 'disabled' : ''}>${svg('i-ship')}<b>${esc(p.name)}</b><small>${p.stars} ${svg('i-star')}${p.active ? ' · şu an uçuyor' : ''}</small></button></li>`).join('');
+    const card = makeCard(`<span class="tag">PİLOTLAR · ${list.length} / 6</span><h1>Kim uçuyor?</h1>
+      <p class="fine">Her pilotun yıldızları, programları ve gemisi ayrı saklanır.</p>
+      <ul class="pilots">${rows}</ul>
+      ${list.length < 6 ? '<form class="newpilot"><input id="pilotName" maxlength="24" placeholder="Yeni pilotun adı" aria-label="Yeni pilotun adı" autocomplete="off"><button class="btn" type="submit">Ekle</button></form>' : ''}
+      <div class="btns"><button class="btn primary" data-act="close">Kapat</button></div>`, () => { this.sfx.click(); hideCard(); });
+    const restart = () => { location.hash = ''; location.reload(); };
+    card.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-pilot]');
+      if (b && store.switchProfile(b.dataset.pilot)) { this.sfx.click(); restart(); }
+    });
+    card.querySelector('.newpilot')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (store.addProfile(card.querySelector('#pilotName').value)) { this.sfx.click(); restart(); } else this.sfx.bad();
+    });
+    showCard(card);
   }
 
   /** Günün dalgası: bugünün görevi, çocuğun vardığı yere uygun zorlukta. */
@@ -222,7 +248,7 @@ export class MapScreen {
         line.setAttribute('class', 'rside'); line.setAttribute('x1', p.x); line.setAttribute('y1', p.y); line.setAttribute('x2', sx); line.setAttribute('y2', sy);
         root.append(line);
         const cls = ['node', st ? 'done' : '', unlocked ? '' : 'locked'].join(' ');
-        const inner = !unlocked ? svg('i-lock') : x.extra === 'gizli' ? '?' : x.extra === 'catal' ? svg('i-fork') : x.extra === 'tahmin' ? svg('i-eye') : x.extra === 'silah' ? svg(x.tools.includes('beam') ? 'i-beam' : 'i-laser') : '!';
+        const inner = !unlocked ? svg('i-lock') : x.extra === 'gizli' ? '?' : x.extra === 'catal' ? svg('i-fork') : x.extra === 'tahmin' ? (x.python ? 'Py' : svg('i-eye')) : x.extra === 'silah' ? svg(x.tools.includes('beam') ? 'i-beam' : 'i-laser') : '!';
         const under = unlocked ? `<div class="mstars">${[1, 2, 3].map((n) => svg('i-star', n <= st ? 'lit' : '')).join('')}</div>` : `<small>${SECRET_STARS}${svg('i-star')}</small>`;
         html.push(`<div class="mn side ${x.extra}" style="left:${sx}px;top:${sy}px"><button class="${cls}" data-level="${x.id}" title="${x.title}" aria-label="${EXTRA_LABEL[x.extra]}: ${x.title}">${inner}</button>${under}</div>`);
       }

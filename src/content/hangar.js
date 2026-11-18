@@ -36,6 +36,17 @@ export const PARTS = {
       { id: 'pembe', name: 'Pembe', color: '#ff6ad5', need: 60 },
     ],
   },
+  // bolt: küçük lazerin mermisi, beam: şarjlı lazerin ışını (3B sahnedeki renkler)
+  laser: {
+    label: 'Lazer',
+    options: [
+      { id: 'kizil', name: 'Kızıl', color: '#ff3b5c', bolt: 0xff3b5c, beam: 0xa16bff, need: 0 },
+      { id: 'zumrut', name: 'Zümrüt', color: '#37e39a', bolt: 0x37e39a, beam: 0x2fd6a0, need: 10 },
+      { id: 'buz', name: 'Buz Mavisi', color: '#49c8ff', bolt: 0x49c8ff, beam: 0x3d7bff, need: 27 },
+      { id: 'altin', name: 'Altın', color: '#ffc83d', bolt: 0xffc83d, beam: 0xff9a3c, need: 54 },
+      { id: 'gokkusagi', name: 'Pembe Nova', color: '#ff6ad5', bolt: 0xff6ad5, beam: 0xd04bff, need: 96 },
+    ],
+  },
   // wing: kanat açıklığı, nose: gövde boyu çarpanı
   shape: {
     label: 'Biçim',

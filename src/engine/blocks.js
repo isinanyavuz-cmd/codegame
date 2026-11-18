@@ -30,6 +30,10 @@ export const CONDS = {
   atEnergy: { label: 'şarjda mıyım?', py: 'sarjda_miyim()' },
   energyLow: { label: 'enerji 3’ten az mı?', py: 'enerji < 3' },
   counter3: { label: 'sayaç 3 oldu mu?', py: 'sayac >= 3' },
+  // Lazer sensörleri: kaya mı demir mi, şerit temiz mi, şeritte kaç kaya var?
+  rockAhead: { label: 'önümdeki kaya mı?', py: 'onumde_kaya_var()' },
+  laneClear: { label: 'şeridim temiz mi?', py: 'seridim_temiz()' },
+  rocks3: { label: 'şeridimde 3+ kaya var mı?', py: 'seritteki_kaya() >= 3' },
 };
 
 export const EVENTS = {
@@ -37,6 +41,7 @@ export const EVENTS = {
   beacon: { label: 'işarete varınca', py: 'isarete_varinca' },
   crystal: { label: 'kristal toplayınca', py: 'kristal_toplayinca' },
   energy: { label: 'şarja varınca', py: 'sarja_varinca' },
+  rock: { label: 'kaya görünce', py: 'kaya_gorunce' },
 };
 
 export const FUNCTIONS = {
@@ -45,6 +50,7 @@ export const FUNCTIONS = {
   safe: { label: 'güvenli uçuş', py: 'guvenli_ucus' },
   protect: { label: 'korunma', py: 'korunma' },
   refuel: { label: 'enerji takviyesi', py: 'enerji_takviyesi' },
+  drill: { label: 'kaya kır', py: 'kaya_kir' },
 };
 
 export const CONTAINERS = {
@@ -178,7 +184,8 @@ export function pythonLines(program, { library = [] } = {}) {
     const pad = '    '.repeat(depth);
     if (!list.length) { push(`${pad}pass`); return; }
     for (const b of list) {
-      if (b.type === 'setEnergy') push(`${pad}enerji = ${b.value}`, b.id);
+      if (b.type === 'gizli') push(`${pad}____`, b.id);   // ipucu iskeletinin ve Python bulmacasının boş satırı
+      else if (b.type === 'setEnergy') push(`${pad}enerji = ${b.value}`, b.id);
       else if (b.type === 'addEnergy') push(`${pad}enerji += ${b.value}  # şarj istasyonunda`, b.id);
       else if (b.type === 'setCounter') push(`${pad}sayac = ${b.value}`, b.id);
       else if (b.type === 'addCounter') push(`${pad}sayac += ${b.value}`, b.id);

@@ -8,7 +8,7 @@ import { missing, skeleton } from '../content/hints.js';
 import { dayTitle } from '../content/daily.js';
 import { teaser, nearGoal, STORY, VILLAIN, crewOf, botOf } from '../content/story.js';
 import { rankOf } from '../content/ranks.js';
-import { choicesFor, LETTERS } from '../content/predict.js';
+import { choicesFor, pythonChoices, fillHole, LETTERS } from '../content/predict.js';
 import { unlockedBetween } from '../content/hangar.js';
 import { Editor, renderBlock, hatBlock } from './editor.js';
 import { robot, face, miniBot, COPILOT } from './copilot.js';
@@ -19,7 +19,7 @@ const svg = (id, cls = '') => `<svg viewBox="0 0 32 32" class="${cls}"><use href
 const rich = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 const SPEEDS = [1, 2, 0.5];
 // Uçuş sırasında ortaya çıkan başarısızlıklar; çok dalgalı görevde hangi dalgada olduğu da söylenir.
-const IN_FLIGHT = ['meteor', 'wall', 'pirate', 'shield', 'energy', 'overflow', 'station', 'counter', 'param', 'ended', 'idle', 'limit'];
+const IN_FLIGHT = ['meteor', 'iron', 'battery', 'wall', 'pirate', 'shield', 'energy', 'overflow', 'station', 'counter', 'param', 'ended', 'idle', 'limit'];
 const TONE = { bad: 'var(--bad)', ok: 'var(--ok)', info: '#8fa6e8' };
 
 export class Game {
@@ -70,7 +70,8 @@ export class Game {
     this.wave = 0; this.results = [];
     this.hintStep = 0; this.clock = performance.now();
     // Tahmin turu: program yazılmaz, okunur (bkz. askRound).
-    this.quiz = level.tahmin ? { score: [] } : null;
+    // Python bulmacası da bir tahmin turudur: soru, boş satıra hangi komutun geleceğidir.
+    this.quiz = level.tahmin ? { score: [], python: !!level.python } : null;
     $('game').dataset.mode = level.tahmin ? 'tahmin' : '';
     $('quizBar').hidden = !this.quiz; $('picks').replaceChildren();
     $('game').hidden = false;
@@ -78,18 +79,18 @@ export class Game {
     $('sectorNo').textContent = level.free ? EXTRA_LABEL[level.extra] : `SEKTÖR ${sector.id}`;
     $('sectorName').textContent = level.extra === 'gunluk' ? dayTitle(level.day) : level.free ? level.title : sector.name;
     $('track').hidden = !!level.free;
-    $('missionNo').textContent = level.extra ? EXTRA_LABEL[level.extra] : `GÖREV ${level.n} / 8`; $('conceptChip').textContent = level.chip || sector.concept;
+    $('missionNo').textContent = level.python ? EXTRA_LABEL.python : level.extra ? EXTRA_LABEL[level.extra] : `GÖREV ${level.n} / 8`; $('conceptChip').textContent = level.chip || sector.concept;
     $('panel').dataset.extra = level.extra || '';
     $('missionTitle').textContent = level.title; $('missionText').innerHTML = rich(level.brief);
     this.renderTrack();
-    $('waveNote').innerHTML = this.quiz ? `${this.fields.length} soru: her birinde geminin duracağı kareyi tahmin et.`
+    $('waveNote').innerHTML = this.quiz?.python ? `${this.fields.length} soru: her birinde boş satırı doldur.` : this.quiz ? `${this.fields.length} soru: her birinde geminin duracağı kareyi tahmin et.`
       : `Aynı program ${this.fields.length} dalgayı da geçmeli.<span class="more"> Görmek için sayıya dokun.</span>`;
     const saved = this.store.program(level.saveKey);
     const solution = this.store.showSolutions && level.solution ? level.solution() : null;
     const program = this.quiz ? level.rounds[0].program() : solution ?? (saved && saved.length ? clone(saved) : level.initial ? level.initial() : []);
     this.lib = this.libraryFor(level);
     this.editor.load(level, program, Object.keys(this.lib || {}), !!this.quiz);
-    this.setTab('blocks'); this.hideToast(); this.hideCall(); this.setStatus('idle');
+    this.setTab(this.quiz?.python ? 'python' : 'blocks'); this.hideToast(); this.hideCall(); this.setStatus('idle');
     this.refreshMeta(); this.renderWaves();
     this.resetTelemetry();
     this.layout();
@@ -371,14 +372,15 @@ export class Game {
 
   resetTelemetry() {
     const f = this.fields[this.wave];
-    this.flight = { energy: f.energyCells.size ? 0 : null, counter: null, shielded: false, message: '', gems: 0, dodged: false, broken: new Set() };
+    this.flight = { energy: f.energyCells.size ? 0 : null, battery: f.battery, counter: null, shielded: false, message: '', gems: 0, dodged: false, broken: new Set() };
     this.shipCell = null;
     this.renderTelemetry(); this.renderGems();
   }
 
   /** Kristal sayacı: bu dalgada toplanan / toplam. */
   renderGems(pop = false) {
-    const el = $('gems'), total = this.fields[this.wave].crystals.size;
+    // Kristalli kayaların kristalleri de sayılır: kayayı kırıp toplamak gerekir.
+    const f = this.fields[this.wave], el = $('gems'), total = f.crystals.size + f.geodes.size;
     el.hidden = !total;
     if (!total) return;
     el.innerHTML = `${svg('i-gem')}<b>${this.flight.gems}</b><span>/ ${total}</span>`;
@@ -390,8 +392,16 @@ export class Game {
   renderTelemetry() {
     const el = $('telemetry'), f = this.fields[this.wave], state = this.flight;
     const hasEnergy = state.energy !== null, hasShield = f.pirates.size > 0, hasCounter = this.level.tools.includes('setCounter');
-    el.hidden = !(hasEnergy || hasShield || hasCounter || f.beacons.size || f.energyCells.size);
+    const hasBattery = f.battery !== null && state.battery !== null && state.battery !== undefined;
+    el.hidden = !(hasEnergy || hasShield || hasCounter || hasBattery || f.beacons.size || f.energyCells.size || f.geodes.size || f.iron.size);
     const gauges = [], key = [];
+    if (hasBattery) {
+      // Lazer pili: küçük lazer 1, şarjlı lazer 3 hücre harcar.
+      const cells = Array.from({ length: f.battery }, (_, i) => `<i class="${i < state.battery ? 'on' : ''}"></i>`).join('');
+      gauges.push(`<div class="gauge battery ${state.battery < 1 ? 'low' : ''}">${svg('i-laser')}<div class="cells">${cells}</div><b>${state.battery}</b></div>`);
+    }
+    if (f.geodes.size) key.push('<span class="legend-geode"><i></i>kristalli kaya: kır, kristali al</span>');
+    if (f.iron.size) key.push('<span class="legend-iron"><i></i>demir asteroit: lazer kıramaz</span>');
     if (hasCounter) gauges.push(`<div class="gauge counter ${state.counter === null ? 'off' : ''}">${svg('i-count')}<b>sayaç = ${state.counter ?? '?'}</b></div>`);
     if (hasEnergy) {
       const cells = Array.from({ length: 9 }, (_, i) => `<i class="${i < state.energy ? 'on' : ''}"></i>`).join('');
@@ -423,7 +433,8 @@ export class Game {
       const done = await this.current;
       if (!alive() || done) return;
       // Adım modunda her hareketten sonra dur; çıkıştan geçiş hareketinde durma, görev bitsin.
-      if (this.stepMode && tick.ev.t === 'move' && !tick.ev.exit) { this.setStatus('paused'); return; }
+      // Atış da bir adımdır (geri sarmadaki gibi): "önce ateş, sonra uç" adım adım görülür.
+      if (this.stepMode && ((tick.ev.t === 'move' && !tick.ev.exit) || tick.ev.t === 'fire' || tick.ev.t === 'beam')) { this.setStatus('paused'); return; }
     }
   }
 
@@ -451,11 +462,13 @@ export class Game {
     if (ev.t === 'fire') {
       sfx.laser(!!ev.hit);
       if (ev.hit) this.flight.broken.add(`${ev.hit.lane},${ev.hit.y}`);
-      this.flight.message = ev.hit ? 'Kaya parçalandı!' : 'Işın boşa gitti';
+      if (ev.battery !== undefined) this.flight.battery = ev.battery;
+      this.flight.message = ev.hit ? (ev.hit.gem ? 'Kayanın içinden kristal çıktı!' : 'Kaya parçalandı!') : ev.iron ? 'Demir asteroit kırılmaz!' : 'Işın boşa gitti';
       this.renderTelemetry();
       await view.fire(ev);
       if (!alive()) return true;
-      if (ev.hit) this.floaty(ev.hit, 'Kaya parçalandı!');
+      if (ev.hit) this.floaty(ev.hit, ev.hit.gem ? 'Kristal çıktı!' : 'Kaya parçalandı!');
+      else if (ev.iron) this.floaty(ev.iron, 'Demir kırılmaz!', 'red');
       // Kırılan kaya artık engel değil: sıradaki hedef silüeti yeniden gösterilir.
       this.showTarget(this.events.slice(this.i).find((e) => e.t === 'move' || e.t === 'crash'));
       return false;
@@ -467,11 +480,13 @@ export class Game {
       await view.beam(ev, { onFire: () => {
         sfx.beam(ev.hits.length > 0);
         for (const h of ev.hits) this.flight.broken.add(`${h.lane},${h.y}`);
-        this.flight.message = ev.hits.length ? `${ev.hits.length} kaya parçalandı!` : 'Işın boşa gitti';
+        if (ev.battery !== undefined) this.flight.battery = ev.battery;
+        this.flight.message = ev.hits.length ? `${ev.hits.length} kaya parçalandı!` : ev.iron ? 'Işın demire çarptı' : 'Işın boşa gitti';
         this.renderTelemetry();
       } });
       if (!alive()) return true;
       if (ev.hits.length) this.floaty(ev.hits[0], `${ev.hits.length} kaya parçalandı!`);
+      if (ev.iron) this.floaty(ev.iron, 'Demir kırılmaz!', 'red');
       this.showTarget(this.events.slice(this.i).find((e) => e.t === 'move' || e.t === 'crash'));
       return false;
     }
@@ -515,6 +530,8 @@ export class Game {
     this.markBlocks([]); sfx.win();
     await view.win(this.wave === this.fields.length - 1);
     if (!alive() || this.replaying) return true;
+    // Python bulmacasında doğru satır gemiyi çıkışa götürür: soru burada biter.
+    if (this.quiz) { this.quizEnd(null); return true; }
     this.results.push(this.sim);
     if (this.wave < this.fields.length - 1) {
       this.showToast('good', `Dalga ${this.wave + 1} tamam! Sıradaki dalga geliyor…`, { quiet: true });
@@ -550,21 +567,21 @@ export class Game {
    * olduğu adım). Kaydırıcı çekilince gemi o kareye, vurgu o kareyi üreten bloğa gider.
    */
   showScrub() {
-    const f = this.fields[this.wave], reel = [{ cell: { lane: f.start, y: 0 }, mark: [], energy: f.energyCells.size ? 0 : null, taken: [], gone: [], broken: [], shielded: false }];
+    const f = this.fields[this.wave], reel = [{ cell: { lane: f.start, y: 0 }, mark: [], energy: f.energyCells.size ? 0 : null, battery: f.battery, taken: [], gone: [], broken: [], shielded: false }];
     let { energy } = reel[0], taken = [], gone = [], broken = [], shielded = false, stop = null;
     for (const ev of this.events.slice(0, this.i)) {
       if (ev.t === 'shield') shielded = ev.shielded;
-      else if ((ev.t === 'fire' && ev.hit) || (ev.t === 'beam' && ev.hits.length)) {
-        // Atış da bir kare sayılır: geri sarınca kayanın hangi blokla kırıldığı görülür.
-        broken = [...broken, ...(ev.t === 'fire' ? [ev.hit] : ev.hits)];
-        reel.push({ ...reel[reel.length - 1], mark: [{ id: ev.id, cls: 'now' }], broken });
+      else if (ev.t === 'fire' || ev.t === 'beam') {
+        // Atış da bir kare sayılır: geri sarınca kayanın hangi blokla kırıldığı ve pilin nasıl azaldığı görülür.
+        broken = [...broken, ...(ev.t === 'fire' ? (ev.hit ? [ev.hit] : []) : ev.hits)];
+        reel.push({ ...reel[reel.length - 1], mark: [{ id: ev.id, cls: 'now' }], broken, battery: ev.battery ?? null });
       }
       else if (ev.t === 'variable' && ev.name === 'energy') energy = ev.value;
       else if (ev.t === 'move' && !ev.exit) {
         if (ev.collect) taken = [...taken, ev.to];
         if (ev.blocked) gone = [...gone, ev.to];
         shielded = !!ev.shielded; energy = ev.energy;
-        reel.push({ cell: ev.to, mark: [{ id: ev.id, cls: 'now' }], energy, taken, gone, broken, shielded });
+        reel.push({ cell: ev.to, mark: [{ id: ev.id, cls: 'now' }], energy, battery: reel[reel.length - 1].battery, taken, gone, broken, shielded });
       } else if (ev.t === 'crash' || ev.t === 'fail') stop = ev;
     }
     if (stop && stop.id) reel.push({ ...reel[reel.length - 1], mark: [{ id: stop.id, cls: 'err' }], last: true });
@@ -582,7 +599,7 @@ export class Game {
     this.hideCall();
     this.view.pose(fr.cell, fr);
     this.markBlocks(fr.mark);
-    Object.assign(this.flight, { energy: fr.energy, shielded: fr.shielded, gems: fr.taken.length, message: fr.last ? 'Hata bu adımda oldu' : k ? `${k}. adımdan sonra` : 'Kalkıştan önce' });
+    Object.assign(this.flight, { energy: fr.energy, battery: fr.battery, shielded: fr.shielded, gems: fr.taken.length, message: fr.last ? 'Hata bu adımda oldu' : k ? `${k}. adımdan sonra` : 'Kalkıştan önce' });
     this.renderTelemetry(); this.renderGems();
     $('scrubLab').textContent = `${k} / ${this.reel.length - 1}`;
   }
@@ -592,14 +609,25 @@ export class Game {
   askRound() {
     const q = this.quiz;
     q.picked = null; q.done = false;
-    Object.assign(q, choicesFor(this.level.rounds[this.wave].lines, this.editor.program, this.wave));
-    $('quizAsk').innerHTML = `Soru ${this.wave + 1} / ${this.fields.length}: program bitince gemi <b>hangi karede</b> olur?`;
+    if (q.python) {
+      Object.assign(q, pythonChoices(this.level.rounds[this.wave], this.wave));
+      $('quizAsk').innerHTML = `Soru ${this.wave + 1} / ${this.fields.length}: boş satıra (<b>____</b>) hangisi gelirse gemi <b>çıkışa</b> varır?`;
+    } else {
+      Object.assign(q, choicesFor(this.level.rounds[this.wave].lines, this.editor.program, this.wave));
+      $('quizAsk').innerHTML = `Soru ${this.wave + 1} / ${this.fields.length}: program bitince gemi <b>hangi karede</b> olur?`;
+    }
     this.renderPicks();
   }
 
   renderPicks() {
-    const q = this.quiz, right = (i) => q.choices[i].lane === q.answer.lane && q.choices[i].y === q.answer.y;
+    const q = this.quiz, right = (i) => (q.python ? i === q.answer : q.choices[i].lane === q.answer.lane && q.choices[i].y === q.answer.y);
     const cls = (i) => (this.store.showSolutions && right(i) ? 'ok' : !q.done ? (q.picked === i ? 'on' : q.picked === null ? '' : 'off') : right(i) ? 'ok' : q.picked === i ? 'bad' : 'off');
+    if (q.python) {
+      // Seçenekler Python satırlarıdır; sahnede harfli kare yoktur.
+      $('quizBtns').innerHTML = q.choices.map((c, i) => `<button class="${cls(i)} pyopt" data-pick="${i}" aria-label="${LETTERS[i]}: ${c.text}">${LETTERS[i]} <code>${c.text}</code></button>`).join('');
+      $('picks').replaceChildren();
+      return;
+    }
     $('quizBtns').innerHTML = q.choices.map((_, i) => `<button class="${cls(i)}" data-pick="${i}" aria-label="${LETTERS[i]} karesi">${LETTERS[i]}</button>`).join('');
     $('picks').innerHTML = q.choices.map((c, i) => { const b = this.view.cellBox(c); return `<button class="${cls(i)}" data-pick="${i}" style="left:${(b.left + b.right) / 2}px;top:${b.y}px">${LETTERS[i]}</button>`; }).join('');
   }
@@ -608,6 +636,7 @@ export class Game {
     this.loopId++; this.wave = i;
     this.setScene(i, { rain: true });
     this.editor.load(this.level, this.level.rounds[i].program(), [], true);
+    if (this.quiz.python) this.setTab('python');
     this.hideToast(); this.hideCall(); this.markBlocks([]); this.resetTelemetry(); this.setStatus('idle');
     this.askRound();
   }
@@ -617,6 +646,8 @@ export class Game {
     const q = this.quiz;
     if (!q || q.picked !== null || this.status !== 'idle') return;
     this.sfx.click(); q.picked = i; this.renderPicks(); this.hideToast();
+    // Python bulmacası: seçilen satır boşluğa yazılır ve o programla uçulur.
+    if (q.python) { this.editor.load(this.level, fillHole(this.editor.program, q.choices[i].block), [], true); this.setTab('python'); }
     this.stepMode = false; this.results = [];
     this.simulateWave(); this.setStatus('running');
     this.view.launch(); this.sfx.launch();
@@ -624,13 +655,14 @@ export class Game {
   }
 
   quizEnd(reason) {
-    const q = this.quiz, at = q.choices.findIndex((c) => c.lane === q.answer.lane && c.y === q.answer.y), right = q.picked === at;
+    const q = this.quiz, at = q.python ? q.answer : q.choices.findIndex((c) => c.lane === q.answer.lane && c.y === q.answer.y), right = q.picked === at;
     const last = this.wave === this.fields.length - 1;
     q.score[this.wave] = right; q.done = true;
     this.status = 'idle'; this.renderWaves(); this.renderPicks();
     if (right) this.sfx.star(1); else this.sfx.bad();
-    this.showToast(right ? 'good' : 'bad', right ? 'Doğru tahmin!' : `Bu kez olmadı: gemi **${LETTERS[at]}** karesinde durdu.`, {
-      sub: reason === 'energy' ? 'Enerji bitince gemi olduğu yerde kalır.' : right ? '' : 'Programı blok blok oku: her blok gemiyi hangi kareye götürüyor?',
+    const wrongText = q.python ? `Bu kez olmadı: doğru satır **${LETTERS[at]}** (${q.choices[at].text}) idi.` : `Bu kez olmadı: gemi **${LETTERS[at]}** karesinde durdu.`;
+    this.showToast(right ? 'good' : 'bad', right ? (q.python ? 'Doğru satır! Gemi çıkışa vardı.' : 'Doğru tahmin!') : wrongText, {
+      sub: reason === 'energy' ? 'Enerji bitince gemi olduğu yerde kalır.' : right ? '' : q.python ? 'Satırları sırayla oku: her satır gemiyi hangi kareye götürüyor?' : 'Programı blok blok oku: her blok gemiyi hangi kareye götürüyor?',
       buttons: [{ label: last ? 'Sonucu gör' : 'Sıradaki soru', cls: 'nudge', onClick: () => (last ? this.quizFinish() : this.showRound(this.wave + 1)) }],
     });
   }
@@ -641,9 +673,9 @@ export class Game {
     if (got) { store.setStars(level.id, got); store.addLog({ kind: 'win', id: level.id, stars: got, gain: Math.max(0, got - before) }); }
     store.attempt(level.id, { won: got > 0, reason: got ? null : 'tahmin', ms: this.lap() });
     const card = makeCard(`<div class="who">${robot(got === 3 ? 'wow' : got ? 'happy' : 'think')}<span class="tag">${EXTRA_LABEL.tahmin}</span></div>
-      <h1>${got === this.fields.length ? 'Hepsi doğru!' : got ? `${got} doğru tahmin` : 'Bu tur olmadı'}</h1>
+      <h1>${got === this.fields.length ? 'Hepsi doğru!' : got ? `${got} doğru ${this.quiz.python ? 'satır' : 'tahmin'}` : 'Bu tur olmadı'}</h1>
       <div class="bigstars">${[1, 2, 3].map((i) => svg('i-star', i <= got ? 'lit' : '')).join('')}</div>
-      <p>${got === this.fields.length ? 'Programı çalıştırmadan okuyabiliyorsun: tam bir pilot gözü!' : 'Kod okumak da bir beceri. Programı blok blok, geminin yolunu parmağınla izleyerek oku ve yeniden dene.'}</p>
+      <p>${this.quiz.python && got === this.fields.length ? 'Python okuyabiliyorsun! Blokların her biri aslında bir kod satırı.' : got === this.fields.length ? 'Programı çalıştırmadan okuyabiliyorsun: tam bir pilot gözü!' : 'Kod okumak da bir beceri. Programı blok blok, geminin yolunu parmağınla izleyerek oku ve yeniden dene.'}</p>
       <div class="btns"><button class="btn" data-act="again">${svg('i-restart')}Tekrar</button><button class="btn primary" data-act="map">Rota</button></div>`, (act) => {
       this.sfx.click(); this.hideOverlay();
       if (act === 'again') this.open(level); else this.close();
