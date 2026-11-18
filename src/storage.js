@@ -1,7 +1,19 @@
 // İlerleme kaydı: yıldızlar, çocuğun programları, ayarlar ve oyunun biriktirdiği her şey
 // (denemeler, mürettebat, gemi görünümü, otopilot kitaplığı, günlük). Tarayıcıda saklanır.
 const KEY = 'kodpilotu.v1';
-const query = new URLSearchParams(typeof location === 'undefined' ? '' : location.search);
+
+/**
+ * Gizli inceleme modları (?hepsi, ?cozum). Bir görev açıkken adresin sonuna yazılınca
+ * '#1-6?cozum' gibi bağlantı kısmına düşer; o da sayılır. Eski '#hepsi' (ve '#cozum') de geçerli.
+ */
+export function addressModes(search = '', hash = '') {
+  const tail = hash.includes('?') ? hash.slice(hash.indexOf('?')) : '';
+  const words = new URLSearchParams(search), extra = new URLSearchParams(tail);
+  const has = (k) => words.has(k) || extra.has(k) || hash === `#${k}`;
+  const showSolutions = has('cozum');
+  return { showSolutions, unlockAll: showSolutions || has('hepsi') };
+}
+const modes = typeof location === 'undefined' ? addressModes() : addressModes(location.search, location.hash);
 const fresh = () => ({
   stars: {}, programs: {}, intros: {}, sound: true, music: true, speed: 1,
   voice: false,     // sesli okuma
@@ -30,8 +42,8 @@ export const dayOf = (t = Date.now()) => { const d = new Date(t); return `${d.ge
 
 export const store = {
   /** Gizli inceleme modları yalnızca adresten açılır; ilerleme kaydına yazılmaz. */
-  showSolutions: query.has('cozum'),
-  unlockAll: query.has('hepsi') || query.has('cozum') || (typeof location !== 'undefined' && location.hash === '#hepsi'),
+  showSolutions: modes.showSolutions,
+  unlockAll: modes.unlockAll,
   stars: (id) => data.stars[id] || 0,
   setStars(id, n) { if (n > (data.stars[id] || 0)) { data.stars[id] = n; save(); } },
   total: () => Object.values(data.stars).reduce((a, b) => a + b, 0),

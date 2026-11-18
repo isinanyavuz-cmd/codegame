@@ -9,7 +9,7 @@ import { decodeField, customLevel, hasRoute } from './content/custom.js';
 import { hideCard } from './ui/overlay.js';
 import { sfx, music } from './ui/sfx.js';
 import { voice } from './ui/voice.js';
-import { store } from './storage.js';
+import { store, addressModes } from './storage.js';
 import { LEVELS } from './content/levels.js';
 import { findLevel } from './content/extras.js';
 import { CREW, BOTS } from './content/story.js';
@@ -50,11 +50,19 @@ async function boot() {
   };
   let offered = null;
   const route = () => {
-    // Eski #hepsi bağlantısı hem ilk açılışta hem sonradan yazıldığında çalışsın.
-    const reveal = location.hash === '#hepsi';
+    // Gizli modlar adresin bağlantı kısmına da yazılabilir: eski #hepsi ya da görev açıkken sona
+    // eklenen '#1-6?cozum'. Sözcükler adresin soru kısmına taşınır; bağlantıda yalnız görev kalır.
+    const raw = location.hash, cut = raw.indexOf('?'), bare = raw === '#hepsi' || raw === '#cozum';
+    const reveal = cut >= 0 || bare;
     if (reveal) {
-      const url = new URL(location.href); url.hash = ''; url.searchParams.set('hepsi', '');
-      history.replaceState(null, '', url); store.unlockAll = true;
+      const url = new URL(location.href);
+      for (const [k, v] of bare ? [[raw.slice(1), '']] : new URLSearchParams(raw.slice(cut))) url.searchParams.set(k, v);
+      url.hash = bare ? '' : raw.slice(0, cut);
+      url.search = url.search.replace(/=(?=&|$)/g, '');
+      history.replaceState(null, '', url);
+      // Sayfa açıkken yazıldıysa yeni modla baştan yüklenir: kilitler ve hazır çözümler birlikte gelsin.
+      const m = addressModes(location.search, location.hash);
+      if (m.showSolutions !== store.showSolutions || m.unlockAll !== store.unlockAll) { location.reload(); return; }
     }
     const hash = location.hash, visible = !document.getElementById('game').hidden;
     if (offered && offered !== hash) { hideCard(); offered = null; }
