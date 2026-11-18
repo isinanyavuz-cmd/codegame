@@ -8,6 +8,8 @@ export const ACTIONS = {
   shield: { label: 'kalkan aç', py: 'kalkan_ac()' },
   // Kanatlardan ışın: gemiyi ilerletmez, kendi şeridinde önündeki ilk kayayı parçalar.
   fire: { label: 'ateş et', py: 'ates_et()' },
+  // Şarjlı lazer: daha güçlü; şarj olduktan sonra şeritteki bütün kayaları tek ışınla parçalar.
+  beam: { label: 'şarjlı lazer', py: 'sarjli_lazer()' },
   setEnergy: { label: 'enerjiyi ayarla', py: 'enerji' },
   addEnergy: { label: 'enerjiyi artır', py: 'enerji' },
   // Sayaç: çocuğun kendi değişkeni. Önce ayarlanır, sonra artırılır; koşullar ona bakabilir.
@@ -75,6 +77,7 @@ export const until = (cond, ...body) => ({ id: uid(), type: 'until', cond, body 
 export const on = (event, ...body) => ({ id: uid(), type: 'on', event, body });
 export const shield = () => ({ id: uid(), type: 'shield' });
 export const fire = () => ({ id: uid(), type: 'fire' });
+export const beam = () => ({ id: uid(), type: 'beam' });
 export const setEnergy = (value) => ({ id: uid(), type: 'setEnergy', value });
 export const addEnergy = (value) => ({ id: uid(), type: 'addEnergy', value });
 export const setCounter = (value) => ({ id: uid(), type: 'setCounter', value });

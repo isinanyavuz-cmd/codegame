@@ -434,7 +434,7 @@ export class Game {
   async play({ senses, ev }, alive) {
     const { view, sfx, editor } = this;
     const marks = senses.map((s) => ({ id: s.id, cls: 'sensing' }));
-    if (['move', 'fire', 'event', 'variable', 'shield', 'call'].includes(ev.t)) marks.push({ id: ev.id, cls: 'now' });
+    if (['move', 'fire', 'beam', 'event', 'variable', 'shield', 'call'].includes(ev.t)) marks.push({ id: ev.id, cls: 'now' });
     else if (ev.t === 'crash' || ev.t === 'fail') marks.push({ id: ev.id, cls: 'err' });
     this.markBlocks(marks);
     if (senses.length) { this.showCalls(senses); sfx.sense(senses[senses.length - 1].result); } else this.hideCall();
@@ -457,6 +457,21 @@ export class Game {
       if (!alive()) return true;
       if (ev.hit) this.floaty(ev.hit, 'Kaya parçalandı!');
       // Kırılan kaya artık engel değil: sıradaki hedef silüeti yeniden gösterilir.
+      this.showTarget(this.events.slice(this.i).find((e) => e.t === 'move' || e.t === 'crash'));
+      return false;
+    }
+    if (ev.t === 'beam') {
+      this.flight.message = 'Lazer şarj oluyor…';
+      this.renderTelemetry();
+      sfx.charge(view.chargeMs() / 1000);
+      await view.beam(ev, { onFire: () => {
+        sfx.beam(ev.hits.length > 0);
+        for (const h of ev.hits) this.flight.broken.add(`${h.lane},${h.y}`);
+        this.flight.message = ev.hits.length ? `${ev.hits.length} kaya parçalandı!` : 'Işın boşa gitti';
+        this.renderTelemetry();
+      } });
+      if (!alive()) return true;
+      if (ev.hits.length) this.floaty(ev.hits[0], `${ev.hits.length} kaya parçalandı!`);
       this.showTarget(this.events.slice(this.i).find((e) => e.t === 'move' || e.t === 'crash'));
       return false;
     }
@@ -539,9 +554,9 @@ export class Game {
     let { energy } = reel[0], taken = [], gone = [], broken = [], shielded = false, stop = null;
     for (const ev of this.events.slice(0, this.i)) {
       if (ev.t === 'shield') shielded = ev.shielded;
-      else if (ev.t === 'fire' && ev.hit) {
+      else if ((ev.t === 'fire' && ev.hit) || (ev.t === 'beam' && ev.hits.length)) {
         // Atış da bir kare sayılır: geri sarınca kayanın hangi blokla kırıldığı görülür.
-        broken = [...broken, ev.hit];
+        broken = [...broken, ...(ev.t === 'fire' ? [ev.hit] : ev.hits)];
         reel.push({ ...reel[reel.length - 1], mark: [{ id: ev.id, cls: 'now' }], broken });
       }
       else if (ev.t === 'variable' && ev.name === 'energy') energy = ev.value;

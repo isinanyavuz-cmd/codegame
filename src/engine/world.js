@@ -66,7 +66,7 @@ export const ENERGY_MAX = 9;
 
 /**
  * Programı alanda çalıştırır ve olay listesini döndürür.
- * Olaylar: sense, move, fire, event, shield, variable, call, crash, win, fail.
+ * Olaylar: sense, move, fire, beam, event, shield, variable, call, crash, win, fail.
  * Her olay ilgili bloğun `id`sini taşır.
  * @param o.library  otopilot kitaplığı: { ad: gövde }. Programda tanımı olmayan bir manevra
  *                   çağrılırsa gövdesi buradan alınır; programdaki tanım kitaplıktakinin önüne geçer.
@@ -154,6 +154,15 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
         for (let ty = y + 1; ty < field.rows; ty++) if (rocks.has(key(lane, ty))) { hit = { lane, y: ty }; break; }
         if (hit) { rocks.delete(key(hit.lane, hit.y)); broken++; }
         announce({ t: 'fire', id: b.id, from: { lane, y }, hit });
+        return;
+      }
+      case 'beam': {
+        // Şarjlı lazer: şarj olur, sonra kesintisiz bir ışınla şeritteki bütün kayaları parçalar.
+        spin(b);
+        const hits = [];
+        for (let ty = y + 1; ty < field.rows; ty++) if (rocks.delete(key(lane, ty))) hits.push({ lane, y: ty });
+        broken += hits.length;
+        announce({ t: 'beam', id: b.id, from: { lane, y }, hits });
         return;
       }
       case 'repeat': {

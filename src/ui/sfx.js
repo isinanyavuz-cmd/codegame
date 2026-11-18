@@ -25,15 +25,15 @@ function tone(freq, dur, { type = 'sine', vol = 0.1, slide = 0, delay = 0 } = {}
 }
 
 /** Süzülmüş gürültü. Varsayılan sönen patlama; `swell` yükselip alçalan bir hışırtı verir. */
-function noise(dur, vol, { from = 900, to = 900, type = 'lowpass', q = 0.7, swell = false } = {}) {
+function noise(dur, vol, { from = 900, to = 900, type = 'lowpass', q = 0.7, swell = false, delay = 0 } = {}) {
   const c = audio(); if (!c) return;
   const n = Math.floor(c.sampleRate * dur), buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
   for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (swell ? Math.sin(Math.PI * i / n) : Math.pow(1 - i / n, 2.2));
-  const src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain(), t = c.currentTime;
+  const src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain(), t = c.currentTime + delay;
   src.buffer = buf; f.type = type; f.Q.value = q;
   f.frequency.setValueAtTime(from, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, to), t + dur);
   g.gain.value = vol;
-  src.connect(f).connect(g).connect(c.destination); src.start();
+  src.connect(f).connect(g).connect(c.destination); src.start(t);
 }
 
 export const sfx = {
@@ -62,6 +62,18 @@ export const sfx = {
   laser: (hit) => {
     tone(1500, 0.16, { type: 'sawtooth', vol: 0.045, slide: 300 }); tone(1180, 0.16, { type: 'square', vol: 0.03, slide: 240, delay: 0.03 });
     if (hit) { noise(0.42, 0.13, { from: 1600, to: 160, type: 'lowpass', q: 0.8, delay: 0.2 }); tone(90, 0.35, { type: 'triangle', vol: 0.08, slide: 40, delay: 0.2 }); }
+  },
+  /** Şarjlı lazer dolarken: süre boyunca yükselen uğultu ve sıklaşan tıkırtılar. */
+  charge: (dur = 1.2) => {
+    tone(160, dur, { type: 'sawtooth', vol: 0.035, slide: 900 });
+    tone(320, dur, { type: 'triangle', vol: 0.03, slide: 1800 });
+    noise(dur, 0.05, { from: 300, to: 3200, type: 'bandpass', q: 2, swell: true });
+  },
+  /** Şarjlı lazerin ateşi: kalın, uzun bir ışın sesi; kaya vurulduysa gürleyen patlamalar. */
+  beam: (hit) => {
+    tone(880, 0.55, { type: 'sawtooth', vol: 0.05, slide: 420 }); tone(440, 0.6, { type: 'square', vol: 0.035, slide: 220 });
+    noise(0.5, 0.08, { from: 4000, to: 900, type: 'bandpass', q: 0.9 });
+    if (hit) { noise(0.7, 0.14, { from: 1400, to: 120, type: 'lowpass', q: 0.7, delay: 0.08 }); tone(70, 0.6, { type: 'triangle', vol: 0.09, slide: 35, delay: 0.08 }); }
   },
   shield: () => { tone(520, 0.22, { type: 'sine', vol: 0.06, slide: 420 }); tone(1040, 0.3, { vol: 0.03, delay: 0.05 }); },
   /** Terfi töreni: kısa bir borazan. */

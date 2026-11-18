@@ -9,6 +9,8 @@ const C = 1.62;                 // bir karenin kenarı
 const SHIP_Y = 0.42, SHIP_SCALE = 0.8;
 const CAM_DIR = new THREE.Vector3(0, 21.5, 15.5).normalize();
 const MOVE_MS = 430;
+/** Şarjlı lazerin dolma süresi (1× hızda). Kısa kalsın: art arda kullanılınca izlemek sıkmasın. */
+const CHARGE_MS = 1000;
 const RED = 0xff4d6a, GREEN = 0x37e39a, YELLOW = 0xffd53d, BLUE = 0x7f9cff;
 const GATE_GAP = 2.4;           // çıkış çizgisi ile Atlas'ın kapısı arası
 const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
@@ -713,6 +715,76 @@ export class View {
       if (gen === this.gen) { rock.scale.setScalar(Math.max(0.001, 1 + 0.4 * k - 1.4 * k * k)); if (k >= 1) rock.visible = false; }
     });
     if (gen === this.gen) { rock.visible = false; this.shake = 0.001; }
+  }
+
+  /** Şarjlı lazerin şu anki hızda ne kadar süreceği (ses, görüntüyle aynı anda bitsin diye). */
+  chargeMs() { return CHARGE_MS / this.speed; }
+
+  /**
+   * Şarjlı lazer: geminin burnunda mor bir enerji topu büyür, kanatlardan ona kıvılcımlar akar.
+   * Şarj bitince burundan kesintisiz, kalın bir ışın alanın sonuna kadar uzanır; ışının ucu
+   * geçtikçe şeritteki bütün kayalar sırayla parçalanır. `onFire` ışın çıktığı anda çağrılır.
+   */
+  async beam(ev, { onFire } = {}) {
+    const gen = this.gen, from = this.cellPos(ev.from), nose = from.clone(); nose.z -= 0.7;
+    const wing = 0.52 * SHIP_SCALE;
+    const orb = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, color: bright(0xb38bff, 2.4), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, color: bright(0xffffff, 2.2), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    orb.position.copy(nose); core.position.copy(nose); orb.scale.setScalar(0.01); core.scale.setScalar(0.01);
+    this.scene.add(orb, core);
+    const drop = (o) => { this.scene.remove(o); o.material.dispose(); };
+    let sparks = 0;
+    // Şarj: top büyür ve titrer, gemi hafifçe sarsılır; kanat uçlarından buruna kıvılcım akar.
+    await this.tween(CHARGE_MS, (k) => {
+      if (gen !== this.gen) return;
+      const e = k * k, pulse = 1 + Math.sin(k * 40) * 0.08 * k;
+      orb.scale.setScalar((0.3 + 1.9 * e) * pulse); core.scale.setScalar((0.1 + 0.7 * e) * pulse);
+      this.ship.position.x = from.x + (Math.random() - 0.5) * 0.05 * k;
+      this.thrust = 1 + 0.6 * k;
+      while (sparks < Math.floor(k * 9)) {
+        sparks++;
+        for (const sx of [-1, 1]) this.burst(new THREE.Vector3(from.x + sx * wing, SHIP_Y, from.z - 0.2), { color: 0xc6a6ff, n: 5, speed: 0.9, life: 0.25, size: 0.2 });
+      }
+    });
+    if (gen !== this.gen) { drop(orb); drop(core); return; }
+    this.ship.position.x = from.x;
+    onFire?.();
+    // Ateş: burundan alanın sonuna kadar kesintisiz ışın (beyaz çekirdek ve geniş mor hale).
+    const zEnd = this.gz(this.field.rows + 1), len = nose.z - zEnd, parts = [];
+    for (const [w, color, op] of [[0.16, bright(0xffffff, 2.6), 1], [0.42, bright(0xa16bff, 2.4), 0.75], [0.9, bright(0x6f4bff, 1.6), 0.3]]) {
+      const geo = new THREE.PlaneGeometry(w, 1); geo.rotateX(-Math.PI / 2); geo.translate(0, 0, -0.5);
+      const mat = glow(color, op), m = new THREE.Mesh(geo, mat);
+      m.position.set(nose.x, SHIP_Y, nose.z); m.scale.z = 0.001; this.scene.add(m); parts.push({ m, mat, op });
+    }
+    const rocks = ev.hits.map((h) => ({ m: this.meteors.get(`${h.lane},${h.y}`), done: false })).filter((r) => r.m);
+    const blast = (r) => {
+      r.done = true;
+      const p = r.m.position.clone();
+      this.burst(p, { color: 0xff8a3d, n: 34, speed: 4.4, life: 0.6, size: 0.4, up: 0.8 });
+      this.burst(p, { color: 0xc9b3ff, n: 16, speed: 2.6, life: 0.4, size: 0.5 });
+      this.burst(p, { color: 0x9a8f86, n: 20, speed: 3, life: 0.8, size: 0.28, up: 0.6 });
+      if (r.m.userData.streak) r.m.userData.streak.visible = false;
+      r.m.visible = false;
+    };
+    this.flash(1.7, 320); this.shake = 6;
+    // Işının ucu hızla ilerler; geçtiği kayalar patlar.
+    await this.tween(240, (k) => {
+      if (gen !== this.gen) return;
+      const front = nose.z - len * k;
+      for (const p of parts) p.m.scale.z = Math.max(0.001, len * k);
+      for (const r of rocks) if (!r.done && r.m.position.z >= front) blast(r);
+      orb.scale.setScalar(2.2 + Math.sin(k * 30) * 0.15);
+    });
+    if (gen === this.gen) for (const r of rocks) if (!r.done) blast(r);
+    // Işın bir an daha yanar, sonra incelerek söner.
+    await this.tween(260, (k) => { if (gen === this.gen) for (const p of parts) p.mat.opacity = p.op * (0.85 + Math.sin(k * 50) * 0.15); });
+    await this.tween(220, (k) => {
+      for (const p of parts) { p.mat.opacity = p.op * (1 - k); p.m.scale.x = 1 - 0.7 * k; }
+      orb.material.opacity = core.material.opacity = 1 - k;
+    });
+    for (const p of parts) { this.scene.remove(p.m); p.m.geometry.dispose(); p.mat.dispose(); }
+    drop(orb); drop(core);
+    if (gen === this.gen) { this.shake = 0.001; this.thrust = 1; }
   }
 
   collect(cell) {

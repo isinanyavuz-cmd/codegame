@@ -222,7 +222,7 @@ export class MapScreen {
         line.setAttribute('class', 'rside'); line.setAttribute('x1', p.x); line.setAttribute('y1', p.y); line.setAttribute('x2', sx); line.setAttribute('y2', sy);
         root.append(line);
         const cls = ['node', st ? 'done' : '', unlocked ? '' : 'locked'].join(' ');
-        const inner = !unlocked ? svg('i-lock') : x.extra === 'gizli' ? '?' : x.extra === 'catal' ? svg('i-fork') : x.extra === 'tahmin' ? svg('i-eye') : x.extra === 'silah' ? svg('i-laser') : '!';
+        const inner = !unlocked ? svg('i-lock') : x.extra === 'gizli' ? '?' : x.extra === 'catal' ? svg('i-fork') : x.extra === 'tahmin' ? svg('i-eye') : x.extra === 'silah' ? svg(x.tools.includes('beam') ? 'i-beam' : 'i-laser') : '!';
         const under = unlocked ? `<div class="mstars">${[1, 2, 3].map((n) => svg('i-star', n <= st ? 'lit' : '')).join('')}</div>` : `<small>${SECRET_STARS}${svg('i-star')}</small>`;
         html.push(`<div class="mn side ${x.extra}" style="left:${sx}px;top:${sy}px"><button class="${cls}" data-level="${x.id}" title="${x.title}" aria-label="${EXTRA_LABEL[x.extra]}: ${x.title}">${inner}</button>${under}</div>`);
       }
