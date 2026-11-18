@@ -6,9 +6,9 @@
 //   hemen görülür; ağ yoksa önbellekteki son hal açılır.
 // - Damgalı dosyalar (css/style.css?v=1a2b3c4d, src/…js?v=…): içerik değişince adres de değiştiği
 //   için hiç bayatlamaz; önce önbellek.
-// - Aynı adreste yaşayan öteki uygulamalara (bilsem/) dokunulmaz.
+// - bilsem/ artık yalnızca BİLSEM uygulamasının yeni adresine yönlendiren sayfadır; ona dokunulmaz.
 const CACHE = 'kodpilotu-v1';
-const OTHER_APPS = X;
+const OTHER_APPS = ['/bilsem/'];
 const FONTS = [500, 600, 700, 800].flatMap((w) => [`./vendor/fonts/exo-2-latin-${w}-normal.woff2`, `./vendor/fonts/exo-2-latin-ext-${w}-normal.woff2`]);
 const EXTRA = ['./manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/apple-touch-icon.png'];
 
