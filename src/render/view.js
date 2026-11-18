@@ -10,7 +10,7 @@ const SHIP_Y = 0.42, SHIP_SCALE = 0.8;
 const CAM_DIR = new THREE.Vector3(0, 21.5, 15.5).normalize();
 const MOVE_MS = 430;
 /** Şarjlı lazerin dolma süresi (1× hızda). Kısa kalsın: art arda kullanılınca izlemek sıkmasın. */
-const CHARGE_MS = 1000;
+const CHARGE_MS = 500;
 const RED = 0xff4d6a, GREEN = 0x37e39a, YELLOW = 0xffd53d, BLUE = 0x7f9cff;
 const GATE_GAP = 2.4;           // çıkış çizgisi ile Atlas'ın kapısı arası
 const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
