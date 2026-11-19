@@ -64,7 +64,11 @@ export class View {
     this.shieldBubble.add(new THREE.Mesh(new THREE.SphereGeometry(1.14, 28, 18), glow(0x4fd2ff, 0.16)));
     this.shieldBubble.add(new THREE.Mesh(new THREE.IcosahedronGeometry(1.2, 1), new THREE.MeshBasicMaterial({ color: bright(0x8fe9ff, 1.5), transparent: true, opacity: 0.5, wireframe: true, blending: THREE.AdditiveBlending, depthWrite: false })));
     this.shieldBubble.visible = false; this.ship.add(this.shieldBubble);
-    this.ghost = buildShip(glow(bright(0xffd84a, 1.5), 0.3)); this.ghost.scale.setScalar(SHIP_SCALE); this.ghost.visible = false; this.scene.add(this.ghost);
+    this.ghostMat = glow(bright(0xffd84a, 1.5), 0.3);
+    this.ghost = buildShip(this.ghostMat); this.ghost.scale.setScalar(SHIP_SCALE); this.ghost.visible = false; this.scene.add(this.ghost);
+    // Parlama efekti kapalıyken silüetin arkasında yanan sarı ışık (bkz. resize).
+    this.ghostHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0xffc21a, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.ghostHalo.scale.set(2.6, 2.6, 1); this.ghostHalo.visible = false; this.ghost.add(this.ghostHalo);
     // Bir adımda birden çok sensöre bakılabilir (iç içe "eğer"); her biri için ayrı işaret.
     const beamTex = beamTexture();
     this.senseMarks = []; this.beams = [];
@@ -126,6 +130,10 @@ export class View {
     } catch (e) { this.composer = null; }
     // Parlama yoksa alevler düz koni gibi kalmasın: yedek ışık haleleri açılır.
     for (const h of this.ship.userData.halos) h.visible = !this.composer;
+    // Adım silüeti de öyle: parlama yokken aşırı parlak sarı beyaza döner; doğal sarı ve arka ışık kullanılır.
+    this.ghostMat.color.copy(this.composer ? bright(0xffd84a, 1.5) : new THREE.Color(0xffc93a));
+    this.ghostMat.opacity = this.composer ? 0.3 : 0.26;
+    this.ghostHalo.visible = !this.composer;
     this.fit();
   }
 
