@@ -8,14 +8,15 @@
 // Alanları ana görevlerle aynıdır; ek olarak `extra` (tür), `after` (haritada yanında
 // durduğu ana görev) ve `open(store, levels)` (açık mı) taşırlar. Ana yolu kilitlemezler.
 import { F, L, R, fire, beam, rep, forever, ifelse, until, on, shield, setEnergy, addEnergy, setCounter, addCounter, define, call, defineN, callN } from '../engine/blocks.js';
+import { pilli } from '../engine/world.js';
 import { genWaves } from './gen.js';
 import { route, mission, wallWaves, steer, cruise, MOVES, LOOPS, EVENT_TOOLS, ENERGY_TOOLS, ALL_TOOLS, SENSORS } from './advanced.js';
 import { LEVELS, SECTORS, levelById, levelsOf } from './levels.js';
-import { ROUNDS } from './predict.js';
+import { ROUNDS, PY_ROUNDS } from './predict.js';
 
 /** Gizli görevin açılması için sektörde toplanması gereken yıldız (24 üzerinden). */
 export const SECRET_STARS = 20;
-export const EXTRA_LABEL = { gizli: 'GİZLİ GÖREV', acil: 'ACİL DURUM', catal: 'ÖTEKİ YOL', tahmin: 'TAHMİN TURU', silah: 'SİLAH DENEMESİ', gunluk: 'GÜNÜN DALGASI', atolye: 'ATÖLYE' };
+export const EXTRA_LABEL = { gizli: 'GİZLİ GÖREV', acil: 'ACİL DURUM', catal: 'ÖTEKİ YOL', tahmin: 'TAHMİN TURU', python: 'PYTHON BULMACASI', silah: 'SİLAH DENEMESİ', gunluk: 'GÜNÜN DALGASI', atolye: 'ATÖLYE' };
 const SUFFIX = { gizli: 'g', acil: 'a', tahmin: 't', silah: 's' };
 export const sectorStars = (store, sector) => levelsOf(sector).reduce((a, l) => a + store.stars(l.id), 0);
 
@@ -24,13 +25,19 @@ const OPEN = {
   acil: (l) => (store) => store.passed(levelById(l.after)),
   catal: (l) => (store, levels) => store.isUnlocked(levelById(l.after), levels),
   tahmin: (l) => (store) => store.passed(levelById(l.after)),
-  silah: () => () => true,
+  // Kanat lazerini 1. sektörde kurtarılan mühendis Defne takar, güçlü lazeri 6. sektördeki enerji
+  // teknisyeni Nil yapar: silah görevleri o kurtarmalardan sonra, yanındaki ana görev geçilince açılır.
+  // Önceden yıldız alınmış silah görevi açık kalır.
+  silah: (l) => (store) => store.stars(l.id) > 0 || (store.passed(levelById(LASER_FROM.fire)) && (!l.tools.includes('beam') || store.passed(levelById(LASER_FROM.beam))) && store.passed(levelById(l.after))),
 };
+/** Lazerlerin açıldığı sektör finalleri: kanat lazeri (Defne) ve güçlü lazer (Nil). */
+export const LASER_FROM = { fire: '1-8', beam: '6-8' };
 
 /** @param after  haritada yanında duracağı ana görevin sırası (1–8) */
 function extra(kind, sector, after, def) {
   const id = def.id || (kind === 'catal' ? `${sector}-${after}-b` : `${sector}-${SUFFIX[kind]}`);
-  const level = { conds: [], events: [], functions: [], ...def, id, saveKey: id, sector, extra: kind, kind, after: `${sector}-${after}` };
+  // `def.kind` verilirse korunur (ör. silah görevinin bir "hata avı" olması).
+  const level = { conds: [], events: [], functions: [], ...def, id, saveKey: id, sector, extra: kind, kind: def.kind || kind, after: `${sector}-${after}` };
   level.open = OPEN[kind](level);
   // Çatal: ana görev öteki yolunu tanır; kayıt (storage.passed) ikisinden birini geçilmiş sayar.
   if (kind === 'catal') levelById(level.after).alt = id;
@@ -179,9 +186,9 @@ export const EXTRAS = [
   // ───────────── silah denemesi ─────────────
   extra('silah', 1, 1, {
     title: 'Kaya Duvarı',
-    brief: 'Gemine **ışın silahı** takıldı! **Ateş et** bloğu kanatlardan ışın yollar ve şeridindeki ilk kayayı parçalar; gemi yerinde kalır. İki kaya duvarını del, iki kristali topla.',
+    brief: 'Mühendis Defne gemine **kanat lazeri** taktı! **Ateş et** bloğu kanatlardan ışın yollar ve şeridindeki ilk kayayı parçalar; gemi yerinde kalır. Her atış **lazer pilinden** 1 hücre harcar. İki kaya duvarını del, iki kristali topla.',
     // İki duvar bütün şeritleri kapatır: kaçarak geçilemez, ateş etmek gerekir.
-    waves: [['.....', '...K.', 'MMMMM', '..M..', '..K..', 'MMMMM', '.....', '..S..']],
+    waves: [pilli(['.....', '...K.', 'MMMMM', '..M..', '..K..', 'MMMMM', '.....', '..S..'], 3)],
     tools: [...MOVES, 'fire'], maxBlocks: 13, par: 10,
     solution: () => [fire(), F(), F(), F(), R(), fire(), F(), F(), F(), F()],
     hint: 'Önce ateş et, sonra açılan delikten geç. İkinci kristal sağda: kayanın yanından sağa kaç, sonra yine ateş et.',
@@ -189,12 +196,130 @@ export const EXTRAS = [
 
   extra('silah', 1, 2, {
     id: '1-s2', title: 'Kaya Sütunu',
-    brief: 'Yeni silah: **güçlü lazer**! Kesintisiz uzun bir ışınla şeridindeki **bütün kayaları** birden parçalar. Küçük lazer her atışta tek kaya kırar; burada blok yetmez.',
+    brief: 'Enerji teknisyeni Nil yeni bir silah yaptı: **güçlü lazer**! Kesintisiz uzun bir ışınla şeridindeki **bütün kayaları** birden parçalar ama pilden 3 hücre harcar. Küçük lazer her atışta tek kaya kırar; burada ne blok ne pil yeter.',
     // Her şerit kaya sütunu: küçük lazerle 6 atış gerekir, güçlü lazerle tek atış.
-    waves: [['.....', 'MMMMM', 'MMKMM', 'MMMMM', 'MMMMM', 'MMKMM', 'MMMMM', 'MMMMM', 'MMMMM', '..S..']],
+    waves: [pilli(['.....', 'MMMMM', 'MMKMM', 'MMMMM', 'MMMMM', 'MMKMM', 'MMMMM', 'MMMMM', 'MMMMM', '..S..'], 4)],
     tools: [...MOVES, 'fire', 'beam'], maxBlocks: 13, par: 11,
     solution: () => [beam(), F(), F(), F(), F(), F(), F(), F(), F(), F(), F()],
     hint: 'Önce güçlü lazeri ateşle: bütün sütun temizlenir. Sonra düz uçarak iki kristali topla.',
+  }),
+
+  extra('silah', 1, 4, {
+    id: '1-s3', title: 'Kristal Madeni',
+    brief: 'Parlayan kayaların içinde **kristal** var! Kristalli kayayı vurursan kristal yerinde kalır, üstünden geçip topla. Pilin yalnızca 2 atışlık: sıradan kayadan **kaç**, kristalli kayayı **vur**.',
+    // Kristaller yalnızca kayaların içinde; düz kaya kaçılarak geçilmeli (pil iki atışlık).
+    waves: [pilli(['.....', '.....', '..K..', '.....', '.G...', '..M..', '..G..', '..S..'], 2)],
+    tools: [...MOVES, 'fire'], maxBlocks: 12, par: 10,
+    solution: () => [fire(), F(), L(), fire(), F(), F(), R(), F(), F(), F()],
+    hint: 'İlk kristalli kaya tam önünde. Sonra önündeki düz kayanın soluna kaç: ikinci kristalli kaya orada.',
+  }),
+
+  extra('silah', 1, 6, {
+    id: '1-s4', kind: 'hata', title: 'Ters Atış',
+    brief: '**Hata avı!** Bu program duvara çarpıyor: gemi önce uçuyor, sonra ateş ediyor. Blokların **sırasını** düzelt; ateş, duvara varmadan önce gelmeli.',
+    waves: [pilli(['.....', '..K..', 'MMMMM', '.....', '..S..'], 2)],
+    tools: [...MOVES, 'fire'], maxBlocks: 7, par: 6,
+    initial: () => [F(), F(), fire(), F(), F(), F()],
+    solution: () => [F(), fire(), F(), F(), F(), F()],
+    hint: 'Gemi hangi karede duvara çarpıyor? Ateş et bloğu o hareketten önce çalışmalı.',
+  }),
+
+  // ───────────── silah serisi: her sektörde lazer o sektörün kavramını ister ─────────────
+  extra('silah', 2, 5, {
+    title: 'Duvar Kuşağı',
+    brief: 'Her üç sırada bir kaya duvarı! Bir atış, üç düz uçuş… Bu deseni bir **döngüye** koy. Pilin tam dört atışlık: boşa ateş etme.',
+    waves: [pilli(['..K..', 'MMMMM', '.....', '..K..', 'MMMMM', '.....', '..K..', 'MMMMM', '.....', '..K..', 'MMMMM', '..S..'], 4)],
+    tools: [...MOVES, 'repeat', 'fire'], maxBlocks: 7, par: 5,
+    solution: () => [rep(4, fire(), F(), F(), F())],
+    hint: 'Döngünün içi: bir ateş et, üç düz uç. Döngü dört kez dönsün.',
+  }),
+
+  extra('silah', 3, 6, {
+    title: 'Son Çare',
+    brief: 'Pilin yalnızca **2 atışlık**. Önünde meteor varsa önce **kaçmayı** dene: sağın boşsa sağa, solun boşsa sola. İki yan da kapalıysa ancak o zaman **ateş et**.',
+    // Çıkmaz sokaklar: önü ve iki yanı kapalı. Her kayayı vuran program pili bitirir, hiç vurmayan çarpar.
+    waves: [
+      pilli(['.....', '.MMM.', '..K..', '.M...', '.K...', 'MMM..', '.....', '..MM.', '..S..'], 2),
+      pilli(['.....', '.MMM.', '..K..', '...MM', '...K.', '..MMM', '.....', '.MM..', '..S..'], 2),
+    ],
+    tools: [...MOVES, 'forever', 'ifelse', 'fire'], conds: ['ahead', 'rightFree', 'leftFree'], maxBlocks: 10, par: 8,
+    solution: () => [forever(ifelse('ahead', [ifelse('rightFree', [R()], [ifelse('leftFree', [L()], [fire()])])], [F()]))],
+    hint: 'İç içe üç karar: meteor var mı? Sağım boş mu? Solum boş mu? En içteki "değilse" kısmına ateş et.',
+  }),
+
+  extra('silah', 3, 7, {
+    id: '3-s2', title: 'Kaya mı, Demir mi?',
+    brief: 'Koyu, parlak taşlar **demir asteroit**: lazer onları kıramaz! Önündeki **kaya** ise ateş et; değilse ve önünde yine bir engel varsa (demir) **sağa kaç**; yol boşsa düz uç.',
+    waves: [pilli(['...K', 'MMMM', '..D.', '..K.', 'MMMM', '....', '.D..', '.K..', 'MMMM', '.S..'], 3)],
+    tools: [...MOVES, 'forever', 'ifelse', 'fire'], conds: ['rockAhead', 'ahead'], maxBlocks: 8, par: 6,
+    solution: () => [forever(ifelse('rockAhead', [fire()], [ifelse('ahead', [R()], [F()])]))],
+    hint: 'İlk soru "önümdeki kaya mı?" olsun: evetse ateş et. Değilse ikinci bir eğer: önümde engel varsa sağa kaç, yoksa düz uç.',
+  }),
+
+  extra('silah', 4, 6, mission({
+    title: 'Kayalar Bitene Kadar', tools: [...MOVES, 'until', 'forever', 'fire'], conds: ['laneClear'],
+    brief: 'Kaya koridorunda her dalgada başka sayıda kaya var. Saymaya çalışma: **şeridin temiz olana kadar** ateş et, sonra hep düz uç. Pil tam yetecek kadar!',
+    // Koridorun yanları kapalı; kaya sayısı (ve pil) dalgadan dalgaya değişir: sayıyı ezberleyen geçemez.
+    waves: [
+      pilli(['MMKMM', 'MM.MM', 'MM.MM', 'MM.MM', 'MMMMM', 'MM.MM', 'MMKMM', 'MMMMM', 'MM.MM', 'MMSMM'], 2),
+      pilli(['MM.MM', 'MMKMM', 'MMMMM', 'MM.MM', 'MM.MM', 'MMMMM', 'MMKMM', 'MM.MM', 'MMMMM', 'MMSMM'], 3),
+      pilli(['MMKMM', 'MMMMM', 'MM.MM', 'MMMMM', 'MM.MM', 'MMKMM', 'MMMMM', 'MMMMM', 'MM.MM', 'MMSMM'], 4),
+    ],
+    solution: () => [until('laneClear', fire()), forever(F())],
+    hint: 'Olana kadar bloğunun koşulu "şeridim temiz mi?" olsun, içine ateş et koy. Altına sürekli düz uç.',
+  })),
+
+  extra('silah', 5, 5, mission({
+    title: 'Korsan ve Kaya', tools: [...LOOPS, 'on', 'shield', 'fire'], events: ['pirate', 'rock'],
+    brief: 'Yeni bir olay: **kaya görünce**. Korsan görünce kalkan, kaya görünce lazer! Uçuş döngün yalnızca düz uçsun; pil kaya sayısı kadar.',
+    waves: [pilli(['MMKMM', 'MM.MM', 'MMMMM', 'MMPMM', 'MM.MM', 'MMMMM', 'MMKMM', 'MMPMM', 'MMMMM', 'MM.MM', 'MMSMM'], 3)],
+    solution: () => [on('pirate', shield()), on('rock', fire()), forever(F())],
+    hint: 'İki olay bloğu: korsan görünce kalkan aç, kaya görünce ateş et. Sonra sürekli düz uç.',
+  })),
+
+  extra('silah', 6, 4, mission({
+    title: 'Pil Hesabı', tools: [...MOVES, 'forever', 'ifelse', 'fire', 'beam'], conds: ['rocks3', 'ahead'],
+    brief: 'Küçük lazer 1, güçlü lazer 3 hücre harcar. Şeridinde **3 ya da daha çok kaya** varsa güçlü lazer ucuz; azsa küçük lazer. Pil ancak doğru seçime yetiyor!',
+    // Bir dalgada 4 kaya ve 3 hücre (yalnızca güçlü lazer yeter), ötekinde 2 kaya ve 2 hücre (yalnızca küçük lazer).
+    waves: [
+      pilli(['MMKMM', 'MMMMM', 'MM.MM', 'MMMMM', 'MMKMM', 'MMMMM', 'MM.MM', 'MMMMM', 'MMSMM'], 3),
+      pilli(['MMKMM', 'MM.MM', 'MM.MM', 'MMMMM', 'MMKMM', 'MM.MM', 'MMMMM', 'MM.MM', 'MMSMM'], 2),
+    ],
+    solution: () => [forever(ifelse('rocks3', [beam()], [ifelse('ahead', [fire()], [F()])]))],
+    hint: 'Önce sor: şeridimde 3+ kaya var mı? Evetse güçlü lazer. Değilse: önümde kaya varsa küçük lazer, yoksa düz uç.',
+  })),
+
+  extra('silah', 7, 5, mission({
+    title: 'Delici Manevra', tools: [...MOVES, 'repeat', 'define', 'call', 'fire'], functions: ['drill'], params: true,
+    brief: 'Duvarların kalınlığı farklı: 2, 3, 2. **Kaya kır (n)** manevrası n kez ateş etsin, sonra n kez düz uçsun. Her duvarda doğru sayıyla çağır!',
+    waves: [pilli(['MMKMM', 'MMMMM', 'MMMMM', 'MMKMM', 'MMMMM', 'MMMMM', 'MMMMM', 'MMKMM', 'MMMMM', 'MMMMM', 'MMSMM'], 7)],
+    solution: () => [defineN('drill', rep('n', fire()), rep('n', F())), callN('drill', 2), F(), callN('drill', 3), F(), callN('drill', 2), F(), F()],
+    maxBlocks: 14,
+    hint: 'Tanımda iki "tekrarla" olsun, sayılarını n yap: birinde ateş et, ötekinde düz uç. Sonra kaya kır 2, düz, kaya kır 3, düz, kaya kır 2, iki düz.',
+  })),
+
+  extra('silah', 8, 6, mission({
+    title: 'Kızıl Kanca\'nın Barikatı', tools: [...LOOPS, 'on', 'shield', 'fire'], events: ['pirate'], conds: ['rockAhead', 'ahead', 'rightFree'], boss: true,
+    brief: 'Kızıl Kanca Atlas\'ın yolunu kayalar ve demir asteroitlerle kapattı! Korsan görünce kalkan aç. Uçuşta: önündeki **kaya** ise ateş et; değilse engel varsa sağ boşsa sağa, değilse sola kaç; yoksa düz uç.',
+    waves: [pilli(['..K..', '.MMM.', '..P..', '...DM', '.....', '..MMM', '...K.', '..D..', '..K..', '..P..', '.MMM.', '..S..'], 3)],
+    solution: () => [on('pirate', shield()), forever(ifelse('rockAhead', [fire()], [ifelse('ahead', [ifelse('rightFree', [R()], [L()])], [F()])]))],
+    hint: 'Korsan olayı en başta. Döngüde ilk soru "önümdeki kaya mı?"; değilse iki sensörlü kaçış kararı.',
+  })),
+
+  // Python bulmacası: program Python dilinde, bir satırı boş; gemiyi çıkışa götüren satır seçilir.
+  extra('tahmin', 3, 7, {
+    id: '3-p', tahmin: true, python: true, title: 'Python Bulmacası',
+    brief: 'Bloklar yerine bu kez **Python**! Programın bir satırı boş (____). Gemiyi çıkışa götüren satırı seç: A, B ya da C.',
+    hint: 'Satırları yukarıdan aşağıya oku. duz_uc() bir sıra ileri, saga_kac() sağa çapraz, ates_et() önündeki ilk kayayı kırar.',
+    rounds: PY_ROUNDS, waves: PY_ROUNDS.map((r) => r.lines), tools: [], maxBlocks: 0, par: 0,
+  }),
+
+  // Lazer tahmini: küçük lazer şeritteki ilk kayayı, güçlü lazer hepsini kırar.
+  extra('tahmin', 2, 4, {
+    id: '2-t2', tahmin: true, title: 'Tahmin Turu: Lazer',
+    brief: 'Program hazır: **oku ve tahmin et**. Küçük lazer şeritteki **ilk** kayayı, güçlü lazer **hepsini** kırar. Program bitince gemi hangi karede olur?',
+    hint: 'Her ateş et bloğunda hangi kayanın kırıldığını parmağınla göster, sonra hareketleri izle.',
+    rounds: ROUNDS.lazer, waves: ROUNDS.lazer.map((r) => r.lines), tools: [], maxBlocks: 0, par: 0,
   }),
 
   // ───────────── tahmin turları ─────────────

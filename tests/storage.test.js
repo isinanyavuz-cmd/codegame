@@ -151,3 +151,19 @@ test('günün dalgası kayıtları: eski günler silinir, bugünkü ve ana göre
   store.workshop = { lines: ['..S..'], par: 4, solved: true };
   assert.deepEqual(raw().workshop, { lines: ['..S..'], par: 4, solved: true });
 });
+
+test('oyuncu profilleri: eski kayıt ilk pilotundur; her pilotun kaydı ayrı tutulur', async () => {
+  const { store, raw } = await load({ stars: { '1-1': 3 }, name: 'Ece' });
+  assert.deepEqual(store.profiles().map((p) => [p.id, p.name, p.active, p.stars]), [['p1', 'Ece', true, 3]]);
+  const id = store.addProfile('Mert');
+  assert.equal(id, 'p2');
+  assert.equal(store.profileId, 'p2');
+  assert.equal(store.stars('1-1'), 0, 'yeni pilot boş kayıtla başlar');
+  store.setStars('1-1', 1);
+  assert.equal(raw().stars['1-1'], 3, 'ilk pilotun kaydı değişmez');
+  assert.ok(store.switchProfile('p1'));
+  assert.equal(store.stars('1-1'), 3);
+  assert.equal(store.switchProfile('yok'), false);
+  assert.deepEqual(store.profiles().map((p) => [p.name, p.stars]), [['Ece', 3], ['Mert', 1]]);
+  assert.equal(store.addProfile('   '), null);
+});

@@ -171,6 +171,29 @@ export function buildMeteor(radius, rand, rocks = ROCKS) {
   return m;
 }
 
+/** Kristalli kaya: kayanın yüzeyinden camgöbeği kristal uçları çıkar; kırılınca içinden kristal kalır. */
+export function addGeodeShards(rock, rand) {
+  const mat = new THREE.MeshStandardMaterial({ color: 0x8ffcff, emissive: 0x2fd6ff, emissiveIntensity: 1.1, roughness: 0.2, flatShading: true });
+  // Kaya döndüğü için uçlar her yöne dağılır; kamera yukarıdan baktığından çoğu üst yarıdadır.
+  for (let i = 0; i < 7; i++) {
+    const s = new THREE.Mesh(new THREE.OctahedronGeometry(0.15, 0), mat);
+    const dir = new THREE.Vector3(rand() - 0.5, rand() * 0.8 + 0.2, rand() - 0.5).normalize();
+    s.position.copy(dir.clone().multiplyScalar(0.48)); s.scale.set(0.8, 1.9, 0.8);
+    s.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    rock.add(s);
+  }
+}
+
+/** Demir asteroit: koyu, parlak metal; üstünde perçin gibi küçük çıkıntılar. Lazer onu kıramaz. */
+export function makeIron(rock, rand) {
+  rock.material = new THREE.MeshStandardMaterial({ color: 0x59616f, roughness: 0.32, metalness: 0.85, flatShading: true });
+  const stud = new THREE.MeshStandardMaterial({ color: 0x9aa4b4, roughness: 0.25, metalness: 0.9 });
+  for (let i = 0; i < 6; i++) {
+    const s = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), stud);
+    s.position.set(rand() - 0.5, rand() - 0.5, rand() - 0.5).normalize().multiplyScalar(0.42); rock.add(s);
+  }
+}
+
 const crystalMat = new THREE.MeshStandardMaterial({ color: 0x8ffcff, roughness: 0.12, metalness: 0.25, emissive: 0x2fd6ff, emissiveIntensity: 1.25, flatShading: true });
 export function buildCrystal() {
   const g = new THREE.Group();

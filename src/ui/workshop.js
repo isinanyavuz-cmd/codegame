@@ -6,7 +6,7 @@ import { showCard, hideCard, makeCard } from './overlay.js';
 
 const svg = (id, cls = '') => `<svg viewBox="0 0 32 32" class="${cls}"><use href="#${id}"/></svg>`;
 // Karelerin içindeki resimler
-const ART = { '.': '', M: '<i class="rock"></i>', K: svg('i-gem'), B: '<i class="ring"></i>', P: svg('i-ship', 'foe'), E: svg('i-bolt'), S: svg('i-ship') };
+const ART = { '.': '', M: '<i class="rock"></i>', G: '<i class="rock geode"></i>', D: '<i class="rock iron"></i>', K: svg('i-gem'), B: '<i class="ring"></i>', P: svg('i-ship', 'foe'), E: svg('i-bolt'), S: svg('i-ship') };
 
 export class Workshop {
   /** @param o.onPlay(level)  "Dene"ye basılınca görevi açar */
@@ -19,12 +19,14 @@ export class Workshop {
   load() {
     const saved = this.store.workshop;
     const ok = saved && decodeField(encodeField(saved.lines || [], saved.par || 1));
-    this.design = ok ? { lines: [...saved.lines], par: saved.par || null, solved: !!saved.solved } : { lines: blankField(), par: null, solved: false };
+    // battery: lazer pili (0 = lazer kapalı)
+    this.design = ok ? { lines: [...saved.lines], par: saved.par || null, solved: !!saved.solved, battery: saved.battery || 0 } : { lines: blankField(), par: null, solved: false, battery: 0 };
   }
   save() { this.store.workshop = { ...this.design }; }
 
   get lanes() { return this.design.lines[0].length; }
   get rows() { return this.design.lines.length; }
+  get battery() { return this.design.battery || 0; }
 
   open() {
     this.load();
@@ -35,7 +37,7 @@ export class Workshop {
       <div class="btns"><button class="btn" data-act="clear">Temizle</button><button class="btn" data-act="share" id="wkShare">Paylaş</button><button class="btn" data-act="close">Kapat</button><button class="btn primary" data-act="play">Dene${svg('i-play')}</button></div>`, (act) => {
       this.sfx.click();
       if (act === 'close') hideCard();
-      else if (act === 'clear') { this.design = { lines: blankField(this.lanes, this.rows), par: null, solved: false }; this.save(); this.render(); }
+      else if (act === 'clear') { this.design = { lines: blankField(this.lanes, this.rows), par: null, solved: false, battery: 0 }; this.save(); this.render(); }
       else if (act === 'play') this.play();
       else if (act === 'share') this.share();
     }, 'wide');
@@ -60,14 +62,14 @@ export class Workshop {
     }).join('')).join('');
     document.getElementById('wkTools').innerHTML = PIECES.map((p) => `<button class="${p.ch === this.tool ? 'on' : ''}" data-piece="${p.ch}"><span class="wkc ${p.ch === '.' ? '' : `p${p.ch}`}">${p.ch === '.' ? svg('i-cross') : ART[p.ch]}</span>${p.name}</button>`).join('');
     const stepper = (key, label, value) => `<div class="wksize"><span>${label}</span><button data-size="${key},-1" ${value <= SIZE[key][0] ? 'disabled' : ''} aria-label="${label} azalt">−</button><b>${value}</b><button data-size="${key},1" ${value >= SIZE[key][1] ? 'disabled' : ''} aria-label="${label} artır">+</button></div>`;
-    document.getElementById('wkSize').innerHTML = stepper('lanes', 'Şerit', this.lanes) + stepper('rows', 'Sıra', this.rows);
+    document.getElementById('wkSize').innerHTML = stepper('lanes', 'Şerit', this.lanes) + stepper('rows', 'Sıra', this.rows) + stepper('battery', 'Lazer pili', this.battery);
     document.getElementById('wkShare').disabled = !solved;
     document.getElementById('wkMsg').innerHTML = message || (solved ? `${robot('happy')}<span>Görevini <b>${par} blokla</b> çözdün. Artık paylaşabilirsin!</span>` : `${robot('idle')}<span>Önce <b>Dene</b>'ye bas ve görevini kendin çöz; sonra paylaşabilirsin.</span>`);
   }
 
   /** Değişen tasarımın çözümü geçersizdir: yeniden çözülmeden paylaşılamaz. */
-  touch(lines) {
-    this.design = { lines, par: null, solved: false }; this.save();
+  touch(lines, battery = this.battery) {
+    this.design = { lines, par: null, solved: false, battery }; this.save();
     this.store.setProgram('atolye', []);   // eski alan için yazılan program yeni alana taşınmaz
     this.render();
   }
@@ -84,6 +86,12 @@ export class Workshop {
   }
 
   resize(key, d) {
+    if (key === 'battery') {
+      // Lazer pili: 0 lazeri kapatır. Pil değişince görev yeniden çözülmelidir.
+      const battery = Math.max(SIZE.battery[0], Math.min(SIZE.battery[1], this.battery + d));
+      if (battery !== this.battery) { this.sfx.click(); this.touch(this.design.lines, battery); }
+      return;
+    }
     const lanes = Math.max(SIZE.lanes[0], Math.min(SIZE.lanes[1], this.lanes + (key === 'lanes' ? d : 0)));
     const rows = Math.max(SIZE.rows[0], Math.min(SIZE.rows[1], this.rows + (key === 'rows' ? d : 0)));
     if (lanes === this.lanes && rows === this.rows) return;
@@ -99,10 +107,10 @@ export class Workshop {
   }
 
   play() {
-    if (!hasRoute(this.design.lines)) { this.sfx.bad(); this.render(`${robot('sad')}<span>Çıkışa giden yol kapalı! Bir meteoru kaldır ya da gemiyi başka kareye al.</span>`); return; }
+    if (!hasRoute(this.design.lines, { laser: this.battery > 0 })) { this.sfx.bad(); this.render(`${robot('sad')}<span>Çıkışa giden yol kapalı! Bir meteoru kaldır, gemiyi başka kareye al ya da lazer pili ekle (demiri lazer de kıramaz).</span>`); return; }
     hideCard();
     const { lines, par, solved } = this.design;
-    this.onPlay(customLevel(lines, { par: solved ? par : null, own: true, library: Object.keys(this.store.library()) }));
+    this.onPlay(customLevel(lines, { par: solved ? par : null, own: true, library: Object.keys(this.store.library()), battery: this.battery }));
   }
 
   /** Oyun, çocuğun kendi görevini çözdüğünü bildirir: en az blokla çözümü hedef olur. */
@@ -114,7 +122,7 @@ export class Workshop {
     this.save();
   }
 
-  link() { return `${location.origin}${location.pathname}#oyna=${encodeField(this.design.lines, this.design.par)}`; }
+  link() { return `${location.origin}${location.pathname}#oyna=${encodeField(this.design.lines, this.design.par, this.battery)}`; }
 
   share() {
     if (!this.design.solved) return;

@@ -37,6 +37,7 @@ const grade = (level, program) => {
   const n = count(program), results = fly(level, program);
   return { n, fits: n <= level.maxBlocks, stars: stars(results, n, level.par), wins: wins(results) };
 };
+const sameProgram = (a, b) => { const strip = (p) => JSON.stringify(p, (k, v) => (k === 'id' ? undefined : v)); return strip(a) === strip(b); };
 const pathOf = (field, program) => simulate(field, program).events.filter((e) => e.t === 'move').map((e) => e.kind);
 
 /** Hareket dizisini en az blokla yazar: tek tek, "tekrarla" ile ya da sonu "sürekli tekrarla" ile. */
@@ -64,6 +65,36 @@ const isSteer = (b) => b.type === 'ifelse' && b.cond === 'ahead' && b.then[0]?.t
 const IF = (cond, a, b) => ({ id: uid(), type: 'ifelse', cond, then: a, else: b });
 const oneSided = (type) => () => [IF('ahead', [mv(type)], [mv('fwd')])];
 const mirrored = () => [IF('ahead', [IF('leftFree', [mv('left')], [mv('right')])], [mv('fwd')])];
+
+/**
+ * Lazer kestirmeleri: sensöre bakmadan, kaçmadan "ateş et, düz uç" diyen programlar. Görevin paletiyle
+ * yazılır (sürekli tekrarla, tekrarla ya da tek tek); korsan ve şarj varsa olay blokları eklenir.
+ */
+function laserShortcuts(level) {
+  const tools = level.tools, events = level.events || [], fields = level.waves.map(parseField);
+  const rows = Math.max(...fields.map((f) => f.rows)), out = [];
+  const fire = () => mv('fire'), beam = () => mv('beam'), fwd = () => mv('fwd');
+  const rep = (count, ...body) => ({ id: uid(), type: 'repeat', count, body });
+  const loop = (...body) => ({ id: uid(), type: 'forever', body });
+  const repeated = (body) => { const list = []; for (let n = rows; n > 0; n -= 9) list.push(Math.min(9, n) >= 2 ? rep(Math.min(9, n), ...body()) : body()); return list.flat(); };
+  const cores = [];
+  if (tools.includes('fire')) {
+    if (tools.includes('forever')) cores.push(() => [loop(fire(), fwd())], () => [loop(IF('ahead', [fire()], [fwd()]))].filter(() => tools.includes('ifelse')));
+    if (tools.includes('repeat')) cores.push(() => repeated(() => [fire(), fwd()]));
+    cores.push(() => Array.from({ length: rows }, () => [fire(), fwd()]).flat());
+  }
+  if (tools.includes('beam')) {
+    if (tools.includes('forever')) cores.push(() => [beam(), loop(fwd())]);
+    cores.push(() => [beam(), ...Array.from({ length: rows }, fwd)]);
+  }
+  const pirates = fields.some((f) => f.pirates.size) && tools.includes('on') && tools.includes('shield') && events.includes('pirate');
+  const energy = fields.some((f) => f.energyCells.size) && tools.includes('on') && tools.includes('setEnergy') && tools.includes('addEnergy') && events.includes('energy');
+  const prefixes = [[]];
+  if (pirates) prefixes.push([{ id: uid(), type: 'on', event: 'pirate', body: [mv('shield')] }]);
+  if (energy) for (const v of [3, 6, 9]) prefixes.push([...(pirates ? [{ id: uid(), type: 'on', event: 'pirate', body: [mv('shield')] }] : []), { id: uid(), type: 'on', event: 'energy', body: [{ id: uid(), type: 'addEnergy', value: 3 }] }, { id: uid(), type: 'setEnergy', value: v }]);
+  for (const pre of prefixes) for (const core of cores) { const p = [...clone(pre), ...core()]; if (p.length > (pre.length)) out.push(p); }
+  return out;
+}
 
 /** Fonksiyon çağrılarını gövdeleriyle değiştirir, tanımları siler. */
 function inline(program) {
@@ -198,6 +229,16 @@ export function audit(level) {
     const g = grade(level, inline(sol));
     if (g.fits && g.wins) add(g.stars === 3 ? 'UYARI' : 'BİLGİ', 'fonksiyonsuz', `fonksiyonsuz yazım sığıyor (${short(g)})`);
   }
+  // Lazer bir kestirme olmamalı: ateş edip düz uçmak (ya da güçlü lazerden sonra hep düz uçmak) tam yıldız almamalı.
+  if (level.tools.includes('fire') || level.tools.includes('beam')) {
+    let best = null;
+    for (const p of laserShortcuts(level)) {
+      if (sameProgram(p, sol)) continue;
+      const g = grade(level, p);
+      if (g.fits && g.wins && (!best || g.stars > best.stars)) best = g;
+    }
+    if (best) add(best.stars === 3 ? 'UYARI' : 'BİLGİ', 'atesle', `sensörsüz ateş edip düz uçmak yetiyor (${short(best)})`);
+  }
   if (types.has('addEnergy')) {
     const g = grade(level, rewrite(sol, (b) => (b.type === 'addEnergy' ? [] : b.type === 'setEnergy' ? [{ ...b, value: 9 }] : null)));
     if (g.wins) add('UYARI', 'sarjsiz', `9 enerjiyle hiç şarj etmeden bitiyor (${short(g)})`);
@@ -226,6 +267,8 @@ export const KABUL = {
   // Hazır programı silip rotayı elle yazmak da geçer; bu görevlerde kavram hazır programla gösterilir.
   '4-1:elle': 'tanış: olana kadar hazır geliyor', '7-1:elle': 'tanış: tanım hazır geliyor', '7-2:elle': 'dene: tanım hazır geliyor',
   '7-3:elle': 'dene: iki tanım hazır geliyor', '7-7:elle': 'hata avı: tanım hazır geliyor',
+  // Çıkmaz sokakta ayna mantık da (lazersiz yazıldığı için) çarpar; görevin dersi "kaçamıyorsan ateş et".
+  '3-s:ayna': 'ayna denemesi lazersiz; çıkmaz sokakta ateş etmek gerekir',
 };
 
 export function auditAll(levels = [...LEVELS, ...EXTRAS]) {

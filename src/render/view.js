@@ -1,7 +1,7 @@
 // 3B sahne: uzay, şerit ızgarası, gemi, meteorlar ve bütün animasyonlar.
 // Oyun mantığını bilmez; yalnızca motorun ürettiği olayları oynatır.
 import * as THREE from '../../vendor/three.bundle.min.js';
-import { buildShip, styleShip, buildMeteor, buildCrystal, buildPirate, buildAtlasGate, glowTexture, streakTexture, beamTexture, paintBackground } from './models.js';
+import { buildShip, styleShip, buildMeteor, buildCrystal, addGeodeShards, makeIron, buildPirate, buildAtlasGate, glowTexture, streakTexture, beamTexture, paintBackground } from './models.js';
 import { rng } from '../engine/rng.js';
 import { themeOf } from './themes.js';
 
@@ -74,6 +74,10 @@ export class View {
       beam.rotation.x = -Math.PI / 2; beam.visible = false; this.scene.add(beam); this.beams.push(beam);
     }
     this.targetMark = makeMark(YELLOW, 0.07); this.scene.add(this.targetMark);
+    // Nişan: lazer ateşlenmeden hemen önce vurulacak kayanın karesi kırmızı parlar.
+    this.aimMark = makeMark(RED, 0.22); this.scene.add(this.aimMark);
+    // Lazer rengi (hangardan): küçük lazerin mermisi ve güçlü lazerin ışını.
+    this.laser = { bolt: 0xff3b5c, beam: 0xa16bff };
     this.gen = 0; this.carry = 0;
 
     this.glowTex = glowTexture(); this.streakTex = streakTexture();
@@ -262,13 +266,17 @@ export class View {
       const mesh = buildMeteor(0.4 + rand() * 0.13, rand, this.theme.rocks);
       mesh.userData.own = true;
       mesh.position.set(this.gx(lane) + (rand() - 0.5) * 0.18, 0.45, this.gz(y) + (rand() - 0.5) * 0.18);
+      if (field.iron?.has(k)) { makeIron(mesh, rand); mesh.userData.iron = true; }
+      else if (field.geodes?.has(k)) addGeodeShards(mesh, rand);
       g.add(mesh); this.meteors.set(k, mesh); mesh.userData.size = 1;
       const st = mesh.userData.streak = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 1.9), new THREE.MeshBasicMaterial({ map: this.streakTex, color: 0x9fc4ff, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false }));
       st.userData.own = true; st.rotation.x = -Math.PI / 2; st.position.set(mesh.position.x, 0.2, mesh.position.z - 1.1); g.add(st);
     }
-    for (const k of field.crystals) {
+    // Kristalli kayaların kristali de baştan kurulur ama kaya kırılana kadar görünmez.
+    for (const k of [...field.crystals, ...(field.geodes || [])]) {
       const [lane, y] = k.split(',').map(Number);
       const c = buildCrystal(); c.position.set(this.gx(lane), 0.5, this.gz(y)); c.userData.phase = rand() * 6;
+      c.userData.hidden = !field.crystals.has(k); c.visible = !c.userData.hidden;
       const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, color: 0x4fe0ff, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
       halo.scale.setScalar(1.5); c.add(halo);
       g.add(c); this.crystals.set(k, c);
@@ -375,8 +383,41 @@ export class View {
       p.position.copy(p.userData.home); p.rotation.set(0, Math.PI, 0); p.scale.setScalar(p.userData.size);
     }
     this.lightGate(0);
-    for (const c of this.crystals.values()) { c.visible = true; c.scale.setScalar(1); }
+    for (const c of this.crystals.values()) { c.visible = !c.userData.hidden; c.scale.setScalar(1); }
     for (const m of this.meteors.values()) { m.material.emissiveIntensity = 0; this.restoreRock(m); }
+    this.aimMark.visible = false;
+  }
+
+  /** Kırılan kristalli kayanın kristali ortaya çıkar (geri sarmada animasyonsuz). */
+  revealGem(cell, animate = true) {
+    const c = this.crystals.get(`${cell.lane},${cell.y}`);
+    if (!c) return;
+    c.visible = true;
+    if (!animate) { c.scale.setScalar(1); return; }
+    const gen = this.gen;
+    this.burst(c.position.clone(), { color: 0x4fe0ff, n: 24, speed: 2.2, life: 0.5, size: 0.3, up: 0.8 });
+    this.tween(320, (k) => { if (gen === this.gen) c.scale.setScalar(Math.max(0.001, 1.25 * k - 0.25 * k * k)); }, false);
+  }
+
+  /** Lazer rengini ayarlar (hangardaki seçim). */
+  setLaser(color) { this.laser = { bolt: color.bolt, beam: color.beam }; }
+
+  /** Nişan işaretini kareye koyar (`cell` yoksa gizler). */
+  aim(cell) {
+    if (!cell) { this.aimMark.visible = false; return; }
+    this.aimMark.position.copy(this.cellPos(cell, 0)); this.aimMark.position.y = 0.03; this.aimMark.visible = true;
+  }
+
+  /** Demir asteroide çarpan ışın: kıvılcım saçar, demir kısa bir an parlar ama yerinde kalır. */
+  ricochet(cell) {
+    const m = this.meteors.get(`${cell.lane},${cell.y}`);
+    if (!m) return;
+    const p = m.position.clone(); p.z += 0.35;
+    this.burst(p, { color: 0xfff1b0, n: 26, speed: 4.2, life: 0.35, size: 0.22, up: 0.5 });
+    this.burst(p, { color: 0x9fd8ff, n: 10, speed: 2, life: 0.3, size: 0.3 });
+    const gen = this.gen;
+    m.material.emissive.set(0xffe6a0);
+    this.tween(260, (k) => { if (gen === this.gen) m.material.emissiveIntensity = 0.7 * (1 - k); }, false);
   }
 
   /** Işınla parçalanmış kayayı yerine koyar (yeni uçuş ya da geri sarma). */
@@ -391,14 +432,14 @@ export class View {
   pose(cell, { taken = [], gone = [], broken = [], shielded = false } = {}) {
     this.resetShip();
     this.ship.position.copy(this.cellPos(cell));
-    for (const c of broken) { const m = this.meteors.get(`${c.lane},${c.y}`); if (m) { m.visible = false; m.userData.streak.visible = false; } }
+    for (const c of broken) { const m = this.meteors.get(`${c.lane},${c.y}`); if (m) { m.visible = false; m.userData.streak.visible = false; } if (c.gem) this.revealGem(c, false); }
     for (const c of taken) { const m = this.crystals.get(`${c.lane},${c.y}`); if (m) m.visible = false; }
     for (const c of gone) { const p = this.pirates.get(`${c.lane},${c.y}`); if (p) { p.visible = false; p.userData.gone = true; } }
     this.setShield(shielded);
   }
 
   /** Hangarda seçilen görünüm (renkler ve biçim). */
-  setLook(look) { styleShip(this.ship, look); styleShip(this.ghost, look); }
+  setLook(look) { styleShip(this.ship, look); styleShip(this.ghost, look); if (look.laser) this.setLaser(look.laser); }
 
   /** Atlas'ın ışıkları: 0 sönük (otopilotu bozuk), 1 tamamen açık. */
   lightGate(k) {
@@ -671,21 +712,24 @@ export class View {
    */
   async fire(ev) {
     const gen = this.gen, rock = ev.hit ? this.meteors.get(`${ev.hit.lane},${ev.hit.y}`) : null;
+    const wall = ev.iron ? this.meteors.get(`${ev.iron.lane},${ev.iron.y}`) : null;
     const from = this.cellPos(ev.from), wing = 0.52 * SHIP_SCALE, z0 = from.z - 0.3;
-    // Kayanın ön yüzüne kadar ya da alanın sonunu geçene kadar.
-    const zEnd = rock ? rock.position.z + 0.3 : this.gz(this.field.rows + 1);
+    // Nişan: vurulacak kare kısa bir an parlar.
+    if (ev.hit || ev.iron) { this.aim(ev.hit || ev.iron); await this.wait(150); if (gen !== this.gen) return; }
+    // Kayanın (ya da demirin) ön yüzüne kadar, yoksa alanın sonunu geçene kadar.
+    const zEnd = rock ? rock.position.z + 0.3 : wall ? wall.position.z + 0.35 : this.gz(this.field.rows + 1);
     const LEN = 1.15, SPEED = 34, dist = Math.max(0.1, z0 - zEnd), ms = Math.max(70, (dist / SPEED) * 1000);
     const bolts = [];
     for (const s of [-1, 1]) {
       const x = from.x + s * wing, parts = [];
       // Parlak çekirdek ve çevresinde yumuşak hale
-      for (const [w, color, op] of [[0.07, bright(0xffd0d8, 2.6), 1], [0.2, bright(0xff3b5c, 2.2), 0.55]]) {
+      for (const [w, color, op] of [[0.07, bright(0xffffff, 2.4), 1], [0.2, bright(this.laser.bolt, 2.2), 0.55]]) {
         const geo = new THREE.PlaneGeometry(w, 1); geo.rotateX(-Math.PI / 2); geo.translate(0, 0, 0.5);
         const mat = glow(color, op), m = new THREE.Mesh(geo, mat);
         m.position.set(x, SHIP_Y, z0); m.scale.z = 0.001; this.scene.add(m); parts.push({ m, mat, op });
       }
       bolts.push(parts);
-      this.burst(new THREE.Vector3(x, SHIP_Y, z0), { color: 0xff6b80, n: 8, speed: 1.4, life: 0.2, size: 0.22 });
+      this.burst(new THREE.Vector3(x, SHIP_Y, z0), { color: this.laser.bolt, n: 8, speed: 1.4, life: 0.2, size: 0.22 });
     }
     const all = bolts.flat();
     const cleanup = () => { for (const p of all) { this.scene.remove(p.m); p.m.geometry.dispose(); p.mat.dispose(); } };
@@ -695,13 +739,16 @@ export class View {
       for (const p of all) { p.m.position.z = front; p.m.scale.z = Math.max(0.001, tail - front); }
       if (gen === this.gen) this.ship.position.z = from.z + Math.sin(Math.PI * Math.min(1, k * 2)) * 0.08;
     });
-    if (gen !== this.gen) { cleanup(); return; }
+    if (gen !== this.gen) { cleanup(); this.aim(null); return; }
     this.ship.position.z = from.z;
+    this.aim(null);
     if (!rock) {
+      if (wall) this.ricochet(ev.iron);
       await this.tween(90, (k) => { for (const p of all) p.mat.opacity = p.op * (1 - k); });
       cleanup(); return;
     }
     cleanup();
+    if (ev.hit.gem) this.revealGem(ev.hit);
     const p = rock.position.clone();
     this.flash(1.5, 220);
     this.burst(p, { color: 0xff8a3d, n: 46, speed: 4.6, life: 0.6, size: 0.42, up: 0.8 });
@@ -726,16 +773,23 @@ export class View {
     const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, color: bright(0xffffff, 2.2), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
     orb.position.copy(nose); core.position.copy(nose); orb.scale.setScalar(2.2); core.scale.setScalar(0.8);
     this.scene.add(orb, core);
+    // Nişan, ışının vuracağı ilk karede parlar.
+    this.aim(ev.hits[0] || ev.iron || null);
     const drop = (o) => { this.scene.remove(o); o.material.dispose(); };
+    // Nişan bir an görünür, sonra ışın beklemeden çıkar.
+    await this.tween(150, () => {});
+    this.aim(null);
+    if (gen !== this.gen) { drop(orb); drop(core); return; }
     onFire?.();
-    // Ateş: burundan alanın sonuna kadar kesintisiz ışın (beyaz çekirdek ve geniş mor hale).
-    const zEnd = this.gz(this.field.rows + 1), len = nose.z - zEnd, parts = [];
-    for (const [w, color, op] of [[0.16, bright(0xffffff, 2.6), 1], [0.42, bright(0xa16bff, 2.4), 0.75], [0.9, bright(0x6f4bff, 1.6), 0.3]]) {
+    // Ateş: burundan alanın sonuna (ya da ışını durduran demire) kadar kesintisiz ışın.
+    const wall = ev.iron ? this.meteors.get(`${ev.iron.lane},${ev.iron.y}`) : null;
+    const zEnd = wall ? wall.position.z + 0.35 : this.gz(this.field.rows + 1), len = nose.z - zEnd, parts = [];
+    for (const [w, color, op] of [[0.16, bright(0xffffff, 2.6), 1], [0.42, bright(this.laser.beam, 2.4), 0.75], [0.9, bright(this.laser.beam, 1.2), 0.3]]) {
       const geo = new THREE.PlaneGeometry(w, 1); geo.rotateX(-Math.PI / 2); geo.translate(0, 0, -0.5);
       const mat = glow(color, op), m = new THREE.Mesh(geo, mat);
       m.position.set(nose.x, SHIP_Y, nose.z); m.scale.z = 0.001; this.scene.add(m); parts.push({ m, mat, op });
     }
-    const rocks = ev.hits.map((h) => ({ m: this.meteors.get(`${h.lane},${h.y}`), done: false })).filter((r) => r.m);
+    const rocks = ev.hits.map((h) => ({ h, m: this.meteors.get(`${h.lane},${h.y}`), done: false })).filter((r) => r.m);
     const blast = (r) => {
       r.done = true;
       const p = r.m.position.clone();
@@ -744,6 +798,7 @@ export class View {
       this.burst(p, { color: 0x9a8f86, n: 20, speed: 3, life: 0.8, size: 0.28, up: 0.6 });
       if (r.m.userData.streak) r.m.userData.streak.visible = false;
       r.m.visible = false;
+      if (r.h.gem) this.revealGem(r.h);
     };
     this.flash(1.7, 320); this.shake = 6;
     // Işının ucu hızla ilerler; geçtiği kayalar patlar.
@@ -754,7 +809,7 @@ export class View {
       for (const r of rocks) if (!r.done && r.m.position.z >= front) blast(r);
       orb.scale.setScalar(2.2 + Math.sin(k * 30) * 0.15);
     });
-    if (gen === this.gen) for (const r of rocks) if (!r.done) blast(r);
+    if (gen === this.gen) { for (const r of rocks) if (!r.done) blast(r); if (ev.iron) this.ricochet(ev.iron); }
     // Işın bir an daha yanar, sonra incelerek söner.
     await this.tween(260, (k) => { if (gen === this.gen) for (const p of parts) p.mat.opacity = p.op * (0.85 + Math.sin(k * 50) * 0.15); });
     await this.tween(220, (k) => {

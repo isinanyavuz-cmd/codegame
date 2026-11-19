@@ -29,3 +29,12 @@ test('en kısa yazım: tekrarları döngüye toplar ve aynı rotayı uçar', () 
   assert.deepEqual(flown(looped), moves);
   assert.deepEqual(flown(plain), moves);
 });
+
+test('denetçi: lazer bir kestirme olunca "atesle" uyarısı verir', async () => {
+  const { audit } = await import('../tools/denetle.js');
+  const { F, R, forever, ifelse } = await import('../src/engine/blocks.js');
+  // Sensör görevine lazer eklenirse "sürekli ateş et, düz uç" tam yıldız alır.
+  const level = { id: 'x', kind: 'pekistir', waves: [['.....', '..M..', '.....', '..M..', '..S..']], tools: ['fwd', 'left', 'right', 'forever', 'ifelse', 'fire'], conds: ['ahead'], events: [], functions: [], maxBlocks: 8, par: 6,
+    solution: () => [forever(ifelse('ahead', [R()], [F()]))] };
+  assert.ok(audit(level).some((f) => f.kod === 'atesle' && f.duzey === 'UYARI'));
+});

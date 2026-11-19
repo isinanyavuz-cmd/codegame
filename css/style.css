@@ -205,6 +205,9 @@ button.node:not(.locked):active { transform: scale(.92); }
 .qbtns { display: flex; justify-content: center; gap: 12px; }
 .qbtns button, #picks button { width: 58px; height: 58px; border-radius: 18px; font-size: 24px; font-weight: 800; color: #3b2a00; background: linear-gradient(180deg, #ffe066, #ffc21a); box-shadow: inset 0 -5px 0 rgba(0, 0, 0, .18); }
 .qbtns button:active { transform: translateY(2px); }
+.qbtns:has(.pyopt) { flex-direction: column; align-items: stretch; gap: 8px; }
+.qbtns button.pyopt { width: auto; height: auto; padding: 10px 14px; font-size: 18px; text-align: left; display: flex; gap: 12px; align-items: center; }
+.qbtns button.pyopt code { font: 700 16px/1.2 ui-monospace, Consolas, monospace; }
 #picks button { position: absolute; z-index: 4; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; font-size: 18px; box-shadow: 0 0 0 3px rgba(7, 11, 34, .7), 0 0 18px rgba(255, 213, 61, .8); animation: pulse 1.6s infinite; }
 .qbtns button.on, #picks button.on { background: #fff; color: #27344f; animation: none; }
 .qbtns button.ok, #picks button.ok { background: var(--ok); color: #06301d; animation: none; box-shadow: 0 0 0 3px rgba(7, 11, 34, .7), 0 0 20px rgba(55, 227, 154, .9); }
@@ -266,6 +269,10 @@ button.node:not(.locked):active { transform: scale(.92); }
 .field-key span { display: flex; align-items: center; gap: 6px; }
 .field-key i { width: 9px; height: 9px; border-radius: 50%; background: currentColor; box-shadow: 0 0 7px currentColor; }
 .legend-beacon { color: #d3b1ff; } .legend-pirate { color: #ff8d9f; } .legend-energy { color: #8bf0b6; }
+.legend-geode { color: #8ffcff; } .legend-iron { color: #b8c2d4; }
+.gauge.battery { color: #ff9aae; } .gauge.battery b { min-width: 12px; font-size: 16px; }
+.gauge.battery .cells i.on { background: #ff5d7a; box-shadow: 0 0 8px rgba(255, 93, 122, .7); }
+.gauge.battery.low { color: var(--soft); }
 .flight-state { font-size: 12.5px; font-weight: 600; color: #d7e0ff; }
 
 /* ───────── kartlar: giriş, sonuç ───────── */
@@ -399,6 +406,16 @@ button.node:not(.locked):active { transform: scale(.92); }
 .wkc.base { background: rgba(55, 227, 154, .12); }
 .wkc svg { width: 62%; height: 62%; }
 .wkc .rock { width: 66%; height: 62%; border-radius: 42% 58% 50% 46% / 55% 45% 60% 40%; background: radial-gradient(circle at 35% 30%, #c3a48e, #7d6c68 70%); }
+.pilots { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 8px; }
+.pilots button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 14px; background: rgba(255, 255, 255, .08); text-align: left; }
+.pilots button svg { width: 22px; height: 22px; flex: none; }
+.pilots b { flex: 1; font-size: 16px; } .pilots small { display: flex; align-items: center; gap: 4px; color: var(--soft); font-weight: 700; }
+.pilots small svg { width: 14px; height: 14px; color: var(--now); }
+.pilots li.on button { background: rgba(127, 216, 255, .18); box-shadow: inset 0 0 0 2px rgba(127, 216, 255, .6); opacity: 1; }
+.newpilot { display: flex; gap: 8px; margin-bottom: 4px; }
+.newpilot input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .2); background: rgba(0, 0, 0, .25); color: #fff; font: inherit; }
+.wkc .rock.geode { background: radial-gradient(circle at 35% 30%, #c3a48e, #7d6c68 70%); box-shadow: inset 0 0 0 2px #58e6ff, 0 0 7px rgba(88, 230, 255, .8); }
+.wkc .rock.iron { background: radial-gradient(circle at 35% 30%, #c9d2e0, #4c5463 70%); }
 .wkc .ring { width: 62%; height: 62%; border-radius: 50%; border: 3px solid #b786ff; box-shadow: 0 0 8px rgba(183, 134, 255, .8); }
 .wkc.pK { color: #58e6ff; } .wkc.pE { color: #4cffa4; } .wkc.pS { color: #fff; background: rgba(255, 213, 61, .2); }
 .wkc .foe { color: #ff4d6a; transform: rotate(180deg); }
@@ -595,7 +612,8 @@ button.node:not(.locked):active { transform: scale(.92); }
   .maphead { padding-left: 12px; padding-right: 12px; gap: 6px; } .mapstats { gap: 6px; }
   .mapstats .iconbtn { width: 42px; height: 42px; border-radius: 13px; } #maxStars { display: none; }
   .logo b { font-size: 20px; } .total { padding: 0 10px; height: 42px; }
-  .dock { gap: 0; padding: 5px; } .dock button { min-width: 0; width: 58px; padding: 7px 2px 5px; }
-  .dock button span { white-space: normal; text-align: center; line-height: 1.05; min-height: 2.1em; display: grid; place-items: center; }
+  /* Yedi düğme ekran genişliğine eşit bölünür: kaydırmadan hepsi görünür. */
+  .dock { gap: 0; padding: 5px; width: calc(100vw - 16px); } .dock button { flex: 1 1 0; min-width: 0; width: auto; padding: 7px 1px 5px; font-size: 9.5px; letter-spacing: -.2px; }
+  .dock button span { white-space: normal; text-align: center; line-height: 1.05; min-height: 2.1em; display: grid; place-items: center; hyphens: manual; }
   .dock button i { right: 6px; }
 }

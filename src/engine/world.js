@@ -9,12 +9,15 @@ const key = (lane, y) => `${lane},${y}`;
 
 /**
  * Alanı metinden okur. İlk satır en uzak sıra, son satır başlangıç sırasıdır.
- * '.' boş, M meteor, K kristal, B işaret, P korsan, E şarj, S başlangıç.
+ * '.' boş, M meteor (kaya), G kristalli kaya, D demir asteroit, K kristal, B işaret, P korsan,
+ * E şarj, S başlangıç. Kristalli kaya da bir kayadır; lazerle kırılınca yerinde kristal kalır.
+ * Demir asteroit de bir engeldir (çarpılır, sensörler görür) ama lazer onu kıramaz.
+ * Satır dizisi `pilli()` ile işaretlendiyse alanın lazer pili de okunur (yoksa pil sınırsızdır).
  */
 export function parseField(lines) {
   if (!Array.isArray(lines) || !lines.length || !lines[0].length) throw new Error('Alan boş olamaz');
   const rows = lines.length, lanes = lines[0].length;
-  const meteors = new Set(), crystals = new Set();
+  const meteors = new Set(), crystals = new Set(), geodes = new Set(), iron = new Set();
   const beacons = new Set(), pirates = new Set(), energyCells = new Set();
   let start = -1;
   lines.forEach((line, i) => {
@@ -22,6 +25,8 @@ export function parseField(lines) {
     const y = rows - 1 - i;
     [...line].forEach((ch, lane) => {
       if (ch === 'M') meteors.add(key(lane, y));
+      else if (ch === 'G') { meteors.add(key(lane, y)); geodes.add(key(lane, y)); }
+      else if (ch === 'D') { meteors.add(key(lane, y)); iron.add(key(lane, y)); }
       else if (ch === 'K') crystals.add(key(lane, y));
       else if (ch === 'B') beacons.add(key(lane, y));
       else if (ch === 'P') pirates.add(key(lane, y));
@@ -31,15 +36,47 @@ export function parseField(lines) {
     });
   });
   if (start < 0) throw new Error('Başlangıç karesi (S) yok');
-  return { lanes, rows, start, meteors, crystals, beacons, pirates, energyCells };
+  const battery = Number.isInteger(lines.battery) ? lines.battery : null;
+  return { lanes, rows, start, meteors, crystals, beacons, pirates, energyCells, geodes, iron, battery };
 }
 
+/**
+ * Alanın satırlarına lazer pilini ekler: pilli(['..M', '.S.'], 4). Pil satır dizisinin üstünde
+ * durduğu için alanı okuyan her yer (testler, denetçi, üreteçler) onu kendiliğinden görür.
+ */
+export function pilli(lines, battery) {
+  const copy = [...lines];
+  copy.battery = battery;
+  return copy;
+}
+
+/** Lazer pilinden harcanan hücre: küçük lazer 1, güçlü lazer 3. */
+export const LASER_COST = { fire: 1, beam: 3 };
+/** Pil göstergesinin en çok hücresi. */
+export const BATTERY_MAX = 9;
+
 export const hasMeteor = (field, lane, y) => field.meteors.has(key(lane, y));
+export const isIron = (field, lane, y) => !!field.iron && field.iron.has(key(lane, y));
+/** Şeritte gemiden ileride, ilk demir asteroide kadar kaç kırılabilir kaya var? */
+export function rocksAhead(field, lane, y) {
+  let n = 0;
+  for (let ty = y + 1; ty < field.rows; ty++) { if (isIron(field, lane, ty)) break; if (hasMeteor(field, lane, ty)) n++; }
+  return n;
+}
 export const hasCrystal = (field, lane, y) => field.crystals.has(key(lane, y));
 
 /** Sensörün baktığı kare ve sonucu. */
 export function sense(field, lane, y, cond, state = {}) {
   if (cond === 'ahead') return { cell: { lane, y: y + 1 }, result: hasMeteor(field, lane, y + 1) };
+  // Önümdeki kırılabilir bir kaya mı? (demir asteroit ya da boşluk değil)
+  if (cond === 'rockAhead') return { cell: { lane, y: y + 1 }, result: hasMeteor(field, lane, y + 1) && !isIron(field, lane, y + 1) };
+  // Şeridim temiz mi? Gemiden çıkışa kadar şeritte hiç engel yok.
+  if (cond === 'laneClear') {
+    let clear = true;
+    for (let ty = y + 1; ty < field.rows; ty++) if (hasMeteor(field, lane, ty)) clear = false;
+    return { cell: { lane, y: y + 1 }, result: clear };
+  }
+  if (cond === 'rocks3') return { cell: { lane, y: y + 1 }, result: rocksAhead(field, lane, y) >= 3 };
   if (cond === 'atBeacon') return { cell: { lane, y }, result: field.beacons.has(key(lane, y)) };
   if (cond === 'atEnergy') return { cell: { lane, y }, result: field.energyCells.has(key(lane, y)) };
   if (cond === 'energyLow') return { cell: { lane, y }, result: state.energy !== null && state.energy < 3 };
@@ -67,6 +104,7 @@ export const ENERGY_MAX = 9;
 /**
  * Programı alanda çalıştırır ve olay listesini döndürür.
  * Olaylar: sense, move, fire, beam, event, shield, variable, call, crash, win, fail.
+ * Alanın lazer pili varsa her atış pilden harcar (LASER_COST); yetmezse uçuş 'battery' ile biter.
  * Her olay ilgili bloğun `id`sini taşır.
  * @param o.library  otopilot kitaplığı: { ad: gövde }. Programda tanımı olmayan bir manevra
  *                   çağrılırsa gövdesi buradan alınır; programdaki tanım kitaplıktakinin önüne geçer.
@@ -82,7 +120,21 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
   const handlers = new Map(), functions = new Map(), activeEvents = new Set();
   // Işın silahıyla kırılan kayalar alandan silinir; asıl alan değişmesin diye kopyası kullanılır.
   const rocks = new Set(field.meteors), live = { ...field, meteors: rocks };
-  let broken = 0;
+  let broken = 0, battery = field.battery ?? null;
+  const iron = field.iron || new Set(), geodes = field.geodes || new Set();
+  // Kristalli kaya kırılınca yerinde kristal kalır; kristal yıldızı onları da sayar.
+  const total = field.crystals.size + geodes.size;
+  const smash = (lane, ty) => {
+    rocks.delete(key(lane, ty)); broken++;
+    if (!geodes.has(key(lane, ty))) return { lane, y: ty };
+    left.add(key(lane, ty));
+    return { lane, y: ty, gem: true };
+  };
+  const pay = (b) => {
+    if (battery === null) return;
+    if (battery < LASER_COST[b.type]) stop('fail', 'battery', { t: 'fail', reason: 'battery', id: b.id });
+    battery -= LASER_COST[b.type];
+  };
 
   const stop = (o, r, ev) => { outcome = o; reason = r; events.push(ev); throw STOP; };
   // İlerlemeden dönen hatalı programlar binlerce animasyon biriktirmesin.
@@ -91,6 +143,9 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
   function act(b) {
     const before = { lane, y };
     if (field.pirates.has(key(lane + DELTA[b.type], y + 1))) dispatch('pirate');
+    // Kaya görünce: gidilecek karede kırılabilir bir kaya var; olay ona ateş edebilir.
+    const next = key(lane + DELTA[b.type], y + 1);
+    if (rocks.has(next) && !iron.has(next)) dispatch('rock');
     // Bir olayın manevrası bu uçuş adımının yerini alabilir.
     if (lane !== before.lane || y !== before.y) return;
     idle = 0;
@@ -105,6 +160,7 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
       events.push({ t: 'move', ...base, exit: true, collect: false });
       stop('win', null, { t: 'win', id: b.id });
     }
+    if (iron.has(key(to.lane, to.y))) stop('crash', 'iron', { t: 'crash', reason: 'iron', ...base });
     if (hasMeteor(live, to.lane, to.y)) stop('crash', 'meteor', { t: 'crash', reason: 'meteor', ...base });
     const blocked = field.pirates.has(key(to.lane, to.y));
     if (blocked && !shielded) stop('crash', 'pirate', { t: 'crash', reason: 'pirate', ...base });
@@ -149,20 +205,27 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
       case 'fwd': case 'left': case 'right': act(b); return;
       case 'fire': {
         // Kanatlardaki ışın silahı: gemi yerinde durur, kendi şeridinde önündeki ilk kaya parçalanır.
-        spin(b);
-        let hit = null;
-        for (let ty = y + 1; ty < field.rows; ty++) if (rocks.has(key(lane, ty))) { hit = { lane, y: ty }; break; }
-        if (hit) { rocks.delete(key(hit.lane, hit.y)); broken++; }
-        announce({ t: 'fire', id: b.id, from: { lane, y }, hit });
+        // Demir asteroit ışını durdurur ve kırılmaz.
+        spin(b); pay(b);
+        let hit = null, wall = null;
+        for (let ty = y + 1; ty < field.rows; ty++) {
+          if (iron.has(key(lane, ty))) { wall = { lane, y: ty }; break; }
+          if (rocks.has(key(lane, ty))) { hit = smash(lane, ty); break; }
+        }
+        announce({ t: 'fire', id: b.id, from: { lane, y }, hit, iron: wall, battery });
         return;
       }
       case 'beam': {
         // Güçlü lazer: kesintisiz bir ışınla şeritteki bütün kayaları birden parçalar.
-        spin(b);
+        // Demir asteroide kadar: demir ışını durdurur, arkasındaki kayalar yerinde kalır.
+        spin(b); pay(b);
         const hits = [];
-        for (let ty = y + 1; ty < field.rows; ty++) if (rocks.delete(key(lane, ty))) hits.push({ lane, y: ty });
-        broken += hits.length;
-        announce({ t: 'beam', id: b.id, from: { lane, y }, hits });
+        let wall = null;
+        for (let ty = y + 1; ty < field.rows; ty++) {
+          if (iron.has(key(lane, ty))) { wall = { lane, y: ty }; break; }
+          if (rocks.has(key(lane, ty))) hits.push(smash(lane, ty));
+        }
+        announce({ t: 'beam', id: b.id, from: { lane, y }, hits, iron: wall, battery });
         return;
       }
       case 'repeat': {
@@ -234,7 +297,7 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
   } catch (e) {
     if (e !== STOP) throw e;
   }
-  return { events, outcome, reason, ticks, collected, total: field.crystals.size, ship: { lane, y }, energy, shielded, counter, broken };
+  return { events, outcome, reason, ticks, collected, total, ship: { lane, y }, energy, shielded, counter, broken, battery };
 }
 
 /** Yıldız: geçmek 1, bütün kristaller +1, `par` blok veya azı +1. Geçemediyse 0. */
@@ -246,6 +309,8 @@ export function stars(results, blockCount, par) {
 
 export const FAIL_TEXT = {
   meteor: 'Meteora çarptın!',
+  iron: 'Demir asteroide çarptın! Lazer demiri kıramaz; onun yanından kaç.',
+  battery: 'Lazer pili bitti! Küçük lazer 1, güçlü lazer 3 hücre harcar. Yalnızca gerektiğinde ateş et.',
   wall: 'Şeridin dışına çıktın!',
   ended: 'Program bitti ama çıkışa varamadın.',
   empty: 'Program boş. Önce blok ekle.',

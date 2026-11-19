@@ -2,9 +2,9 @@
 // görür. Zorluğu çocuğun vardığı yere göre seçilir (basamak): henüz öğrenmediği bloğu istemez.
 // Sonuç ana yıldızlara eklenmez; ayrı sayılır ("kaç gün uçtun"). Seri yoktur: gün atlamak
 // bir şey kaybettirmez. Saf mantık; DOM yok.
-import { F, L, R, rep, forever, ifelse, on, shield, setEnergy, addEnergy } from '../engine/blocks.js';
+import { F, L, R, rep, forever, ifelse, on, shield, setEnergy, addEnergy, fire } from '../engine/blocks.js';
 import { rng } from '../engine/rng.js';
-import { parseField, simulate } from '../engine/world.js';
+import { parseField, simulate, pilli } from '../engine/world.js';
 import { genWaves } from './gen.js';
 import { route, steer, MOVES, SENSORS } from './advanced.js';
 
@@ -123,6 +123,30 @@ function sensors(next, seed, { pirates = false, energy = false } = {}) {
   };
 }
 
+/**
+ * Lazer günü (2. basamaktan sonra arada bir): bütün şeritleri kapatan kaya duvarları düzenli aralıkla
+ * gelir. Pil duvar sayısı kadardır; boşa atış yapan geçemez. Döngüyle kısa yazılır.
+ */
+function laserDay(next) {
+  const n = 3 + Math.floor(next() * 2), k = 2 + Math.floor(next() * 2), lanes = 5, rows = n * k, start = Math.floor(next() * lanes);
+  const board = Array.from({ length: rows }, () => Array(lanes).fill('.'));
+  for (let i = 0; i < n; i++) {
+    board[1 + i * k].fill('M');
+    // Duvarların arasında yer yer kristalli kaya ya da kristal: ikisi de gemi şeridinde, duvardan hemen sonra.
+    if (k > 2 && next() < 0.5) board[2 + i * k][(start + 1 + Math.floor(next() * (lanes - 1))) % lanes] = 'M';
+    if (2 + i * k < rows) board[2 + i * k][start] = 'K';
+  }
+  board[0][start] = 'S';
+  const lines = pilli(board.reverse().map((r) => r.join('')), n);
+  const MOVE_K = () => Array.from({ length: k }, () => F());
+  return {
+    sector: 2, chip: 'Döngü · lazer', waves: [lines], tools: [...MOVES, 'repeat', 'fire'], par: 2 + k, maxBlocks: 4 + k,
+    solution: () => [rep(n, fire(), ...MOVE_K())],
+    brief: `Bugün lazer günü! Rotada ${n} kaya duvarı var, pilin de tam ${n} atışlık. Ateş et, uç, ateş et, uç… Bu deseni bir döngüye koy.`,
+    hint: `Döngünün içi: bir ateş et ve ${k} düz uç. Döngü ${n} kez dönsün.`,
+  };
+}
+
 /** "17 Kasım" */
 export const dayTitle = (day) => { const [, m, d] = day.split('-').map(Number); return `${d} ${MONTHS[m - 1]}`; };
 
@@ -134,7 +158,8 @@ export const dayTitle = (day) => { const [, m, d] = day.split('-').map(Number); 
 export function dailyLevel(day, tier = 1) {
   const seed = hashOf(`${day}/${tier}`), next = rng(seed);
   for (let i = 0; i < 3; i++) next();
-  const made = tier === 1 ? sequence(next) : tier === 2 ? loops(next) : sensors(next, seed % 100000, { pirates: tier >= 4, energy: tier >= 5 });
+  // Lazer, Defne kurtarılınca (1. sektör) takılır; 2. basamaktan sonra her dört günden biri lazer günüdür.
+  const made = tier === 1 ? sequence(next) : seed % 4 === 1 ? laserDay(next) : tier === 2 ? loops(next) : sensors(next, seed % 100000, { pirates: tier >= 4, energy: tier >= 5 });
   const id = `gun-${day}`;
   return {
     conds: [], events: [], functions: [], ...made,

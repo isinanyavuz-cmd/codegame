@@ -2,7 +2,7 @@
 // karede olur?" sorusunu cevaplar. Her sektörde üç soru vardır ve o sektörün kavramını
 // okutur. Programlar çıkışa varmaz: ya komutları biter ya enerjileri; gemi alanın içinde durur.
 // Saf veri ve mantık; DOM yok.
-import { F, L, R, rep, forever, ifelse, until, on, shield, setEnergy, addEnergy, define, call, CONTAINERS, uid } from '../engine/blocks.js';
+import { F, L, R, rep, forever, ifelse, until, on, shield, setEnergy, addEnergy, define, call, fire, beam, CONTAINERS, uid } from '../engine/blocks.js';
 import { parseField, simulate, hasMeteor } from '../engine/world.js';
 import { rng } from '../engine/rng.js';
 
@@ -58,9 +58,15 @@ export const ROUNDS = {
     round(grid(5, 7, 1, { M: [[1, 2], [2, 4], [4, 1]] }), () => [define('safe', ifelse('ahead', [R()], [F()])), rep(5, call('safe'))], [3, 5]),
     round(grid(5, 9, 3, { M: [[3, 2], [0, 5]], E: [[2, 4]] }), () => [setEnergy(5), on('energy', addEnergy(2)), forever(ifelse('ahead', [L()], [F()]))], [2, 7]),
   ],
+  // Lazer tahmini (2. sektörün yan görevi): küçük lazer şeritteki İLK kayayı, güçlü lazer hepsini kırar.
+  lazer: [
+    round(grid(5, 7, 2, { M: [[2, 2], [2, 4], [1, 3]] }), () => [fire(), rep(3, F())], [2, 3]),
+    round(grid(5, 8, 1, { M: [[1, 2], [1, 3], [2, 6]] }), () => [beam(), rep(4, F()), R()], [2, 5]),
+    round(grid(5, 8, 3, { M: [[3, 2], [3, 4], [2, 3]] }), () => [rep(2, fire(), F(), F()), L()], [2, 5]),
+  ],
 };
 
-const SWAP = { left: 'right', right: 'left' };
+const SWAP = { left: 'right', right: 'left', fire: 'beam', beam: 'fire' };
 /** Programın "yanlış okunmuş" halleri: bir kaçış ters çevrilmiş, bir sayı bir eksik/fazla, bir karar ters, bir komut atlanmış. */
 function misreadings(program) {
   const out = [], ids = [];
@@ -79,7 +85,7 @@ function misreadings(program) {
     if (b.type === 'repeat') for (const d of [-1, 1]) if (b.count + d >= 1) out.push(edit(program, id, (x) => [{ ...x, count: x.count + d }]));
     if (b.type === 'ifelse') out.push(edit(program, id, (x) => [{ ...x, then: x.else, else: x.then }]));
     if (typeof b.value === 'number') for (const d of [-1, 1]) if (b.value + d >= 0 && b.value + d <= 9) out.push(edit(program, id, (x) => [{ ...x, value: x.value + d }]));
-    if (['fwd', 'left', 'right'].includes(b.type)) out.push(edit(program, id, () => []));
+    if (['fwd', 'left', 'right', 'fire', 'beam'].includes(b.type)) out.push(edit(program, id, () => []));
     if (b.type === 'on') out.push(edit(program, id, () => []));
   }
   return out;
@@ -113,5 +119,39 @@ export function choicesFor(lines, program, seed = 0) {
 }
 
 export const LETTERS = ['A', 'B', 'C'];
+
+// ───────── Python bulmacası: bloklardan yazılı koda ilk adım ─────────
+// Program Python sekmesinde gösterilir; bir satırı boştur (____). Çocuk üç satırdan gemiyi çıkışa
+// götüreni seçer, sonra seçtiği satırla uçuş oynatılır. `hole` boş satırın yerindeki bloktur.
+const hole = () => ({ id: uid(), type: 'gizli' });
+/** @param options  ilk seçenek doğru olandır; seçenekler sırası karıştırılarak gösterilir */
+const puzzle = (lines, program, options) => ({ lines, program, options });
+export const PY_ROUNDS = [
+  puzzle(grid(5, 6, 2, { M: [[2, 2], [1, 3]] }), () => [F(), hole(), F(), F(), F(), F()], [R, F, L]),
+  puzzle(grid(5, 8, 0, { M: [[0, 1], [2, 2], [3, 4]] }), () => [rep(4, hole(), F())], [R, F, L]),
+  puzzle(grid(3, 6, 1, { M: [[0, 2], [1, 2], [2, 2], [0, 4], [1, 4], [2, 4]] }), () => [forever(ifelse('ahead', [hole()], [F()]))], [fire, R, L]),
+];
+
+/** Boş satırı verilen blokla doldurur (programın bir kopyası). */
+export function fillHole(program, block) {
+  return program.map((b) => {
+    if (b.type === 'gizli') return { ...block, id: b.id };
+    const c = { ...b };
+    for (const k of CONTAINERS[b.type] || []) c[k] = fillHole(b[k], block);
+    return c;
+  });
+}
+
+/** Bulmaca sorusunun seçenekleri: [{ block, text }] karışık sırada ve doğru olanın sırası. */
+export function pythonChoices(round, seed = 0) {
+  const made = round.options.map((make) => make());
+  let hash = seed + 7;
+  for (const ch of round.lines.join('|')) hash = (Math.imul(hash, 31) + ch.charCodeAt(0)) | 0;
+  const order = [0, 1, 2], next = rng(hash);
+  for (let i = 2; i > 0; i--) { const j = Math.floor(next() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  const choices = order.map((i) => ({ block: made[i], text: pyText(made[i]) }));
+  return { choices, answer: order.indexOf(0) };
+}
+const pyText = (block) => ({ fwd: 'duz_uc()', left: 'sola_kac()', right: 'saga_kac()', fire: 'ates_et()', beam: 'guclu_lazer()' }[block.type]);
 /** Programa yeni kimlikler verilmiş bir kopya (aynı soru yeniden açılınca). */
 export const fresh = (program) => program.map((b) => { const c = { ...b, id: uid() }; for (const k of CONTAINERS[b.type] || []) c[k] = fresh(b[k]); return c; });

@@ -35,7 +35,7 @@ export const botOf = (sector) => BOTS.find((b) => b.sector === sector);
 export const STORY = {
   1: {
     open: `Pilot, ben Bip! ${SHIP}'tan kopan kapsüllerin sinyalini alıyorum; ilki çok yakında. Önce kalkmayı öğrenelim.`,
-    close: 'Teşekkürler pilot! Ama dikkat: ileride asteroit kuşağı var. Orada komutları tek tek dizmeye bloğun yetmeyecek…',
+    close: 'Teşekkürler pilot! Kanatlarına bir lazer taktım: rotada silah görevleri açıldı. Ama dikkat: ileride asteroit kuşağı var. Orada komutları tek tek dizmeye bloğun yetmeyecek…',
   },
   2: {
     open: 'Asteroit kuşağına girdik. Yol uzun, blok hakkımız az. Tekrar eden işi döngüye bırakalım.',
@@ -56,7 +56,7 @@ export const STORY = {
   },
   6: {
     open: 'Enerjimiz azalıyor. Artık her adımı saymalıyız: enerji bir sayı ve o sayı durmadan değişiyor.',
-    close: `Depo tamam! ${SHIP}'a yaklaşıyoruz ama enkazın arasından ancak usta işi manevralarla geçilir…`,
+    close: `Depo tamam! Artan enerjiyle sana bir güçlü lazer yaptım. ${SHIP}'a yaklaşıyoruz ama enkazın arasından ancak usta işi manevralarla geçilir…`,
   },
   7: {
     open: 'Manevra Okulu’nun eski parkuru. İyi manevralara ad verip onları tekrar tekrar çağıracağız.',
