@@ -264,7 +264,32 @@ export class MapScreen {
     const target = cur ? lenOf.get(cur.id) - (narrow ? 30 : 38) : playable.length ? lenOf.get(playable[playable.length - 1].id) : 0;
     const from = travel && this.shipLen !== null && Math.abs(this.shipLen - target) > 4 ? this.shipLen : null;
     cancelAnimationFrame(this.raf);
-    if (from === null) { this.placeShip(target); this.scrollTo(target, false); } else this.fly(from, target);
+    if (from === null) { this.placeShip(target); this.scrollTo(target, false); this.placeLabel(); } else this.fly(from, target);
+  }
+
+  /**
+   * "Sıradaki" etiketini geminin çevresinde görev düğmelerine, gezegenlere ve yazılara
+   * değmeyen ilk yere koyar (önce üst, sonra yanlar, alt ve çaprazlar). Hiçbiri boş
+   * değilse en az çakışan yer seçilir.
+   */
+  placeLabel() {
+    const mark = $('shipmark'), label = mark?.querySelector('span');
+    if (!label) return;
+    label.style.cssText = '';                         // ölçülemezse CSS'teki varsayılan yer (geminin üstü) kalır
+    const w = label.offsetWidth, h = label.offsetHeight;
+    if (!w) return;                                   // harita kapalı ya da dar ekranda etiket gizli
+    const o = mark.getBoundingClientRect(), route = $('route').getBoundingClientRect(), r = 30, d = 22;
+    const blocks = [...$('route').querySelectorAll('.mn .node, .mn .mstars, .mn small, .planet i, .slabel, .nova, .mapfoot')]
+      .map((e) => e.getBoundingClientRect()).filter((b) => b.width && b.height);
+    const spots = [[-w / 2, -r - h], [r, -h / 2], [-r - w, -h / 2], [-w / 2, r], [d, -d - h], [-d - w, -d - h], [d, d], [-d - w, d]];
+    const cost = ([x, y]) => {
+      const L = o.left + x - 4, T = o.top + y - 4, R = L + w + 8, B = T + h + 8;
+      if (L < route.left || R > route.right) return Infinity;
+      return blocks.reduce((a, b) => a + Math.max(0, Math.min(R, b.right) - Math.max(L, b.left)) * Math.max(0, Math.min(B, b.bottom) - Math.max(T, b.top)), 0);
+    };
+    let best = spots[0], bestCost = Infinity;
+    for (const spot of spots) { const c = cost(spot); if (c < bestCost) { best = spot; bestCost = c; } if (!c) break; }
+    label.style.cssText = `left:${best[0]}px;top:${best[1]}px;bottom:auto;transform:none`;
   }
 
   /** Yolun başından `len` uzaklıktaki nokta. */
@@ -303,7 +328,7 @@ export class MapScreen {
     const step = (now) => {
       const k = Math.min(1, (now - t0) / dur), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
       this.placeShip(from + (to - from) * e);
-      if (k < 1) this.raf = requestAnimationFrame(step); else el.classList.remove('flying');
+      if (k < 1) this.raf = requestAnimationFrame(step); else { el.classList.remove('flying'); this.placeLabel(); }
     };
     this.raf = requestAnimationFrame(step);
   }
