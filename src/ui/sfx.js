@@ -63,13 +63,7 @@ export const sfx = {
     tone(1500, 0.16, { type: 'sawtooth', vol: 0.045, slide: 300 }); tone(1180, 0.16, { type: 'square', vol: 0.03, slide: 240, delay: 0.03 });
     if (hit) { noise(0.42, 0.13, { from: 1600, to: 160, type: 'lowpass', q: 0.8, delay: 0.2 }); tone(90, 0.35, { type: 'triangle', vol: 0.08, slide: 40, delay: 0.2 }); }
   },
-  /** Şarjlı lazer dolarken: süre boyunca yükselen uğultu ve sıklaşan tıkırtılar. */
-  charge: (dur = 1.2) => {
-    tone(160, dur, { type: 'sawtooth', vol: 0.035, slide: 900 });
-    tone(320, dur, { type: 'triangle', vol: 0.03, slide: 1800 });
-    noise(dur, 0.05, { from: 300, to: 3200, type: 'bandpass', q: 2, swell: true });
-  },
-  /** Şarjlı lazerin ateşi: kalın, uzun bir ışın sesi; kaya vurulduysa gürleyen patlamalar. */
+  /** Güçlü lazerin ateşi: kalın, uzun bir ışın sesi; kaya vurulduysa gürleyen patlamalar. */
   beam: (hit) => {
     tone(880, 0.55, { type: 'sawtooth', vol: 0.05, slide: 420 }); tone(440, 0.6, { type: 'square', vol: 0.035, slide: 220 });
     noise(0.5, 0.08, { from: 4000, to: 900, type: 'bandpass', q: 0.9 });

@@ -50,7 +50,7 @@ export function pilli(lines, battery) {
   return copy;
 }
 
-/** Lazer pilinden harcanan hücre: küçük lazer 1, şarjlı lazer 3. */
+/** Lazer pilinden harcanan hücre: küçük lazer 1, güçlü lazer 3. */
 export const LASER_COST = { fire: 1, beam: 3 };
 /** Pil göstergesinin en çok hücresi. */
 export const BATTERY_MAX = 9;
@@ -216,7 +216,7 @@ export function simulate(field, program, { maxTicks = 200, maxIdle = 2000, maxOp
         return;
       }
       case 'beam': {
-        // Şarjlı lazer: şarj olur, sonra kesintisiz bir ışınla şeritteki bütün kayaları parçalar.
+        // Güçlü lazer: kesintisiz bir ışınla şeritteki bütün kayaları birden parçalar.
         // Demir asteroide kadar: demir ışını durdurur, arkasındaki kayalar yerinde kalır.
         spin(b); pay(b);
         const hits = [];
@@ -310,7 +310,7 @@ export function stars(results, blockCount, par) {
 export const FAIL_TEXT = {
   meteor: 'Meteora çarptın!',
   iron: 'Demir asteroide çarptın! Lazer demiri kıramaz; onun yanından kaç.',
-  battery: 'Lazer pili bitti! Küçük lazer 1, şarjlı lazer 3 hücre harcar. Yalnızca gerektiğinde ateş et.',
+  battery: 'Lazer pili bitti! Küçük lazer 1, güçlü lazer 3 hücre harcar. Yalnızca gerektiğinde ateş et.',
   wall: 'Şeridin dışına çıktın!',
   ended: 'Program bitti ama çıkışa varamadın.',
   empty: 'Program boş. Önce blok ekle.',

@@ -56,7 +56,7 @@ export const STORY = {
   },
   6: {
     open: 'Enerjimiz azalıyor. Artık her adımı saymalıyız: enerji bir sayı ve o sayı durmadan değişiyor.',
-    close: `Depo tamam! Artan enerjiyle sana bir şarjlı lazer yaptım. ${SHIP}'a yaklaşıyoruz ama enkazın arasından ancak usta işi manevralarla geçilir…`,
+    close: `Depo tamam! Artan enerjiyle sana bir güçlü lazer yaptım. ${SHIP}'a yaklaşıyoruz ama enkazın arasından ancak usta işi manevralarla geçilir…`,
   },
   7: {
     open: 'Manevra Okulu’nun eski parkuru. İyi manevralara ad verip onları tekrar tekrar çağıracağız.',

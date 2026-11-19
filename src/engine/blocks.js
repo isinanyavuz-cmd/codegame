@@ -8,8 +8,8 @@ export const ACTIONS = {
   shield: { label: 'kalkan aç', py: 'kalkan_ac()' },
   // Kanatlardan ışın: gemiyi ilerletmez, kendi şeridinde önündeki ilk kayayı parçalar.
   fire: { label: 'ateş et', py: 'ates_et()' },
-  // Şarjlı lazer: daha güçlü; şarj olduktan sonra şeritteki bütün kayaları tek ışınla parçalar.
-  beam: { label: 'şarjlı lazer', py: 'sarjli_lazer()' },
+  // Güçlü lazer: beklemeden ateş eder, şeritteki bütün kayaları tek ışınla parçalar.
+  beam: { label: 'güçlü lazer', py: 'guclu_lazer()' },
   setEnergy: { label: 'enerjiyi ayarla', py: 'enerji' },
   addEnergy: { label: 'enerjiyi artır', py: 'enerji' },
   // Sayaç: çocuğun kendi değişkeni. Önce ayarlanır, sonra artırılır; koşullar ona bakabilir.

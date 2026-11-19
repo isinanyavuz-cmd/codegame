@@ -96,7 +96,7 @@ test('6-5-b: her istasyonda şarj eden taşar, enerjiye bakan geçer', () => {
   assert.equal(starsOf(level, level.solution()), 3);
 });
 
-test('silah görevleri: kanat lazeri Defne\'yle (1-8), şarjlı lazer Nil\'le (6-8) açılır; yıldız alınmışsa açık kalır', async () => {
+test('silah görevleri: kanat lazeri Defne\'yle (1-8), güçlü lazer Nil\'le (6-8) açılır; yıldız alınmışsa açık kalır', async () => {
   const store = await freshStore();
   const wing = findLevel('1-s'), charged = findLevel('1-s2');
   for (const id of ['1-1', '1-2']) store.setStars(id, 1);
@@ -142,7 +142,7 @@ test('1-s kaya duvarı: ateş etmeden kaya duvarı geçilemez', async () => {
   assert.equal(starsOf(level, level.solution()), 3);
 });
 
-test('1-s2 kaya sütunu: şarjlı lazerle tam yıldız, küçük lazere ne blok ne pil yeter', async () => {
+test('1-s2 kaya sütunu: güçlü lazerle tam yıldız, küçük lazere ne blok ne pil yeter', async () => {
   const { fire } = await import('../src/engine/blocks.js');
   const level = findLevel('1-s2');
   assert.equal(starsOf(level, level.solution()), 3);

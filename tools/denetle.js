@@ -229,7 +229,7 @@ export function audit(level) {
     const g = grade(level, inline(sol));
     if (g.fits && g.wins) add(g.stars === 3 ? 'UYARI' : 'BİLGİ', 'fonksiyonsuz', `fonksiyonsuz yazım sığıyor (${short(g)})`);
   }
-  // Lazer bir kestirme olmamalı: ateş edip düz uçmak (ya da şarjlı lazerden sonra hep düz uçmak) tam yıldız almamalı.
+  // Lazer bir kestirme olmamalı: ateş edip düz uçmak (ya da güçlü lazerden sonra hep düz uçmak) tam yıldız almamalı.
   if (level.tools.includes('fire') || level.tools.includes('beam')) {
     let best = null;
     for (const p of laserShortcuts(level)) {

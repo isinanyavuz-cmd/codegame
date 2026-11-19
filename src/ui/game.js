@@ -396,7 +396,7 @@ export class Game {
     el.hidden = !(hasEnergy || hasShield || hasCounter || hasBattery || f.beacons.size || f.energyCells.size || f.geodes.size || f.iron.size);
     const gauges = [], key = [];
     if (hasBattery) {
-      // Lazer pili: küçük lazer 1, şarjlı lazer 3 hücre harcar.
+      // Lazer pili: küçük lazer 1, güçlü lazer 3 hücre harcar.
       const cells = Array.from({ length: f.battery }, (_, i) => `<i class="${i < state.battery ? 'on' : ''}"></i>`).join('');
       gauges.push(`<div class="gauge battery ${state.battery < 1 ? 'low' : ''}">${svg('i-laser')}<div class="cells">${cells}</div><b>${state.battery}</b></div>`);
     }
@@ -474,9 +474,6 @@ export class Game {
       return false;
     }
     if (ev.t === 'beam') {
-      this.flight.message = 'Lazer şarj oluyor…';
-      this.renderTelemetry();
-      sfx.charge(view.chargeMs() / 1000);
       await view.beam(ev, { onFire: () => {
         sfx.beam(ev.hits.length > 0);
         for (const h of ev.hits) this.flight.broken.add(`${h.lane},${h.y}`);

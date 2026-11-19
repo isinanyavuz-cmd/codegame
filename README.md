@@ -42,7 +42,7 @@ ana yolu kilitlemezler.
 | **Tahmin turu** (göz) | sektörün 3. görevinden sonra | Program hazırdır, yazılmaz: çocuk okur ve geminin hangi karede duracağını tahmin eder. Üç soru, doğru sayısı kadar yıldız |
 | **Öteki yol** (çatal) | ana görevle birlikte | Aynı kavramın başka bir görevi. İkisinden hangisi geçilirse sıradaki açılır (1-5, 2-6, 3-5, 4-5, 6-5) |
 | **Acil durum** (!) | bir görev bitince bir kez haber verilir | Araya giren hikâyeli görev (2-5, 5-4 ve 6-6'dan sonra) |
-| **Silah görevi** (ışın) | kanat lazeri 1. sektör finalinde (mühendis Defne takar), şarjlı lazer 6. sektör finalinde (teknisyen Nil yapar) gelir; görev, yanındaki ana görev geçilince açılır. Önceden yıldız alınmış silah görevi açık kalır | Her sektörde lazer o sektörün kavramını ister (aşağıdaki tablo) |
+| **Silah görevi** (ışın) | kanat lazeri 1. sektör finalinde (mühendis Defne takar), güçlü lazer 6. sektör finalinde (teknisyen Nil yapar) gelir; görev, yanındaki ana görev geçilince açılır. Önceden yıldız alınmış silah görevi açık kalır | Her sektörde lazer o sektörün kavramını ister (aşağıdaki tablo) |
 | **Python bulmacası** (Py) | 3. sektörün 7. görevinden sonra | Program Python dilindedir, bir satırı boştur (`____`). Üç satırdan gemiyi çıkışa götüreni seçer; seçtiği satırla uçuş oynatılır |
 | **Gizli görev** (?) | sektörde 24 yıldızın 20'si toplanınca | Daha zor bir görev; ödülü Bip'in bir arkadaşıdır. 2, 4, 6 ve 7. sektörlerinki yeni bir fikir tanıtır: iç içe döngü, döngü içinde "olana kadar", **sayaç değişkeni**, **sayı alan manevra** |
 
@@ -50,7 +50,7 @@ Silah görevleri:
 
 | Görev | Kavram | Ne ister |
 |---|---|---|
-| `1-s` Kaya Duvarı, `1-s2` Kaya Sütunu | sıralama | ateş et; kaya sütununda şarjlı lazer |
+| `1-s` Kaya Duvarı, `1-s2` Kaya Sütunu | sıralama | ateş et; kaya sütununda güçlü lazer |
 | `1-s3` Kristal Madeni | sıralama | kristalli kayayı vur, düz kayadan kaç (pil 2) |
 | `1-s4` Ters Atış | hata avı | ateş, duvara varmadan önce gelmeli |
 | `2-s` Duvar Kuşağı | döngü | `tekrarla: ateş et, 3 düz uç` |
@@ -129,10 +129,9 @@ Sonra tarayıcıda `http://localhost:8080` adresini aç. Fare ve dokunmatik ekra
 - **Ateş et** (kırmızı blok): gemi yerinde kalır, iki kanadındaki ışın silahı ateş eder ve
   kendi şeridinde önündeki ilk kayayı parçalar. Kırılan kaya o uçuş boyunca yoktur (sensörler
   de görmez); önde kaya yoksa ışın boşa gider. Yalnızca paletinde bu blok olan görevlerde kullanılır.
-- **Şarjlı lazer** (mor blok): daha güçlüdür. Gemi yerinde kalır, burnunda enerji topu dolar
-  (1× hızda 1 saniye; `src/render/view.js` içindeki `CHARGE_MS`), sonra kesintisiz uzun bir ışın
-  şeritteki **bütün** kayaları birden parçalar.
-- **Lazer pili**: lazerli görevlerde sol alttaki pil göstergesi. Küçük lazer 1, şarjlı lazer 3 hücre
+- **Güçlü lazer** (mor blok): gemi yerinde kalır ve beklemeden ateş eder; burnundan çıkan
+  kesintisiz uzun bir ışın şeritteki **bütün** kayaları birden parçalar.
+- **Lazer pili**: lazerli görevlerde sol alttaki pil göstergesi. Küçük lazer 1, güçlü lazer 3 hücre
   harcar; boşa giden atış da harcar. Pil yetmezse uçuş "Lazer pili bitti!" diye durur. Böylece
   "durmadan ateş et" bir kestirme olmaz; ateş etmek bir karardır.
 - **Kristalli kaya** (camgöbeği uçlu): kırılınca yerinde kristal kalır; kristal yıldızı onu da sayar.

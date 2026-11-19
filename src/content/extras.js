@@ -25,12 +25,12 @@ const OPEN = {
   acil: (l) => (store) => store.passed(levelById(l.after)),
   catal: (l) => (store, levels) => store.isUnlocked(levelById(l.after), levels),
   tahmin: (l) => (store) => store.passed(levelById(l.after)),
-  // Kanat lazerini 1. sektörde kurtarılan mühendis Defne takar, şarjlı lazeri 6. sektördeki enerji
+  // Kanat lazerini 1. sektörde kurtarılan mühendis Defne takar, güçlü lazeri 6. sektördeki enerji
   // teknisyeni Nil yapar: silah görevleri o kurtarmalardan sonra, yanındaki ana görev geçilince açılır.
   // Önceden yıldız alınmış silah görevi açık kalır.
   silah: (l) => (store) => store.stars(l.id) > 0 || (store.passed(levelById(LASER_FROM.fire)) && (!l.tools.includes('beam') || store.passed(levelById(LASER_FROM.beam))) && store.passed(levelById(l.after))),
 };
-/** Lazerlerin açıldığı sektör finalleri: kanat lazeri (Defne) ve şarjlı lazer (Nil). */
+/** Lazerlerin açıldığı sektör finalleri: kanat lazeri (Defne) ve güçlü lazer (Nil). */
 export const LASER_FROM = { fire: '1-8', beam: '6-8' };
 
 /** @param after  haritada yanında duracağı ana görevin sırası (1–8) */
@@ -196,12 +196,12 @@ export const EXTRAS = [
 
   extra('silah', 1, 2, {
     id: '1-s2', title: 'Kaya Sütunu',
-    brief: 'Enerji teknisyeni Nil yeni bir silah yaptı: **şarjlı lazer**! Önce şarj olur, sonra kesintisiz bir ışınla şeridindeki **bütün kayaları** birden parçalar ama pilden 3 hücre harcar. Küçük lazer her atışta tek kaya kırar; burada ne blok ne pil yeter.',
-    // Her şerit kaya sütunu: küçük lazerle 6 atış gerekir, şarjlı lazerle tek atış.
+    brief: 'Enerji teknisyeni Nil yeni bir silah yaptı: **güçlü lazer**! Kesintisiz uzun bir ışınla şeridindeki **bütün kayaları** birden parçalar ama pilden 3 hücre harcar. Küçük lazer her atışta tek kaya kırar; burada ne blok ne pil yeter.',
+    // Her şerit kaya sütunu: küçük lazerle 6 atış gerekir, güçlü lazerle tek atış.
     waves: [pilli(['.....', 'MMMMM', 'MMKMM', 'MMMMM', 'MMMMM', 'MMKMM', 'MMMMM', 'MMMMM', 'MMMMM', '..S..'], 4)],
     tools: [...MOVES, 'fire', 'beam'], maxBlocks: 13, par: 11,
     solution: () => [beam(), F(), F(), F(), F(), F(), F(), F(), F(), F(), F()],
-    hint: 'Önce şarjlı lazeri ateşle: bütün sütun temizlenir. Sonra düz uçarak iki kristali topla.',
+    hint: 'Önce güçlü lazeri ateşle: bütün sütun temizlenir. Sonra düz uçarak iki kristali topla.',
   }),
 
   extra('silah', 1, 4, {
@@ -279,14 +279,14 @@ export const EXTRAS = [
 
   extra('silah', 6, 4, mission({
     title: 'Pil Hesabı', tools: [...MOVES, 'forever', 'ifelse', 'fire', 'beam'], conds: ['rocks3', 'ahead'],
-    brief: 'Küçük lazer 1, şarjlı lazer 3 hücre harcar. Şeridinde **3 ya da daha çok kaya** varsa şarjlı lazer ucuz; azsa küçük lazer. Pil ancak doğru seçime yetiyor!',
-    // Bir dalgada 4 kaya ve 3 hücre (yalnızca şarjlı lazer yeter), ötekinde 2 kaya ve 2 hücre (yalnızca küçük lazer).
+    brief: 'Küçük lazer 1, güçlü lazer 3 hücre harcar. Şeridinde **3 ya da daha çok kaya** varsa güçlü lazer ucuz; azsa küçük lazer. Pil ancak doğru seçime yetiyor!',
+    // Bir dalgada 4 kaya ve 3 hücre (yalnızca güçlü lazer yeter), ötekinde 2 kaya ve 2 hücre (yalnızca küçük lazer).
     waves: [
       pilli(['MMKMM', 'MMMMM', 'MM.MM', 'MMMMM', 'MMKMM', 'MMMMM', 'MM.MM', 'MMMMM', 'MMSMM'], 3),
       pilli(['MMKMM', 'MM.MM', 'MM.MM', 'MMMMM', 'MMKMM', 'MM.MM', 'MMMMM', 'MM.MM', 'MMSMM'], 2),
     ],
     solution: () => [forever(ifelse('rocks3', [beam()], [ifelse('ahead', [fire()], [F()])]))],
-    hint: 'Önce sor: şeridimde 3+ kaya var mı? Evetse şarjlı lazer. Değilse: önümde kaya varsa küçük lazer, yoksa düz uç.',
+    hint: 'Önce sor: şeridimde 3+ kaya var mı? Evetse güçlü lazer. Değilse: önümde kaya varsa küçük lazer, yoksa düz uç.',
   })),
 
   extra('silah', 7, 5, mission({
@@ -314,10 +314,10 @@ export const EXTRAS = [
     rounds: PY_ROUNDS, waves: PY_ROUNDS.map((r) => r.lines), tools: [], maxBlocks: 0, par: 0,
   }),
 
-  // Lazer tahmini: küçük lazer şeritteki ilk kayayı, şarjlı lazer hepsini kırar.
+  // Lazer tahmini: küçük lazer şeritteki ilk kayayı, güçlü lazer hepsini kırar.
   extra('tahmin', 2, 4, {
     id: '2-t2', tahmin: true, title: 'Tahmin Turu: Lazer',
-    brief: 'Program hazır: **oku ve tahmin et**. Küçük lazer şeritteki **ilk** kayayı, şarjlı lazer **hepsini** kırar. Program bitince gemi hangi karede olur?',
+    brief: 'Program hazır: **oku ve tahmin et**. Küçük lazer şeritteki **ilk** kayayı, güçlü lazer **hepsini** kırar. Program bitince gemi hangi karede olur?',
     hint: 'Her ateş et bloğunda hangi kayanın kırıldığını parmağınla göster, sonra hareketleri izle.',
     rounds: ROUNDS.lazer, waves: ROUNDS.lazer.map((r) => r.lines), tools: [], maxBlocks: 0, par: 0,
   }),

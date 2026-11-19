@@ -36,7 +36,7 @@ export const PARTS = {
       { id: 'pembe', name: 'Pembe', color: '#ff6ad5', need: 60 },
     ],
   },
-  // bolt: küçük lazerin mermisi, beam: şarjlı lazerin ışını (3B sahnedeki renkler)
+  // bolt: küçük lazerin mermisi, beam: güçlü lazerin ışını (3B sahnedeki renkler)
   laser: {
     label: 'Lazer',
     options: [

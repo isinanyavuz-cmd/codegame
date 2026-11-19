@@ -58,7 +58,7 @@ export const ROUNDS = {
     round(grid(5, 7, 1, { M: [[1, 2], [2, 4], [4, 1]] }), () => [define('safe', ifelse('ahead', [R()], [F()])), rep(5, call('safe'))], [3, 5]),
     round(grid(5, 9, 3, { M: [[3, 2], [0, 5]], E: [[2, 4]] }), () => [setEnergy(5), on('energy', addEnergy(2)), forever(ifelse('ahead', [L()], [F()]))], [2, 7]),
   ],
-  // Lazer tahmini (2. sektörün yan görevi): küçük lazer şeritteki İLK kayayı, şarjlı lazer hepsini kırar.
+  // Lazer tahmini (2. sektörün yan görevi): küçük lazer şeritteki İLK kayayı, güçlü lazer hepsini kırar.
   lazer: [
     round(grid(5, 7, 2, { M: [[2, 2], [2, 4], [1, 3]] }), () => [fire(), rep(3, F())], [2, 3]),
     round(grid(5, 8, 1, { M: [[1, 2], [1, 3], [2, 6]] }), () => [beam(), rep(4, F()), R()], [2, 5]),
@@ -152,6 +152,6 @@ export function pythonChoices(round, seed = 0) {
   const choices = order.map((i) => ({ block: made[i], text: pyText(made[i]) }));
   return { choices, answer: order.indexOf(0) };
 }
-const pyText = (block) => ({ fwd: 'duz_uc()', left: 'sola_kac()', right: 'saga_kac()', fire: 'ates_et()', beam: 'sarjli_lazer()' }[block.type]);
+const pyText = (block) => ({ fwd: 'duz_uc()', left: 'sola_kac()', right: 'saga_kac()', fire: 'ates_et()', beam: 'guclu_lazer()' }[block.type]);
 /** Programa yeni kimlikler verilmiş bir kopya (aynı soru yeniden açılınca). */
 export const fresh = (program) => program.map((b) => { const c = { ...b, id: uid() }; for (const k of CONTAINERS[b.type] || []) c[k] = fresh(b[k]); return c; });
