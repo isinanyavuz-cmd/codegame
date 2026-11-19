@@ -697,12 +697,10 @@ export class View {
       if (gen !== this.gen) return;
       // Kalkanlı gemi korsana yaklaşınca korsan ateş eder ve savrulur.
       if (ev.blocked && !repelled && k > 0.3) { repelled = true; this.repel(ev.to); }
-      // 2× hızda yana kayış da sabit hızlıdır: kareler arasında yavaşlayıp durmaz, gemi doğrudan akar.
-      const fast = this.speed >= 2, kx = fast ? k : ease(k);
-      this.ship.position.set(a.x + (b.x - a.x) * kx, SHIP_Y, a.z + (b.z - a.z) * k);
+      this.ship.position.set(a.x + (b.x - a.x) * ease(k), SHIP_Y, a.z + (b.z - a.z) * k);
       const s = Math.sin(Math.PI * k);
       // Meteordan kaçış tam tur dönüşle (ev.roll), öteki yana kayışlar hafif yatışla yapılır.
-      this.ship.rotation.z = ev.roll ? -dl * Math.PI * 2 * ease(k) : -dl * (fast ? 0.3 : 0.55) * s; this.ship.rotation.y = -dl * 0.18 * s;
+      this.ship.rotation.z = ev.roll ? -dl * Math.PI * 2 * ease(k) : -dl * 0.55 * s; this.ship.rotation.y = -dl * 0.18 * s;
       this.thrust = 1.25 + s * 0.3;
     });
     if (gen !== this.gen) return;
