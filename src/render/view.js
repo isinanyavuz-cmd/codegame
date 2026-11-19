@@ -98,7 +98,7 @@ export class View {
     this.pirates = new Map(); this.landmarks = new Map(); this.gate = null; this.progress = 0;
     // Kamera: 'ust' bütün alanı gösterir, 'pilot' geminin arkasından bakar ve onu izler.
     this.camMode = 'ust'; this.camPos = null; this.camLook = new THREE.Vector3();
-    this.ambient = null; this.buildAmbient(); this.comet = null; this.cometAt = 6;
+    this.ambient = null; this.buildAmbient();
     this.speed = 1; this.time = 0; this.last = performance.now(); this.shake = 0; this.thrust = 1;
     this.field = null; this.rect = null; this.offset = { x: 0, y: 0 };
     // Kalite: 2 = keskin + parlama, 1 = parlama, 0 = sade. Adrese ?kalite=yuksek|orta|dusuk
@@ -565,21 +565,6 @@ export class View {
     if (kind === 'twinkle') obj.material.opacity = 0.4 + 0.32 * Math.sin(t * 1.3);
   }
 
-  /** Ara sıra uzaktan geçen kuyruklu yıldız. */
-  driftComet(dt) {
-    this.cometAt -= dt;
-    if (!this.comet && this.cometAt <= 0) {
-      const mat = glow(bright(0xcfeaff, 1.8), 0.9), dir = Math.random() < 0.5 ? 1 : -1;
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.06), mat);
-      m.rotation.x = -Math.PI / 2; m.rotation.z = dir * 0.45; m.position.set(-dir * (16 + Math.random() * 6), -5 - Math.random() * 3, -24 + Math.random() * 20);
-      this.scene.add(m); this.comet = { m, mat, dir, age: 0 };
-    }
-    if (!this.comet) return;
-    const c = this.comet; c.age += dt;
-    c.m.position.x += c.dir * 19 * dt; c.m.position.z += 8.5 * dt; c.mat.opacity = 0.9 * Math.sin(Math.PI * Math.min(1, c.age / 1.5));
-    if (c.age >= 1.5) { this.scene.remove(c.m); c.m.geometry.dispose(); c.mat.dispose(); this.comet = null; this.cometAt = 7 + Math.random() * 9; }
-  }
-
   frame() {
     const now = performance.now(), raw = now - this.last, dt = Math.min(0.1, raw / 1000);
     this.last = now; this.time += dt;
@@ -621,7 +606,7 @@ export class View {
       p.needsUpdate = true;
       this.dust.material.opacity = 0.45 + this.flow * 0.4;
     }
-    this.driftAmbient(dt); this.driftComet(dt);
+    this.driftAmbient(dt);
     if (this.camMode === 'pilot' && this.field) this.chase();
     for (let i = this.bursts.length - 1; i >= 0; i--) {
       const b = this.bursts[i]; b.age += dt;
