@@ -33,6 +33,7 @@ export class Game {
       notify: (kind) => this.notify(kind),
     });
     $('runBtn').addEventListener('click', () => this.onRun());
+    $('nextBtn').addEventListener('click', () => { const n = this.pendingNext; if (!n) return; sfx.click(); this.showNext(null); this.advance(n.level, n.next); });
     $('stepBtn').addEventListener('click', () => this.onStep());
     $('resetBtn').addEventListener('click', () => { sfx.click(); this.stop(); });
     $('gameSoundBtn').addEventListener('click', () => this.toggleSound());
@@ -62,7 +63,7 @@ export class Game {
 
   // ---------- sahne açma ----------
   open(level, { navigate = true } = {}) {
-    this.onEnter(); this.hideOverlay(); this.voice.stop();
+    this.onEnter(); this.hideOverlay(); this.voice.stop(); this.showNext(null);
     this.loopId++; this.level = level;
     const sector = SECTORS.find((s) => s.id === level.sector);
     this.sector = sector;
@@ -298,8 +299,17 @@ export class Game {
   }
 
   // ---------- çalıştırma ----------
+  /** Sonuç kartı "Tamam" ile kapatılınca panelde beliren "Sonraki görev" düğmesi; null gizler. */
+  showNext(n) {
+    this.pendingNext = n || null;
+    const btn = $('nextBtn');
+    btn.hidden = !n;
+    if (n) btn.innerHTML = `${n.label}${svg('i-play')}`;
+  }
+
   setStatus(s) {
     this.status = s;
+    if (s !== 'won') this.showNext(null);
     if (s !== 'failed') { this.reel = null; $('scrub').hidden = true; }
     const btn = $('runBtn');
     const label = { idle: ['i-play', 'Uçur'], running: ['i-pause', 'Duraklat'], paused: ['i-play', 'Devam'], failed: ['i-restart', 'Tekrar dene'], won: ['i-play', 'Uçur'] }[s];
@@ -814,6 +824,7 @@ export class Game {
     const total = this.results.reduce((a, r) => a + r.total, 0), collected = this.results.reduce((a, r) => a + r.collected, 0);
     const next = this.nextOf(level);
     const lastOfSector = !level.extra && level.n === 8;
+    const nextLabel = lastOfSector ? 'Sonraki sektör' : 'Sonraki görev';
     const checks = [
       ['Çıkışa ulaştın', true],
       total ? [`Kristaller: ${collected} / ${total}`, collected === total] : null,
@@ -838,14 +849,19 @@ export class Game {
       <ul class="checks">${checks.map(([t, ok]) => `<li class="${ok ? '' : 'no'}">${svg(ok ? 'i-check' : 'i-cross')}${t}</li>`).join('')}</ul>
       ${lastOfSector && !next ? `<p>Ana gemiye döndün! ${SECTORS.length} sektör ve ${LEVELS.length} görev tamamlandı. Kendi otopilotunu yazdın; şimdi eksik yıldızları tamamlayabilirsin.</p>` : ''}
       ${hooks.length ? `<div class="hooks">${hooks.map((h) => `<p>${rich(h)}</p>`).join('')}</div>` : ''}
-      <div class="btns">
+      <div class="btns even small">
         <button class="btn" data-act="again">${svg('i-restart')}Tekrar</button>
         <button class="btn" data-act="watch">${svg('i-cam')}İzle</button>
         <button class="btn" data-act="map">Rota</button>
-        ${next ? `<button class="btn primary" data-act="next">${lastOfSector ? 'Sonraki sektör' : 'Sonraki görev'}${svg('i-play')}</button>` : ''}
+      </div>
+      <div class="btns even">
+        <button class="btn" data-act="ok">Tamam</button>
+        ${next ? `<button class="btn primary" data-act="next">${nextLabel}${svg('i-play')}</button>` : ''}
       </div>`, (act) => {
       this.sfx.click(); this.hideOverlay();
-      if (act === 'watch') this.replay(card);
+      // Tamam: kart kapanır, görev ekranında kalınır; sıradaki göreve panelin düğmesiyle geçilir.
+      if (act === 'ok') { this.voice.stop(); this.showNext(next && { level, next, label: nextLabel }); }
+      else if (act === 'watch') this.replay(card);
       else if (act === 'again') this.showWave(0);
       else if (act === 'map') this.close();
       else this.advance(level, next);
