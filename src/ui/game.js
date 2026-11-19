@@ -12,7 +12,8 @@ import { choicesFor, pythonChoices, fillHole, LETTERS } from '../content/predict
 import { unlockedBetween } from '../content/hangar.js';
 import { Editor, renderBlock, hatBlock } from './editor.js';
 import { robot, face, miniBot, COPILOT } from './copilot.js';
-import { showCard, hideCard, makeCard, confetti } from './overlay.js';
+import { showCard, hideCard, makeCard } from './overlay.js';
+import { warp } from './warp.js';
 
 const $ = (id) => document.getElementById(id);
 const svg = (id, cls = '') => `<svg viewBox="0 0 32 32" class="${cls}"><use href="#${id}"/></svg>`;
@@ -690,7 +691,6 @@ export class Game {
     const reveal = () => {
       this.showOverlay(card);
       for (let i = 0; i < got; i++) setTimeout(() => this.sfx.star(i), 250 + i * 180);
-      if (got === this.fields.length) confetti();
     };
     if (!this.promoted(totalBefore, reveal)) reveal();
   }
@@ -797,7 +797,6 @@ export class Game {
     });
     this.showOverlay(card);
     for (let i = 0; i < got; i++) setTimeout(() => this.sfx.star(i), 250 + i * 180);
-    if (got === 3) confetti();
     this.voice.say(`${title} ${hooks.join(' ')}`);
   }
 
@@ -869,7 +868,6 @@ export class Game {
     const reveal = () => {
       this.showOverlay(card);
       for (let i = 0; i < got; i++) setTimeout(() => this.sfx.star(i), 250 + i * 180);
-      if (got === 3) confetti();
       this.voice.say(`${got === 3 ? 'Kusursuz uçuş!' : 'Görev tamam!'} ${hooks.join(' ')}`);
     };
     // Kurtarma ve terfi sahneleri sonuç kartından önce gelir: büyük ödüller yıldızlardan önce kutlanır.
@@ -886,7 +884,7 @@ export class Game {
     const card = makeCard(`<div class="who"><div class="medal">${svg('i-star')}</div><span class="tag">TERFİ</span></div>
       <h1>${rank}</h1><p>Yeni rütben hayırlı olsun, pilot! Toplam <b>${this.store.total()} yıldız</b> topladın.</p>
       <div class="btns"><button class="btn primary" data-act="ok">Devam${svg('i-play')}</button></div>`, () => { this.sfx.click(); this.voice.stop(); then(); }, 'rescue');
-    this.showOverlay(card); confetti(60); this.sfx.fanfare();
+    this.showOverlay(card); this.sfx.fanfare();
     this.voice.say(`Terfi ettin! Yeni rütben: ${rank}.`);
     return true;
   }
@@ -920,17 +918,27 @@ export class Game {
     return LEVELS[main.index + 1] || null;
   }
 
+  /** Görevi açar; başka bir sektöre geçiliyorsa önce gezegenler arası uçuş oynatılır. */
+  async travel(target) {
+    const from = SECTORS.find((x) => x.id === this.level.sector), to = SECTORS.find((x) => x.id === target.sector);
+    if (from && to && from !== to) {
+      this.voice.stop();
+      await warp({ from, to, look: this.hangar.look(), sfx: this.sfx });
+    }
+    this.open(target);
+  }
+
   /** Sıradaki göreve geçer; araya girecek bir acil durum varsa önce onu haber verir (bir kez). */
   advance(level, next) {
     const mainId = level.extra === 'catal' ? level.after : level.id;
     const alarm = EXTRAS.find((x) => x.extra === 'acil' && x.after === mainId && !this.store.seen(`acil:${x.id}`) && !this.store.stars(x.id));
-    if (!alarm) { this.open(next); return; }
+    if (!alarm) { this.travel(next); return; }
     this.store.markSeen(`acil:${alarm.id}`);
     const card = makeCard(`<div class="who">${robot('alarm')}<span class="tag alarm">${EXTRA_LABEL.acil}</span></div><h1>${alarm.title}</h1><p>${alarm.alarm}</p>
       <p class="fine">Bu bir yan görev. Şimdi gitmezsen rota ekranında seni bekler.</p>
       <div class="btns"><button class="btn" data-act="later">Şimdi değil</button><button class="btn primary" data-act="go">Yardıma git${svg('i-play')}</button></div>`, (act) => {
       this.sfx.click(); this.hideOverlay(); this.voice.stop();
-      this.open(act === 'go' ? alarm : next);
+      this.travel(act === 'go' ? alarm : next);
     }, 'alarm');
     this.showOverlay(card); this.sfx.alarm();
     this.voice.say(`Acil durum! ${alarm.alarm}`);
@@ -951,7 +959,7 @@ export class Game {
     const card = makeCard(`<div class="who">${bot ? miniBot(who.hue) : face(who.hue)}<span class="tag">${bot ? 'GİZLİ GÖREV TAMAM' : 'KURTARMA KAPSÜLÜ BULUNDU'}</span></div>
       <h1>${who.name} gemide!</h1>${body}
       <div class="btns"><button class="btn primary" data-act="ok">Devam${svg('i-play')}</button></div>`, () => { this.sfx.click(); this.voice.stop(); then(); }, 'rescue');
-    this.showOverlay(card); confetti(34); this.sfx.star(2);
+    this.showOverlay(card); this.sfx.star(2);
     this.voice.say(bot ? `${who.name} gemide!` : `${who.name} gemide! ${who.line} ${story.close}`);
     return true;
   }

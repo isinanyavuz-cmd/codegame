@@ -285,9 +285,6 @@ button.node:not(.locked):active { transform: scale(.92); }
 .hooks { margin: 0 auto 18px; padding: 10px 14px; border-radius: 14px; max-width: 430px; background: rgba(255, 213, 61, .08); border: 1px solid rgba(255, 213, 61, .3); }
 .card .hooks p { margin: 0; font-size: 14.5px; line-height: 1.35; color: #ffe9a3; }
 .card .hooks p + p { margin-top: 4px; color: #d7e0ff; }
-.confetti { position: fixed; inset: 0; z-index: 70; pointer-events: none; overflow: hidden; }
-.confetti i { position: absolute; top: -26px; border-radius: 2px; animation: fall linear forwards; }
-@keyframes fall { to { transform: translate(var(--drift), 112vh) rotate(var(--spin)); } }
 .loglist { text-align: left; max-height: 44vh; overflow: auto; margin: 0 0 18px; padding-right: 4px; }
 .loglist h3 { margin: 12px 0 6px; font-size: 12px; font-weight: 800; letter-spacing: .14em; color: #7fd8ff; }
 .loglist h3:first-child { margin-top: 0; }
@@ -623,3 +620,21 @@ button.node:not(.locked):active { transform: scale(.92); }
   .dock button span { white-space: normal; text-align: center; line-height: 1.05; min-height: 2.1em; display: grid; place-items: center; hyphens: manual; }
   .dock button i { right: 6px; }
 }
+
+/* ───────── sektörler arası geçiş (ui/warp.js) ───────── */
+.warp { position: fixed; inset: 0; z-index: 80; overflow: hidden; cursor: pointer; --wr: min(15vw, 15vh, 130px);
+        background: radial-gradient(ellipse at 60% 40%, #1b1f5c 0%, #0a0d2e 55%, #03040f 100%); }
+.warp .streaks { position: absolute; inset: 0; }
+.warp .streaks b { position: absolute; height: 2px; border-radius: 2px; transform: rotate(-38deg); transform-origin: 0 50%;
+                   background: linear-gradient(90deg, rgba(160, 225, 255, 0), rgba(200, 240, 255, .9)); animation: streak linear infinite; }
+@keyframes streak { from { translate: 30vw -24vh; opacity: 0; } 30% { opacity: 1; } to { translate: -40vw 32vh; opacity: 0; } }
+.warp .planet { z-index: 1; }
+.warp .wfrom { left: 22%; top: 76%; --wr: min(22vw, 22vh, 190px); }
+.warp .wto { left: 74%; top: 28%; }
+.warp .wship { position: absolute; z-index: 3; width: 64px; height: 64px; filter: drop-shadow(0 0 12px rgba(94, 242, 255, .95)); }
+.warp .wship svg { width: 100%; height: 100%; }
+.warp .wship .flame { transform-box: fill-box; transform-origin: 50% 0; animation: flick .12s infinite alternate; }
+.warp .wtitle { position: absolute; left: 50%; bottom: 12%; z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.warp .wtitle small { font-size: 13px; font-weight: 800; letter-spacing: .2em; color: #7fd8ff; }
+.warp .wtitle b { font-size: 38px; font-weight: 800; color: #fff; text-shadow: 0 0 24px rgba(90, 220, 255, .7); }
+.warp .wflash { position: absolute; inset: 0; z-index: 5; background: radial-gradient(circle, #fff, #cfefff 60%, #8fd8ff); opacity: 0; pointer-events: none; }

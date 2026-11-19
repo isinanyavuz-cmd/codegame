@@ -869,7 +869,6 @@ export class View {
     this.hideTarget();
     await this.tween(700, (k) => { if (gen === this.gen) { this.lightGate(k); this.thrust = 1.2; } }, false);
     if (gen !== this.gen) return;
-    this.flash(1.4, 500);
     await this.tween(1300, (k) => {
       if (gen !== this.gen) return;
       const e = ease(k);
@@ -879,7 +878,6 @@ export class View {
     if (gen !== this.gen) return;
     this.ship.visible = false; this.thrust = 1;
     for (const sx of [-1, 0, 1]) this.burst(new THREE.Vector3(door.x + sx * 1.6, 0.8, door.z + 0.3), { color: 0x9ff3ff, n: 34, speed: 4, life: 1, size: 0.4, up: 0.9 });
-    this.flash(1.9, 700);
     await this.tween(500, () => {}, false);
   }
 
@@ -888,7 +886,7 @@ export class View {
     if (dock && this.gate) return this.dock();
     const a = this.ship.position.clone(), b = a.clone(), gen = this.gen; b.z -= 7;
     this.hideTarget();
-    // Sıçrama: çıkış çizgisi boyunca kıvılcımlar, ileri fırlayan ışık çizgileri ve kısa bir parlama.
+    // Sıçrama: çıkış çizgisi boyunca kıvılcımlar ve ileri fırlayan ışık çizgileri (ekran parlaması yok).
     const zExit = this.gz(this.field.rows - 0.5), half = (this.field.lanes * C) / 2;
     for (let l = 0; l < this.field.lanes; l++) this.burst(new THREE.Vector3(this.gx(l), 0.3, zExit), { color: l % 2 ? this.theme.grid[1] : GREEN, n: 20, speed: 4.5, life: 0.85, size: 0.36, up: 0.5 });
     const lines = [];
@@ -896,7 +894,6 @@ export class View {
       const x = (Math.random() * 2 - 1) * (half + 2.5), len = 2.5 + Math.random() * 4, mat = glow(bright(0xbfefff, 1.8), 0.9);
       lines.push({ m: strip(this.scene, x, zExit + 1.5 + Math.random() * 4, x, zExit + 1.5 - len, 0.045, mat, 0.2 + Math.random() * 0.8), mat, v: 16 + Math.random() * 16 });
     }
-    this.flash(1.7, 520);
     await this.tween(600, (k) => {
       if (gen !== this.gen) return;
       this.ship.position.lerpVectors(a, b, k * (0.45 + 0.55 * k));
