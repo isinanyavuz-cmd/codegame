@@ -859,8 +859,8 @@ export class Game {
         ${next ? `<button class="btn primary" data-act="next">${nextLabel}${svg('i-play')}</button>` : ''}
       </div>`, (act) => {
       this.sfx.click(); this.hideOverlay();
-      // Tamam: kart kapanır, görev ekranında kalınır; sıradaki göreve panelin düğmesiyle geçilir.
-      if (act === 'ok') { this.voice.stop(); this.showNext(next && { level, next, label: nextLabel }); }
+      // Tamam: kart kapanır, gemi ilk dalganın başına döner; sıradaki göreve panelin düğmesiyle geçilir.
+      if (act === 'ok') { this.voice.stop(); this.showWave(0); this.showNext(next && { level, next, label: nextLabel }); }
       else if (act === 'watch') this.replay(card);
       else if (act === 'again') this.showWave(0);
       else if (act === 'map') this.close();
