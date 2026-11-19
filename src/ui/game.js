@@ -320,7 +320,10 @@ export class Game {
     this.renderWaves(); this.tune();
   }
 
-  setSpeed(v) { this.speed = v; this.view.speed = v; this.store.speed = v; $('speedLab').textContent = v === 0.5 ? '½×' : `${v}×`; }
+  setSpeed(v) {
+    this.speed = v; this.view.speed = v; this.store.speed = v; $('speedLab').textContent = v === 0.5 ? '½×' : `${v}×`;
+    if (v >= 2) this.view.hideTarget();
+  }
   cycleSpeed() { this.sfx.click(); this.setSpeed(SPEEDS[(SPEEDS.indexOf(this.speed) + 1) % SPEEDS.length]); }
 
   onRun() {
@@ -467,7 +470,8 @@ export class Game {
       if (ev.t === 'shield') { this.flight.shielded = ev.shielded; this.flight.message = 'Kalkan hazır'; view.setShield(ev.shielded); sfx.shield(); }
       if (ev.t === 'call') this.flight.message = `${FUNCTIONS[ev.name].label}${ev.arg === undefined ? '' : ` (${ev.arg})`} çağrılıyor`;
       this.renderTelemetry();
-      await view.wait(130);
+      // 2× hızda bilgi adımları gemiyi bekletmez: uçuş kesintisiz akar.
+      if (this.speed < 2) await view.wait(130);
       return !alive();
     }
     if (ev.t === 'fire') {
@@ -1026,7 +1030,8 @@ export class Game {
 
   /** Sarı silüeti verilen hareketin hedef karesine koyar; hedef yoksa ya da çıkışın ötesindeyse gizler. */
   showTarget(ev) {
-    if (ev && !ev.exit) this.view.showTarget(ev.to); else this.view.hideTarget();
+    // 2× hızda silüet gösterilmez: gemi durmadan akar, önünde adım işareti olmaz.
+    if (ev && !ev.exit && this.speed < 2) this.view.showTarget(ev.to); else this.view.hideTarget();
   }
 
   /**
