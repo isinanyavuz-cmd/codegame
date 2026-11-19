@@ -8,6 +8,9 @@ const glass = new THREE.MeshStandardMaterial({ color: 0x0c2f55, roughness: 0.08,
 const bright = (hex, k) => new THREE.Color(hex).multiplyScalar(k);
 const additive = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false });
 
+let haloTexture = null;
+const haloTex = () => (haloTexture ??= glowTexture());
+
 function wingShape(pts, mirror) {
   const s = new THREE.Shape();
   const p = mirror ? pts.map(([x, y]) => [-x, y]).reverse() : pts;
@@ -34,7 +37,7 @@ export function buildShip(ghostMat = null) {
   const WING = [[0.13, 0.3], [0.98, -0.46], [0.98, -0.66], [0.52, -0.6], [0.13, -0.56]];
   const TIP = [[0.64, -0.16], [0.98, -0.46], [0.98, -0.66], [0.74, -0.63]];
   // Hangardaki biçim seçimi için: kanatlar, kanada bağlı parçalar ve alev malzemeleri (bkz. styleShip).
-  const flames = [], wings = [], span = [], flameMats = [];
+  const flames = [], wings = [], span = [], flameMats = [], halos = [];
   for (const mir of [false, true]) {
     const s = mir ? -1 : 1;
     for (const w of [slab(wingShape(WING, mir), 0.06, H), slab(wingShape(TIP, mir), 0.085, A)]) { g.add(w); wings.push(w); }
@@ -53,6 +56,9 @@ export function buildShip(ghostMat = null) {
     const inner = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.6, 12, 1, true), additive(bright(0xffffff, 2.5), 0.9));
     inner.rotation.x = Math.PI / 2; inner.position.z = 0.3; flame.add(inner);
     g.add(flame); flames.push(flame);
+    // Parlama efekti kapalıyken (düşük kalite) alevin çevresine konan yumuşak ışık; açıkken gizlenir.
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex(), color: 0x49c8ff, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
+    halo.position.set(s * 0.25, 0.02, 0.95); halo.scale.set(1.1, 1.1, 1); halo.visible = false; g.add(halo); halos.push(halo);
     const tip = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), new THREE.MeshBasicMaterial({ color: bright(s > 0 ? 0x37e39a : 0xff4d6a, 3) }));
     tip.position.set(s * 0.98, 0.03, -0.56); g.add(tip); span.push({ o: tip, x: s * 0.98 });
   }
@@ -60,7 +66,7 @@ export function buildShip(ghostMat = null) {
   can.scale.set(0.115, 0.1, 0.3); can.position.set(0, 0.105, -0.28); g.add(can);
   const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.02, 0.5), A);
   stripe.position.set(0, 0.145, 0.25); g.add(stripe);
-  Object.assign(g.userData, { flames, wings, span, flameMats, fus });
+  Object.assign(g.userData, { flames, wings, span, flameMats, halos, fus });
   return g;
 }
 
@@ -72,6 +78,7 @@ export function styleShip(ship, look) {
   const u = ship.userData;
   if (u.flameMats.length) { hull.color.set(look.hull.color); accent.color.set(look.accent.color); }
   for (const m of u.flameMats) m.color.copy(bright(look.flame.color, 1.6));
+  for (const h of u.halos) h.material.color.set(look.flame.color);
   for (const w of u.wings) w.scale.x = look.shape.wing;
   for (const p of u.span) p.o.position.x = p.x * look.shape.wing;
   u.fus.scale.y = look.shape.nose;

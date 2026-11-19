@@ -124,6 +124,8 @@ export class View {
       this.composer.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(W, H), 0.55, 0.55, 0.9));
       this.composer.addPass(new THREE.OutputPass());
     } catch (e) { this.composer = null; }
+    // Parlama yoksa alevler düz koni gibi kalmasın: yedek ışık haleleri açılır.
+    for (const h of this.ship.userData.halos) h.visible = !this.composer;
     this.fit();
   }
 
